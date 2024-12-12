@@ -23,7 +23,7 @@ class DROParameters:
         self.x_dim = x_dim # number of resources
         self.R = R # resource budget
         self.epsilon = epsilon # radius of ambiguity set
-        self.num_balls = num_balls # number of balls
+        self.num_balls = num_ball # number of balls
         self.ball_weights = ball_weights # weights for each ball
         self.ball_centres = ball_centres # centres for each ball
         # Store fixed parameters
@@ -184,157 +184,107 @@ class DROSolver:
         return self.ball_centers
     
     
-    def solve_max_problem(self, x_current, weights_current, dro_params, max_iter_fw=1, u_current=None, v_current=None):
-        """Solve the maximization problem using Frank-Wolfe with efficient projections"""
+    def solve_max_problem(self, x_current, weights_current, dro_params, max_iter_fw=1, y_current=None):
+        """
+        Solve the maximization problem using Frank-Wolfe algorithm.
         
-        def project_onto_constraints(u, v):
-            """
-            Project (u,v) onto the feasible set defined by:
-            - Non-negativity: u,v >= 0
-            - Bound constraints: u + v <= bounds
-            - Weighted sum constraint: sum(weights_k^2 * (u_k + v_k)) = epsilon
-            """
-            # Define decision variables for projection
-            u_proj = cp.Variable(u.shape)
-            v_proj = cp.Variable(v.shape)
-            
-            # Objective: minimize the distance to the original (u, v)
-            objective = cp.Minimize(cp.sum_squares(u_proj - u) + cp.sum_squares(v_proj - v))
-            
-            # Constraints
-            constraints = [
-                u_proj >= 0,
-                v_proj >= 0
-            ]
-            
-            # Hyperrectangle constraints: 0 <= s_u + s_v <= bounds
-            for i in range(dro_params.x_dim):
-                constraints.append(u_proj[:, i] + v_proj[:, i] <= self.bounds[i, 1])
-            
-            # Weighted sum constraint
-            weights_squared = np.sqrt(weights_current)
-            weighted_sum = cp.sum(cp.multiply(weights_squared.reshape(-1, 1), u_proj + v_proj))
-            constraints.append(weighted_sum == dro_params.epsilon)
-            
-            # Solve the quadratic program
-            problem = cp.Problem(objective, constraints)
-            try:
-                problem.solve(solver=cp.SCS)  # You can choose another solver if needed
-                
-                if problem.status != cp.OPTIMAL:
-                    raise ValueError(f"Projection problem failed to solve optimally. Status: {problem.status}")
-                
-                return u_proj.value, v_proj.value
-                
-            except cp.error.SolverError:
-                print("Warning: Projection failed. Returning input values.")
-                return u, v
+        Args:
+            x_current: Current resource allocation
+            weights_current: Current ball weights
+            dro_params: Problem parameters
+            max_iter_fw: Number of Frank-Wolfe iterations
+            y_current: Current perturbation (warm start) = u_current + v_current
+        """
         
-        def compute_gradients(u, v):
-            """Compute gradients for the max problem objective with respect to u and v"""
-            grad_u = np.zeros_like(u)
-            grad_v = np.zeros_like(v)
+        def compute_gradient(y):
+            """Compute gradient of the objective with respect to y"""
+            grad = np.zeros_like(y)
             
             for i in range(dro_params.x_dim):
                 for k in range(self.num_balls):
                     # Current perturbed center for ball k
-                    perturbed_center = dro_params.ball_centres[k] + u[k] + v[k]
-
-                    # Gradient components
-                    grad_u[k,i] = weights_current[k] * (
-                        2 * dro_params.c[i] * x_current[i] * 
-                        (perturbed_center[i] * x_current[i] - 1) -
-                        2 * dro_params.d[i] * perturbed_center[i]
-                    )
-                    grad_v[k,i] = grad_u[k,i]  # Same gradient for v
+                    perturbed_center_ki = dro_params.ball_centres[k, i] + y[k, i]
                     
-            return grad_u, grad_v
+                    # Gradient component
+                    grad[k, i] = weights_current[k] * (
+                        2 * dro_params.c[i] * x_current[i] * 
+                        (perturbed_center_ki * x_current[i] - 1) -
+                        2 * dro_params.d[i] * perturbed_center_ki
+                    )
+            return grad
         
-        def linear_oracle(grad_u, grad_v, weights_current, dro_params):
+        def linear_oracle(grad):
             """
-            Solve the linear optimization subproblem for Frank-Wolfe:
-            min_{s_u,s_v} <grad_u,s_u> + <grad_v,s_v>
-            subject to:
-                sum_{k,i} weights_k^2*(s_u_k_i + s_v_k_i) = epsilon*Delta
-                0 <= s_u_k_i + s_v_k_i <= bounds[:,1]
-                s_u_k_i, s_v_k_i >= 0
-            
-            Returns:
-                tuple: (s_u, s_v) optimal vertex of the feasible set
+            Solve the linear minimization problem over the feasible set:
+            min_s <grad, s> 
+            s.t. sum(weights_k * ||s_k||_2^2) <= epsilon
+                 ball_centres + s in hyperrectangle
             """
             # Decision variables
-            s_u = cp.Variable((self.num_balls, dro_params.x_dim))
-            s_v = cp.Variable((self.num_balls, dro_params.x_dim))
+            s = cp.Variable((self.num_balls, dro_params.x_dim))
             
-            # Objective: minimize inner product with gradients
-            objective = cp.sum(cp.multiply(grad_u, s_u) + cp.multiply(grad_v, s_v))
+            # Objective: maximize inner product with gradient
+            objective = cp.Maximize(cp.sum(cp.multiply(grad, s)))
             
             # Constraints
             constraints = []
             
-            # Non-negativity constraints
-            constraints.append(s_u >= 0)
-            constraints.append(s_v >= 0)
+            # Weighted sum of squared norms constraint
+            weighted_norms = cp.sum([
+                weights_current[k] * cp.norm(s[k, :], 2)**2 
+                for k in range(self.num_balls)
+            ])
+            constraints.append(weighted_norms <= dro_params.epsilon)
             
-            # Hyperrectangle constraints: 0 <= s_u + s_v <= bounds
-            for i in range(dro_params.x_dim):
-                constraints.append(s_u[:, i] + s_v[:, i] <= self.bounds[i, 1])
+            # Hyperrectangle constraints for perturbed centers
+            for k in range(self.num_balls):
+                for i in range(dro_params.x_dim):
+                    constraints.append(
+                        dro_params.ball_centres[k, i] + s[k, i] >= self.bounds[i, 0]
+                    )
+                    constraints.append(
+                        dro_params.ball_centres[k, i] + s[k, i] <= self.bounds[i, 1]
+                    )
             
-            # Weighted sum constraint
-            weights_squared = weights_current**2
-            weighted_sum = cp.sum(cp.multiply(weights_squared.reshape(-1, 1), s_u + s_v))
-            constraints.append(weighted_sum == dro_params.epsilon)
-            
-            # Solve the linear program
-            problem = cp.Problem(cp.Minimize(objective), constraints)
+            # Solve the problem
+            problem = cp.Problem(objective, constraints)
             try:
-                problem.solve(solver=cp.MOSEK)  # or another LP solver
+                problem.solve(solver=cp.MOSEK)  # or another suitable solver
                 
                 if problem.status != cp.OPTIMAL:
                     raise ValueError(f"Linear oracle failed to solve optimally. Status: {problem.status}")
                 
-                return s_u.value, s_v.value
+                return s.value
                 
             except cp.error.SolverError:
-                print("Warning: Solver failed. Returning zeros.")
-                return np.zeros_like(grad_u), np.zeros_like(grad_v)
-       
-        # Initialize if not provided
-        if u_current is None:
-            u_current = np.zeros((self.num_balls, dro_params.x_dim))
-        if v_current is None:
-            v_current = np.zeros((self.num_balls, dro_params.x_dim))
+                print("Warning: Linear oracle solver failed.")
+                return np.zeros_like(grad)
         
+        # Frank-Wolfe iterations
         for t in range(max_iter_fw):
-            # Compute gradients
-            grad_u, grad_v = compute_gradients(u_current, v_current)
+            # Compute gradient at current point
+            grad = compute_gradient(y_current)
             
-            # Get feasible descent direction using linear oracle
-            s_u, s_v = linear_oracle(
-                -grad_u,  # Negative because we're maximizing
-                -grad_v,
-                weights_current,
-                dro_params
-            )
+            # Get descent direction by solving linear oracle
+            s = linear_oracle(-grad)  # Negative because we're maximizing
             
-            # Update with step size
-            gamma = 0.5
-            u_next = u_current + gamma * (s_u - u_current)
-            v_next = v_current + gamma * (s_v - v_current)
+            # Fixed step size
+            gamma = 0.5  
             
-            # Project to ensure feasibility
-            u_next, v_next = project_onto_constraints(u_next, v_next)
+            # Update
+            y_next = y_current + gamma * (s - y_current)
             
-            u_current, v_current = u_next, v_next
-        
-        return u_current, v_current
+            # Update current point
+            y_current = y_next
 
+    
+        return y_next
 
-    def solve_min_problem_gd(self, u_prev, v_prev, weights_current, dro_params, max_iter=1, learning_rate=0.01, tol=1e-6, x_current=None):
+    def solve_min_problem_gd(self, y_prev, weights_current, dro_params, max_iter=1, learning_rate=0.01, tol=1e-6, x_current=None):
         """Solve the minimization problem using gradient descent."""
         # Compute perturbed centers
         perturbed_centers = np.array([
-            dro_params.ball_centres[k] + u_prev[k] + v_prev[k]
+            dro_params.ball_centres[k] + y_prev[k]
             for k in range(self.num_balls)
         ])
         
@@ -621,87 +571,8 @@ class DROSolver:
         samples = np.clip(samples, self.bounds[:,0], self.bounds[:,1])
         return samples
 
-    def solve_max_problem_exact(self, x_current, weights_current, dro_params):
-        """
-        Solve the maximization problem exactly using CVXPY.
-        
-        Args:
-            x_current (np.array): Current resource allocation
-            weights_current (np.array): Current ball weights
-            dro_params (DROParameters): Problem parameters
-            
-        Returns:
-            tuple: (u_opt, v_opt) optimal perturbation vectors
-        """
-        # Decision variables
-        y = cp.Variable((self.num_balls, dro_params.x_dim))
-        
-        # Build objective function
-        obj_terms = []
-        for i in range(dro_params.x_dim):
-            for k in range(self.num_balls):
-                # Perturbed center for ball k
-                perturbed_center_ki = dro_params.ball_centres[k, i] + y[k, i]
-                
-                # Add weighted objective terms
-                obj_terms.append(
-                    weights_current[k] * (
-                        dro_params.a[i] * (x_current[i] - dro_params.b[i])**2 + 
-                        dro_params.c[i] * perturbed_center_ki * (x_current[i] - 1)**2 - 
-                        dro_params.d[i] * perturbed_center_ki**2
-                    )
-                )
-        
-        # Maximize the sum of objective terms
-        objective = cp.Maximize(cp.sum(obj_terms))
-        
-        # Constraints
-        constraints = []
-        
-        # Hyperrectangle constraints for perturbed centers
-        for k in range(self.num_balls):
-            for i in range(dro_params.x_dim):
-                constraints.append(dro_params.ball_centres[k, i] + y[k, i] >= self.bounds[i, 0])
-                constraints.append(dro_params.ball_centres[k, i] + y[k, i] <= self.bounds[i, 1])
-        
-        # Weighted sum of squared norms constraint
-        weighted_norms = cp.sum([
-            weights_current[k] * cp.norm(y[k, :], 2)**2 
-            for k in range(self.num_balls)
-        ])
-        constraints.append(weighted_norms <= dro_params.epsilon)
-        
-        # Solve the problem
-        problem = cp.Problem(objective, constraints)
-        try:
-            problem.solve()  # or another suitable solver
-        
-            if problem.status != cp.OPTIMAL:
-                raise ValueError(f"Max problem failed to solve optimally. Status: {problem.status}")
-            
-            # Split y into u and v for compatibility with rest of code
-            y_val = y.value
-            u_val = np.maximum(y_val, 0)
-            v_val = np.maximum(-y_val, 0)
-            return u_val, v_val
-            
-        except cp.error.SolverError:
-            print("Warning: Max problem solver failed.")
-            return np.zeros((self.num_balls, dro_params.x_dim)), np.zeros((self.num_balls, dro_params.x_dim))
+    def solve_min_problem_exact(self, y_current, weights_current, dro_params):
 
-    def solve_min_problem_exact(self, y_current,weights_current, dro_params):
-        """
-        Solve the minimization problem exactly using CVXPY.
-        
-        Args:
-            u_current (np.array): Current u perturbation
-            v_current (np.array): Current v perturbation
-            weights_current (np.array): Current ball weights
-            dro_params (DROParameters): Problem parameters
-            
-        Returns:
-            tuple: (x_opt, obj_value) optimal allocation and objective value
-        """
         # Compute perturbed centers
         perturbed_centers = np.array([
             dro_params.ball_centres[k] + y_current[k]
@@ -711,98 +582,276 @@ class DROSolver:
         # Decision variable
         x = cp.Variable(dro_params.x_dim)
         
-        # Build objective function
+        # Build objective function - reformulated to be DCP compliant
         obj_terms = []
         for i in range(dro_params.x_dim):
-            # Resource allocation cost
-            obj_terms.append(
-                cp.sum([
-                    weights_current[k] * (
-                        dro_params.a[i] * (x[i] - dro_params.b[i])**2 + 
-                        dro_params.c[i] * perturbed_centers[k,i] * (x[i] - 1)**2 - 
-                        dro_params.d[i] * perturbed_centers[k,i]**2
-                    )
-                    for k in range(self.num_balls)
-                ])
-            )
+            resource_terms = []
+            for k in range(self.num_balls):
+                # Split the quadratic terms to ensure DCP compliance
+                allocation_cost = dro_params.a[i] * cp.power(x[i] - dro_params.b[i], 2)
+                service_cost = dro_params.c[i] * cp.power(x[i], 2) * cp.power(perturbed_centers[k,i], 2)
+                linear_term = -2 * dro_params.c[i] * perturbed_centers[k,i] * x[i]
+                constant_term = dro_params.c[i] - dro_params.d[i] * cp.power(perturbed_centers[k,i], 2)
+                
+                resource_terms.append(
+                    weights_current[k] * (allocation_cost + service_cost + linear_term + constant_term)
+                )
+            obj_terms.extend(resource_terms)
         
         # Minimize the sum of costs
         objective = cp.Minimize(cp.sum(obj_terms))
         
         # Constraints
         constraints = [
-            x >= 0,  # Non-negativityI
+            x >= 0,  # Non-negativity
             cp.sum(x) <= dro_params.R  # Resource budget
         ]
         
         # Solve the problem
         problem = cp.Problem(objective, constraints)
         try:
-            problem.solve()  # or another suitable solver
+            problem.solve() 
             
             if problem.status != cp.OPTIMAL:
                 raise ValueError(f"Min problem failed to solve optimally. Status: {problem.status}")
             
             return x.value, problem.value
-            
+        
         except cp.error.SolverError:
             print("Warning: Min problem solver failed.")
             return np.zeros(dro_params.x_dim), np.inf
 
+    
+
+    def compute_saa_solution(self, num_samples=1000, seed=42):
+        """
+        Compute the Sample Average Approximation (SAA) solution using a large number of samples.
+        This serves as an approximation of the true stochastic optimization solution.
+        
+        Args:
+            num_samples (int): Number of samples to use for SAA 
+            seed (int): Random seed for reproducibility
+            
+        Returns:
+            tuple: (x_saa, obj_value)
+                - x_saa: Optimal resource allocation
+                - obj_value: Optimal objective value
+        """
+        # Set random seed for reproducibility
+        np.random.seed(seed)
+        
+        # Generate samples from true distribution
+        samples = self.sample_from_mixture(size=num_samples)
+        samples = np.clip(samples, self.bounds[:,0], self.bounds[:,1])
+        
+        # Define decision variables
+        x = cp.Variable(self.d)
+        
+        # Compute average cost over all samples
+        total_cost = 0
+        for i in range(self.d):  # For each resource
+            sample_costs = 0
+            for sample in samples:
+                # Cost for current sample and resource
+                sample_costs += (1/num_samples) * (
+                    dro_params.a[i] * (x[i] - dro_params.b[i])**2 + 
+                    dro_params.c[i] * (sample[i] * x[i] - 1)**2 - 
+                    dro_params.d[i] * sample[i]**2
+                )
+            total_cost += sample_costs
+        
+        # Define constraints
+        constraints = [
+            cp.sum(x) <= dro_params.R,  # Total resource constraint
+            x >= 0  # Non-negativity
+        ]
+        
+        # Define and solve the problem
+        problem = cp.Problem(cp.Minimize(total_cost), constraints)
+        try:
+            problem.solve(solver=cp.MOSEK)  # or another suitable solver
+            
+            if problem.status != cp.OPTIMAL:
+                raise ValueError(f"SAA problem failed to solve optimally. Status: {problem.status}")
+            
+            return x.value, problem.value
+            
+        except cp.error.SolverError:
+            print("Warning: SAA solver failed.")
+            return None, None
+
+    def compute_cumulative_regret(self, history, dro_params, online_samples, num_eval_samples=1000, seed=42):
+        """
+        Compute cumulative regret by comparing online decisions against optimal DRO solution in hindsight.
+        At each time t, use the same samples that were available to the online policy.
+        
+        Args:
+            history (dict): History of online decisions and parameters
+            dro_params (DROParameters): Problem parameters
+            online_samples (np.array): Array of observed samples
+            num_eval_samples (int): Number of samples to use for SAA evaluation
+            seed (int): Random seed for reproducibility
+        """
+        T = len(online_samples)  # Number of timesteps
+        regret = np.zeros(T)  # Instantaneous regret at each timestep
+        cumulative_regret = np.zeros(T)  # Cumulative regret up to each timestep
+        optimal_hindsight_solutions = []
+        
+        # Generate evaluation samples from true distribution for cost computation
+        np.random.seed(seed)
+        eval_samples = self.sample_from_mixture(size=num_eval_samples)
+        eval_samples = np.clip(eval_samples, self.bounds[:,0], self.bounds[:,1])
+        
+        def evaluate_expected_cost(x):
+            """Compute expected cost under true distribution using SAA"""
+            total_cost = 0
+            for sample in eval_samples:
+                cost = 0
+                for i in range(self.d):
+                    cost += (
+                        dro_params.a[i] * (x[i] - dro_params.b[i])**2 + 
+                        dro_params.c[i] * (sample[i] * x[i] - 1)**2 - 
+                        dro_params.d[i] * sample[i]**2
+                    )
+                total_cost += cost / num_eval_samples
+            return total_cost
+        
+        # For each timestep t
+        for t in range(T):
+            # Use the same weights and epsilon that were used by online policy at time t
+            weights = history['weights'][t]
+            epsilon = history['epsilon'][t]
+            
+            # Create DRO parameters using historical values
+            dro_params_t = DROParameters(
+                self.d, 
+                self.num_balls, 
+                dro_params.R,
+                {i: {'a_i': dro_params.a[i], 
+                     'b_i': dro_params.b[i], 
+                     'c_i': dro_params.c[i], 
+                     'd_i': dro_params.d[i]} for i in range(self.d)},
+                epsilon=epsilon,
+                ball_weights=weights,
+                ball_centres=dro_params.ball_centres
+            )
+            
+            # Get optimal solution in hindsight at time t
+            x_opt, _ = self.solve_min_problem_exact(
+                np.zeros((self.num_balls, self.d)),  # Initial y
+                weights,
+                dro_params_t
+            )
+            
+            optimal_hindsight_solutions.append(x_opt)
+            
+            # Compute instantaneous regret at time t using true distribution
+            online_cost = evaluate_expected_cost(history['x'][t])
+            optimal_cost = evaluate_expected_cost(x_opt)
+            regret[t] = online_cost - optimal_cost
+            
+            # Update cumulative regret
+            if t == 0:
+                cumulative_regret[t] = regret[t]
+            else:
+                cumulative_regret[t] = cumulative_regret[t-1] + regret[t]
+        
+        return cumulative_regret, optimal_hindsight_solutions, regret
+
+    def plot_regret_analysis(self, cumulative_regret, optimal_hindsight_solutions, instantaneous_regret, history):
+        """Plot regret analysis results."""
+        plt.figure(figsize=(15, 5))
+        
+        # Plot 1: Cumulative Regret
+        plt.subplot(121)
+        T = len(cumulative_regret)
+        t_range = np.arange(1, T+1)
+        
+        # Plot actual cumulative regret
+        plt.plot(t_range, cumulative_regret, 'b-', label='Actual Cumulative Regret')
+        
+        # Plot theoretical bound (sum of 1/sqrt(t))
+        theoretical_cumulative = np.cumsum(1/np.sqrt(t_range))
+        plt.plot(t_range, theoretical_cumulative, 'r--', 
+                 label='Theoretical O(Σ 1/√t)')
+        
+        plt.xlabel('Timestep (t)')
+        plt.ylabel('Cumulative Regret')
+        plt.title('Cumulative Regret Analysis')
+        plt.grid(True)
+        plt.legend()
+        
+        # Plot 2: Instantaneous Regret
+        plt.subplot(122)
+        plt.plot(t_range, instantaneous_regret, 'g-', label='Instantaneous Regret')
+        
+        # Plot theoretical bound (1/sqrt(t))
+        theoretical_instant = 1/np.sqrt(t_range)
+        plt.plot(t_range, theoretical_instant, 'r--', 
+                 label='Theoretical O(1/√t)')
+        
+        plt.xlabel('Timestep (t)')
+        plt.ylabel('Instantaneous Regret')
+        plt.title('Instantaneous Regret Evolution')
+        plt.grid(True)
+        plt.legend()
+        
+        plt.tight_layout()
+        plt.show()
+
 # Example usage
 if __name__ == "__main__":
     # Algorithm selection flag
-    use_exact_solver = True  # Set to False to use gradient-based methods
-    
+    use_exact_solver = False  # Set to False to use gradient-based methods
+
+    # Set random seed for reproducibility
+    simulation_seed = 1111  # Change this value to get different random sequences
+    np.random.seed(simulation_seed)
+
     # Set up uncertainty set and covering
     bounds = np.array([[-1, 1], [-1, 1]])
     num_balls = 4
     x_dim = 2
     solver = DROSolver(bounds, num_balls, x_dim)    
-    
+
     # Preprocessing: Get the ball centers and radius
     solver.generate_ball_covering()  # This will set both ball_centers and radius
     print(f"Optimal ball radius: {solver.radius}")
     print(f"Ball centers:\n{solver.ball_centers}")
-    
+
     # Initial problem parameters
     R = 5
-    T = 10  # Number of timesteps
-    
-    # Distribution parameters for sampling
-    mu = np.zeros(x_dim)  # Mean of underlying normal distribution
-    sigma = 0.05*np.eye(x_dim)  # Covariance of underlying normal distribution
-    
+    T = 5000  # Number of timesteps
+
     # Initial sample size and DRO parameters
     N = 10  # initial number of samples
     diam = 2*np.sqrt(x_dim)
     C = 1/np.sqrt(2)*3
     beta = 0.1
-    
-    # Generate initial samples and weights
-    samples, weights = solver.generate_data_and_weights(N, seed=42)
+
+    # Generate initial samples and weights with seed
+    samples, weights = solver.generate_data_and_weights(N, seed=simulation_seed)
     
     # Initial radius computation
     radius_init = diam*(C/N + np.sqrt((2*np.log(1/beta)))*1/np.sqrt(N))
     initial_epsilon = radius_init + solver.radius  # Use solver.radius instead of ball_radius
-    
+
     # Fixed parameters for each resource
     fixed_params = {
         0: {'a_i': 1.0, 'b_i': 2.0, 'c_i': 0.5, 'q_i': 0.3, 'd_i': 0.8},
         1: {'a_i': 1.2, 'b_i': 1.5, 'c_i': 0.6, 'q_i': 0.4, 'd_i': 0.7},
     }
-    
+
     # Create DRO parameters object
     dro_params = DROParameters(x_dim, num_balls, R, fixed_params, 
                              epsilon=initial_epsilon,
                              ball_weights=weights,
-                             ball_centres=solver.ball_centers)  # Use solver.ball_centers
-    
+                             ball_centres=solver.ball_centers)
+
     # Initialize solutions
     x_current = np.zeros(x_dim)
-    u_current = np.ones((num_balls, x_dim)) / x_dim
-    v_current = np.ones((num_balls, x_dim)) / x_dim
-    
+    y_current = np.zeros((num_balls, x_dim))
+
     # History for analysis
     history = {
         'x': [],
@@ -813,10 +862,10 @@ if __name__ == "__main__":
 
     # Plot initial configuration
     solver.visualize_samples_and_covering(samples, online_samples=None)
-    
+
     # Main iteration loop
-    online_samples = []  # Store online samples
-    
+    online_samples = []  # Initialize as list
+
     print(f"Running with {'exact' if use_exact_solver else 'gradient-based'} solver")
 
     for t in range(T):
@@ -824,41 +873,39 @@ if __name__ == "__main__":
         
         if use_exact_solver:
             # Use exact solvers
-            u_next, v_next = solver.solve_max_problem_exact(
+            y_next = solver.solve_max_problem_exact(
                 x_current,
                 weights,
                 dro_params
             )
             
             x_next, min_obj = solver.solve_min_problem_exact(
-                u_next + v_next,
+                y_next,
                 weights,
                 dro_params
             )
         else:
             # Use gradient-based methods
-            u_next, v_next = solver.solve_max_problem(
+            y_next = solver.solve_max_problem(
                 x_current,
                 weights,
                 dro_params,
-                max_iter_fw=10,  # Increase iterations for better convergence
-                u_current=u_current,
-                v_current=v_current
+                max_iter_fw=1,
+                y_current=y_current
             )
             
             x_next, min_obj = solver.solve_min_problem_gd(
-                u_next,
-                v_next,
+                y_next,
                 weights,
                 dro_params,
-                max_iter=50,  # Increase iterations for better convergence
-                x_init=x_current
+                max_iter=1,
+                x_current=x_current
             )
         
         # Rest of the loop remains the same
         new_sample = solver.sample_from_mixture(size=1)
         new_sample = np.clip(new_sample, bounds[:,0], bounds[:,1])
-        online_samples.append(new_sample.flatten())
+        online_samples.append(new_sample.flatten())  # Append to list
         
         N += 1
         weights, new_radius = solver.update_weights_with_new_sample(
@@ -870,8 +917,7 @@ if __name__ == "__main__":
         dro_params.update_ball_weights(weights)
         
         x_current = x_next
-        u_current = u_next
-        v_current = v_next
+        y_current = y_next
         
         history['x'].append(x_current)
         history['obj_values'].append(min_obj)
@@ -881,17 +927,14 @@ if __name__ == "__main__":
         print(f"Current allocation: {x_current}")
         print(f"Current epsilon: {new_epsilon}")
         print(f"Weight sum: {np.sum(weights)}")
-    
-    # Convert online samples to numpy array
-    online_samples = np.array(online_samples)
 
-    # Create visualizations
-    solver.visualize_samples_and_covering(samples, online_samples)
+    # After all iterations complete, create visualizations
+    solver.visualize_samples_and_covering(samples, np.array(online_samples))
 
-    # Original results plotting
-    plt.figure(figsize=(15, 4))  # Made wider to accommodate new plot
+    # Results plotting
+    plt.figure(figsize=(15, 4))
 
-    plt.subplot(141)  # Changed to 4 subplots
+    plt.subplot(141)
     plt.plot([x[0] for x in history['x']], label='Resource 1')
     plt.plot([x[1] for x in history['x']], label='Resource 2')
     plt.xlabel('Timestep')
@@ -908,7 +951,7 @@ if __name__ == "__main__":
     plt.xlabel('Timestep')
     plt.ylabel('Ball Weights')
 
-    plt.subplot(144)  # New subplot for objective values
+    plt.subplot(144)
     plt.plot(history['obj_values'], 'r-')
     plt.xlabel('Timestep')
     plt.ylabel('Min Problem Objective')
@@ -916,4 +959,20 @@ if __name__ == "__main__":
 
     plt.tight_layout()
     plt.show()
+
+    # Compute and plot regret analysis
+    cumulative_regret, optimal_hindsight, instantaneous_regret = solver.compute_cumulative_regret(
+        history, 
+        dro_params, 
+        np.array(online_samples),
+        seed=simulation_seed  # Use same seed for consistent evaluation
+    )
+
+    # Plot regret analysis
+    solver.plot_regret_analysis(
+        cumulative_regret, 
+        optimal_hindsight, 
+        instantaneous_regret,
+        history
+    )
     
