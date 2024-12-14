@@ -5,6 +5,7 @@ from scipy.optimize import minimize
 import matplotlib.pyplot as plt
 from scipy.special import gamma
 import itertools
+import time
 
 class DROParameters:
     """Class to handle DRO problem parameters"""
@@ -449,88 +450,60 @@ class DROSolver:
 
 
 
-    def visualize_samples_and_covering(self, initial_samples, online_samples=None):
-        """
-        Visualize the ball covering and sample distributions (only for 2D problems).
-        
-        Args:
-            initial_samples (np.array): Initial samples used for weight initialization
-            online_samples (np.array, optional): Samples collected during online learning
-        """
+    def visualize_samples_and_covering(self, samples, online_samples=None):
+        """Visualize samples and ball covering with LaTeX formatting."""
         if self.d != 2:
             raise ValueError("Visualization only supported for 2D problems")
         
-        if self.ball_centers is None:
-            self.generate_ball_covering()
+        # Set up LaTeX rendering
+        plt.rcParams.update({
+            "text.usetex": True,
+            "font.family": "serif",
+            "font.serif": ["Computer Modern Roman"],
+            "font.size": 14,
+            "axes.labelsize": 16,
+            "axes.titlesize": 18,
+            "legend.fontsize": 12
+        })
         
-        fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(15, 6))
-        
-        # Plot 1: Initial samples
-        ax1.set_title("Initial Samples Distribution")
+        fig, ax = plt.subplots(figsize=(8, 8), dpi=300)
         
         # Plot rectangle bounds
-        ax1.add_patch(plt.Rectangle(
+        ax.add_patch(plt.Rectangle(
             (self.bounds[0,0], self.bounds[1,0]),
             self.bounds[0,1] - self.bounds[0,0],
             self.bounds[1,1] - self.bounds[1,0],
-            fill=False, color='black'
+            fill=False, color='black', linewidth=2
         ))
         
         # Plot balls
         for center in self.ball_centers:
-            circle = plt.Circle(center, self.radius, alpha=0.2, color='blue')
-            ax1.add_patch(circle)
+            circle = plt.Circle(center, self.radius, alpha=0.3)
+            ax.add_patch(circle)
         
-        # Plot initial samples
-        ax1.scatter(initial_samples[:,0], initial_samples[:,1], 
-                   c='red', alpha=0.6, label='Initial samples')
+        # Plot samples
+        if samples is not None:
+            plt.scatter(samples[:,0], samples[:,1], c='blue', alpha=0.5, 
+                       label=r'Initial Samples')
         
-        # Plot ball centers
-        ax1.scatter(self.ball_centers[:,0], self.ball_centers[:,1], 
-                   c='blue', marker='x', s=100, label='Ball centers')
-        
-        ax1.set_xlim(self.bounds[0,0] - self.radius, self.bounds[0,1] + self.radius)
-        ax1.set_ylim(self.bounds[1,0] - self.radius, self.bounds[1,1] + self.radius)
-        ax1.set_aspect('equal')
-        ax1.grid(True)
-        ax1.legend()
-        
-        # Plot 2: All samples
-        ax2.set_title("All Samples Distribution")
-        
-        # Plot rectangle bounds
-        ax2.add_patch(plt.Rectangle(
-            (self.bounds[0,0], self.bounds[1,0]),
-            self.bounds[0,1] - self.bounds[0,0],
-            self.bounds[1,1] - self.bounds[1,0],
-            fill=False, color='black'
-        ))
-        
-        # Plot balls
-        for center in self.ball_centers:
-            circle = plt.Circle(center, self.radius, alpha=0.2, color='blue')
-            ax2.add_patch(circle)
-        
-        # Plot initial samples
-        ax2.scatter(initial_samples[:,0], initial_samples[:,1], 
-                   c='red', alpha=0.6, label='Initial samples')
-        
-        # Plot online samples if provided
         if online_samples is not None:
-            ax2.scatter(online_samples[:,0], online_samples[:,1], 
-                       c='green', alpha=0.6, label='Online samples')
+            plt.scatter(online_samples[:,0], online_samples[:,1], c='red', 
+                       alpha=0.5, label=r'Online Samples')
         
-        # Plot ball centers
-        ax2.scatter(self.ball_centers[:,0], self.ball_centers[:,1], 
-                   c='blue', marker='x', s=100, label='Ball centers')
+        ax.set_xlim(self.bounds[0,0] - self.radius, self.bounds[0,1] + self.radius)
+        ax.set_ylim(self.bounds[1,0] - self.radius, self.bounds[1,1] + self.radius)
+        ax.set_aspect('equal')
         
-        ax2.set_xlim(self.bounds[0,0] - self.radius, self.bounds[0,1] + self.radius)
-        ax2.set_ylim(self.bounds[1,0] - self.radius, self.bounds[1,1] + self.radius)
-        ax2.set_aspect('equal')
-        ax2.grid(True)
-        ax2.legend()
+        plt.xlabel(r'$\xi_1$')
+        plt.ylabel(r'$\xi_2$')
+        plt.title(r'Sample Distribution and Ball Covering')
+        plt.grid(True, alpha=0.3)
+        plt.legend(framealpha=0.9)
         
-        plt.tight_layout()
+        # Save high-quality figures
+        plt.savefig('covering_visualization.pdf', bbox_inches='tight', dpi=300)
+        plt.savefig('covering_visualization.png', bbox_inches='tight', dpi=300)
+        
         plt.show()
 
     def sample_from_mixture(self, size=1): # now they are equally weighted
@@ -623,7 +596,7 @@ class DROSolver:
 
     
 
-    def compute_saa_solution(self, num_samples=1000, seed=42):
+    def compute_saa_solution(self, num_samples=1000, seed=1111):
         """
         Compute the Sample Average Approximation (SAA) solution using a large number of samples.
         This serves as an approximation of the true stochastic optimization solution.
@@ -680,7 +653,7 @@ class DROSolver:
             print("Warning: SAA solver failed.")
             return None, None
 
-    def compute_cumulative_regret(self, history, dro_params, online_samples, num_eval_samples=1000, seed=42):
+    def compute_cumulative_regret(self, history, dro_params, online_samples, num_eval_samples=1000, seed=1111):
         """
         Compute cumulative regret by comparing online decisions against optimal DRO solution in hindsight.
         At each time t, use the same samples that were available to the online policy.
@@ -759,44 +732,119 @@ class DROSolver:
         return cumulative_regret, optimal_hindsight_solutions, regret
 
     def plot_regret_analysis(self, cumulative_regret, optimal_hindsight_solutions, instantaneous_regret, history):
-        """Plot regret analysis results."""
-        plt.figure(figsize=(15, 5))
+        """Plot regret analysis results with LaTeX formatting and log scales."""
+        # Set up LaTeX rendering
+        plt.rcParams.update({
+            "text.usetex": True,
+            "font.family": "serif",
+            "font.serif": ["Computer Modern Roman"],
+            "font.size": 14,
+            "axes.labelsize": 16,
+            "axes.titlesize": 18,
+            "legend.fontsize": 12
+        })
         
-        # Plot 1: Cumulative Regret
-        plt.subplot(121)
+        # Create figure with 2x2 subplots
+    
         T = len(cumulative_regret)
         t_range = np.arange(1, T+1)
+        plt.figure(figsize=(16, 4), dpi=300)
+        plt.semilogy(t_range, cumulative_regret, 'b-', linewidth=2)
+        plt.xlabel(r'Time step $(t)$')
+        plt.ylabel(r'Cumulative Regret')
+        plt.grid(True, alpha=0.3)
+
+        plt.show()
+
+    def plot_results(self, history):
+        """Plot results with LaTeX formatting."""
+        # Set up LaTeX rendering
+        plt.rcParams.update({
+            "text.usetex": True,
+            "font.family": "serif",
+            "font.serif": ["Computer Modern Roman"],
+            "font.size": 14,
+            "axes.labelsize": 16,
+            "axes.titlesize": 18,
+            "legend.fontsize": 12
+        })
         
-        # Plot actual cumulative regret
-        plt.plot(t_range, cumulative_regret, 'b-', label='Actual Cumulative Regret')
+        # Create figure with higher DPI
+        plt.figure(figsize=(16, 4), dpi=300)
         
-        # Plot theoretical bound (sum of 1/sqrt(t))
-        theoretical_cumulative = np.cumsum(1/np.sqrt(t_range))
-        plt.plot(t_range, theoretical_cumulative, 'r--', 
-                 label='Theoretical O(Σ 1/√t)')
+        # Plot 1: Resource Allocation
+        #plt.subplot(141)
+        #plt.plot([x[0] for x in history['x']], 'b-', linewidth=2, label=r'Resource 1')
+        #plt.plot([x[1] for x in history['x']], 'g-', linewidth=2, label=r'Resource 2')
+        #plt.xlabel(r'Time step $(t)$')
+        #plt.ylabel(r'Resource Allocation')
+        #plt.grid(True, alpha=0.3)
+       # plt.legend(framealpha=0.9)
         
-        plt.xlabel('Timestep (t)')
-        plt.ylabel('Cumulative Regret')
-        plt.title('Cumulative Regret Analysis')
-        plt.grid(True)
-        plt.legend()
+        # Plot 2: Epsilon Evolution
+        plt.subplot(121)
+        plt.plot(history['epsilon'], 'r-', linewidth=2)
+        plt.xlabel(r'Time step $(t)$')
+        plt.ylabel(r'$\epsilon$')
+        plt.grid(True, alpha=0.3)
         
-        # Plot 2: Instantaneous Regret
+        # Plot 3: Ball Weights
         plt.subplot(122)
-        plt.plot(t_range, instantaneous_regret, 'g-', label='Instantaneous Regret')
+        plt.plot(np.array(history['weights']), linewidth=2)
+        plt.xlabel(r'Time step $(t)$')
+        plt.ylabel(r'Ball Weights')
+        plt.grid(True, alpha=0.3)
         
-        # Plot theoretical bound (1/sqrt(t))
-        theoretical_instant = 1/np.sqrt(t_range)
-        plt.plot(t_range, theoretical_instant, 'r--', 
-                 label='Theoretical O(1/√t)')
+        # Plot 4: Objective Values
+        #plt.subplot(144)
+        #plt.plot(history['obj_values'], 'r-', linewidth=2)
+        #plt.xlabel(r'Time step $(t)$')
+        #plt.ylabel(r'Min Problem Objective')
+        #plt.title(r'Optimal Value Evolution')
+        #plt.grid(True, alpha=0.3)
         
-        plt.xlabel('Timestep (t)')
-        plt.ylabel('Instantaneous Regret')
-        plt.title('Instantaneous Regret Evolution')
-        plt.grid(True)
-        plt.legend()
+        # Adjust layout
+        plt.tight_layout(pad=2.0)
         
-        plt.tight_layout()
+        plt.show()
+
+    def plot_computation_times(self, history):
+        """Plot computation time analysis with LaTeX formatting."""
+        # Set up LaTeX rendering
+        plt.rcParams.update({
+            "text.usetex": True,
+            "font.family": "serif",
+            "font.serif": ["Computer Modern Roman"],
+            "font.size": 14,
+            "axes.labelsize": 16,
+            "axes.titlesize": 18,
+            "legend.fontsize": 12
+        })
+        
+        # Create figure
+        plt.figure(figsize=(10, 6), dpi=300)
+        
+        # Prepare data for boxplot
+        data = [
+            history['computation_times']['total_iteration']
+        ]
+        
+        # Create boxplot
+        bp = plt.boxplot(data, labels=[
+
+            r'Total Iteration'
+        ])
+        
+        # Customize boxplot colors
+        plt.setp(bp['boxes'], color='blue')
+        plt.setp(bp['whiskers'], color='blue')
+        plt.setp(bp['caps'], color='blue')
+        plt.setp(bp['medians'], color='red')
+        
+        # Add grid and labels
+        plt.grid(True, alpha=0.3)
+    
+        
         plt.show()
 
 # Example usage
@@ -857,7 +905,12 @@ if __name__ == "__main__":
         'x': [],
         'obj_values': [],
         'epsilon': [],
-        'weights': []
+        'weights': [],
+        'computation_times': {
+            'max_problem': [],
+            'min_problem': [],
+            'total_iteration': []
+        }
     }
 
     # Plot initial configuration
@@ -870,22 +923,29 @@ if __name__ == "__main__":
 
     for t in range(T):
         print(f"\nTimestep {t+1}/{T}")
+        iter_start_time = time.time()
         
         if use_exact_solver:
-            # Use exact solvers
+            # Time max problem
+            max_start_time = time.time()
             y_next = solver.solve_max_problem_exact(
                 x_current,
                 weights,
                 dro_params
             )
+            max_time = time.time() - max_start_time
             
+            # Time min problem
+            min_start_time = time.time()
             x_next, min_obj = solver.solve_min_problem_exact(
                 y_next,
                 weights,
                 dro_params
             )
+            min_time = time.time() - min_start_time
         else:
-            # Use gradient-based methods
+            # Time max problem
+            max_start_time = time.time()
             y_next = solver.solve_max_problem(
                 x_current,
                 weights,
@@ -893,7 +953,10 @@ if __name__ == "__main__":
                 max_iter_fw=1,
                 y_current=y_current
             )
+            max_time = time.time() - max_start_time
             
+            # Time min problem
+            min_start_time = time.time()
             x_next, min_obj = solver.solve_min_problem_gd(
                 y_next,
                 weights,
@@ -901,6 +964,14 @@ if __name__ == "__main__":
                 max_iter=1,
                 x_current=x_current
             )
+            min_time = time.time() - min_start_time
+        
+        total_time = time.time() - iter_start_time
+        
+        # Store timing information
+        history['computation_times']['max_problem'].append(max_time)
+        history['computation_times']['min_problem'].append(min_time)
+        history['computation_times']['total_iteration'].append(total_time)
         
         # Rest of the loop remains the same
         new_sample = solver.sample_from_mixture(size=1)
@@ -930,44 +1001,18 @@ if __name__ == "__main__":
 
     # After all iterations complete, create visualizations
     solver.visualize_samples_and_covering(samples, np.array(online_samples))
-
-    # Results plotting
-    plt.figure(figsize=(15, 4))
-
-    plt.subplot(141)
-    plt.plot([x[0] for x in history['x']], label='Resource 1')
-    plt.plot([x[1] for x in history['x']], label='Resource 2')
-    plt.xlabel('Timestep')
-    plt.ylabel('Resource Allocation')
-    plt.legend()
-
-    plt.subplot(142)
-    plt.plot(history['epsilon'])
-    plt.xlabel('Timestep')
-    plt.ylabel('Epsilon')
-
-    plt.subplot(143)
-    plt.plot(np.array(history['weights']))
-    plt.xlabel('Timestep')
-    plt.ylabel('Ball Weights')
-
-    plt.subplot(144)
-    plt.plot(history['obj_values'], 'r-')
-    plt.xlabel('Timestep')
-    plt.ylabel('Min Problem Objective')
-    plt.title('Optimal Value Evolution')
-
-    plt.tight_layout()
-    plt.show()
-
+    
+    # Plot results with consistent styling
+    solver.plot_results(history)
+    
     # Compute and plot regret analysis
     cumulative_regret, optimal_hindsight, instantaneous_regret = solver.compute_cumulative_regret(
         history, 
         dro_params, 
         np.array(online_samples),
-        seed=simulation_seed  # Use same seed for consistent evaluation
+        seed=simulation_seed
     )
-
+    
     # Plot regret analysis
     solver.plot_regret_analysis(
         cumulative_regret, 
@@ -975,4 +1020,7 @@ if __name__ == "__main__":
         instantaneous_regret,
         history
     )
+    
+    # After all other plots
+    solver.plot_computation_times(history)
     
