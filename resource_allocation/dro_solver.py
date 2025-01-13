@@ -4,10 +4,13 @@ from scipy.spatial.distance import cdist
 from scipy.optimize import minimize
 import matplotlib.pyplot as plt
 from scipy.special import gamma
+from sklearn.cluster import KMeans
 import itertools
 import time
+import warnings
+warnings.filterwarnings('ignore')
 
-def createproblem_resource_allocation(N, m, dro_params,R):
+def createproblem_resource_allocation(m, dro_params,R,N,dat,eps,w):
     """Create the DRO problem in cvxpy
     Parameters
     ----------
@@ -21,10 +24,6 @@ def createproblem_resource_allocation(N, m, dro_params,R):
     -------
     The instance and parameters of the cvxpy problem
     """
-    # PARAMETERS #
-    dat = cp.Parameter((N, m))
-    eps = cp.Parameter()
-    w = cp.Parameter(N)
    
     # VARIABLES #
     x = cp.Variable(m)
@@ -33,6 +32,7 @@ def createproblem_resource_allocation(N, m, dro_params,R):
     tau = cp.Variable((N,4))
     xi_l = cp.Variable((N,m))
     xi_c = cp.Variable((N,m))
+    bbb = cp.Variable(N)
      
     # OBJECTIVE
     objective = eps*lam + w@s
@@ -44,11 +44,12 @@ def createproblem_resource_allocation(N, m, dro_params,R):
             dro_params.a[i] * (x[i] - dro_params.b[i])**2 + (xi_l[j,i] + dro_params.c[i]*(x[i]-1))**2/(4*dro_params.d[i]) 
             for i in range(m)
         )
-        #cost_convex_conj = lam*(dat[j,:]@dat[j,:] + (xi_c[j]/lam + 2*dat[j,:])@(xi_c[j]/lam + 2*dat[j,:])/4)
-        cost_convex_conj = 2*lam*(dat[j,:]@dat[j,:]) + 1/4*cp.quad_over_lin(xi_c[j,:],lam) + dat[j,:]@xi_c[j,:]
+        ####cost_convex_conj = lam*(dat[j,:]@dat[j,:] + (xi_c[j]/lam + 2*dat[j,:])@(xi_c[j]/lam + 2*dat[j,:])/4)
+        constraints += [ 1/4*cp.quad_over_lin(xi_c[j,:],lam) <= bbb[j]]
+        cost_convex_conj = 2*lam*(dat[j,:]@dat[j,:]) + dat[j,:]@xi_c[j,:] + bbb[j]
         f_convex_conj = tau[j,0]*1 + tau[j,1]*1 + tau[j,2]*1 + tau[j,3]*1
-        constraints += [ell_convex_conj + cost_convex_conj + f_convex_conj <= s[j]]
 
+        constraints += [ell_convex_conj + cost_convex_conj + f_convex_conj <= s[j]]
         constraints += [xi_l[j,:] + xi_c[j,:] + tau[j,0]*(np.array([1,0])).T + tau[j,1]*(np.array([0,1]).T) + tau[j,2]*(np.array([-1,0]).T) + tau[j,3]*(np.array([0,-1]).T) == 0]
     constraints += [x >= 0, x <= R]
     constraints += [lam - 0.00001 >= 0]
@@ -56,7 +57,8 @@ def createproblem_resource_allocation(N, m, dro_params,R):
     
     # PROBLEM #
     problem = cp.Problem(cp.Minimize(objective), constraints)
-    return problem, x, s, tau, lam, dat, eps, w  # Return all components we need
+    problem.solve()
+    return problem.objective.value, x.value, problem.solver_stats.solve_time
 
 
 class DROParameters:
@@ -246,12 +248,12 @@ class DROSolver:
             for i in range(dro_params.x_dim):
                 for k in range(self.num_balls):
                     # Current perturbed center for ball k
-                    perturbed_center_ki = dro_params.ball_centres[k, i] + y[k, i]
+                    perturbed_center_ki = dro_params.ball_centres[k, i] + y_current[k, i]
                     
                     # Gradient component
                     grad[k, i] = weights_current[k] * (
                         dro_params.c[i] * (x_current[i] - 1) -
-                        2 * dro_params.d[i] * (perturbed_center_ki + y_current[i])
+                        2 * dro_params.d[i] * perturbed_center_ki
                     )
             return grad
         
@@ -366,7 +368,7 @@ class DROSolver:
             x_next = project_onto_constraints(x_next)
         
         # Return both next point and objective value
-        return x_next, objective(x_next), 0.0
+        return x_next
 
 
     def visualize_covering(self):
@@ -379,7 +381,7 @@ class DROSolver:
         if self.ball_centers is None:
             self.generate_ball_covering()
             
-        fig, ax = plt.subplots(figsize=(8, 8))
+        fig, ax = plt.subplots(figsize=(12,5))
         
         # Plot rectangle bounds
         ax.add_patch(plt.Rectangle(
@@ -502,7 +504,7 @@ class DROSolver:
             "legend.fontsize": 12
         })
         
-        fig, ax = plt.subplots(figsize=(8, 8), dpi=300)
+        fig, ax = plt.subplots(figsize=(12,5), dpi=300)
         
         # Plot rectangle bounds
         ax.add_patch(plt.Rectangle(
@@ -537,8 +539,8 @@ class DROSolver:
         plt.legend(framealpha=0.9)
         
         # Save high-quality figures
-        plt.savefig('covering_visualization.pdf', bbox_inches='tight', dpi=300)
-        plt.savefig('covering_visualization.png', bbox_inches='tight', dpi=300)
+        #plt.savefig('covering_visualization.pdf', bbox_inches='tight', dpi=300)
+        #plt.savefig('covering_visualization.png', bbox_inches='tight', dpi=300)
         
         plt.show()
 
@@ -582,29 +584,27 @@ class DROSolver:
 
 
     def evaluate_expected_cost(self,x_current,data,dro_params,N,radius_true):
-        """Compute expected cost under worst-case distribution considering current ball"""
+        """Compute expected cost under worst-case distribution considering current ball with no clustering (so N grows)"""
     
         # Decision variables
         y = cp.Variable((N, dro_params.x_dim))
         
         # Build objective function
-        obj_terms = []
-        for i in range(dro_params.x_dim):
-            for k in range(N):
+        obj = 0
+        
+        for k in range(N):
+            tmp = 0
+            for i in range(dro_params.x_dim):
                 # Perturbed center for ball k
                 perturbed_center_ki = data[k, i] + y[k, i]
                 
                 # Add weighted objective terms
-                obj_terms.append(
-                    1/N * (
-                        dro_params.a[i] * (x_current[i] - dro_params.b[i])**2 + 
-                        dro_params.c[i] * perturbed_center_ki * (x_current[i] - 1) - 
-                        dro_params.d[i] * perturbed_center_ki**2
-                    )
-                )
-        
+                tmp += dro_params.a[i] * (x_current[i] - dro_params.b[i])**2 + dro_params.c[i] * perturbed_center_ki * (x_current[i] - 1) -dro_params.d[i] * perturbed_center_ki**2
+                    
+            tmp = tmp/N
+            obj += tmp
         # Maximize the sum of objective terms
-        objective = cp.Maximize(cp.sum(obj_terms))
+        objective = cp.Maximize(obj)
         
         # Constraints
         constraints = []
@@ -616,16 +616,17 @@ class DROSolver:
                 constraints.append(data[k, i] + y[k, i] <= self.bounds[i, 1])
         
         # Weighted sum of squared norms constraint
-        weighted_norms = cp.sum([
-            1/N * cp.norm(y[k, :], 2)**2 
+        weighted_norms = 1/N*cp.sum([
+            cp.norm(y[k, :], 2)**2 
             for k in range(N)
         ])
         constraints.append(weighted_norms <= radius_true)
         
         # Solve the problem
         problem = cp.Problem(objective, constraints)
+        problem.solve()
                 
-        return problem.value
+        return problem.objective.value
 
 
     def evaluate_expected_cost_SAA(self,x_current,data,dro_params,N):
@@ -658,26 +659,26 @@ class DROSolver:
         # Create figure
         plt.figure(figsize=(12, 5))
         
-        # Plot instantaneous regret
         plt.subplot(121)
-        plt.plot(history['istantaneous_regret'], 'r-', linewidth=2, label='Instantaneous Regret Worst-Case')
-        plt.plot(history['istantaneous_regret_SAA'], 'b-', linewidth=2, label='Instantaneous Regret SAA')
-        plt.xlabel(r'Time step $(t)$')
-        plt.ylabel(r'Instantaneous Regret')
-        plt.title(r'Instantaneous Regret over Time')
-        plt.grid(True, alpha=0.3)
-        plt.legend()
-        
-        # Plot cumulative regret
-        plt.subplot(122)
-        plt.plot(history['cumulative_regret'], 'b-', linewidth=2, label='Cumulative Regret Worst-Case')
-        plt.plot(history['cumulative_regret_SAA'], 'r-', linewidth=2, label='Cumulative Regret SAA')
+        plt.semilogy(history['cumulative_regret'], 'b-', linewidth=2, label='W.C. cumulative Regret wrt DRO')
+        plt.semilogy(history['cumulative_regret_MRO'], 'r-', linewidth=2, label='W.C. cumulative Regret wrt MRO')
         plt.xlabel(r'Time step $(t)$')
         plt.ylabel(r'Cumulative Regret')
         plt.title(r'Cumulative Regret over Time')
         plt.grid(True, alpha=0.3)
         plt.legend()
-        
+        plt.tight_layout()
+ 
+
+         # Create figure
+        plt.subplot(122)               
+        plt.semilogy(history['cumulative_regret_SAA'], 'b-', linewidth=2, label='SAA Cumulative Regret wrt DRO')
+        plt.semilogy(history['cumulative_regret_MRO_SAA'], 'r-', linewidth=2, label='SAA Cumulative Regret wrt MRO')
+        plt.xlabel(r'Time step $(t)$')
+        plt.ylabel(r'Cumulative Regret')
+        plt.title(r'Cumulative Regret over Time')
+        plt.grid(True, alpha=0.3)
+        plt.legend()
         plt.tight_layout()
         plt.show()
 
@@ -697,7 +698,7 @@ class DROSolver:
         })
         
         # Create figure with higher DPI
-        plt.figure(figsize=(16, 4), dpi=300)
+        plt.figure(figsize=(12, 5))
         
         # Plot 1: Resource Allocation
         plt.subplot(141)
@@ -709,14 +710,14 @@ class DROSolver:
         plt.legend(framealpha=0.9)
         
         # Plot 2: Epsilon Evolution
-        plt.subplot(122)
+        plt.subplot(142)
         plt.plot(history['epsilon'], 'r-', linewidth=2)
         plt.xlabel(r'Time step $(t)$')
         plt.ylabel(r'$\epsilon$')
         plt.grid(True, alpha=0.3)
         
         # Plot 3: Ball Weights
-        plt.subplot(122)
+        plt.subplot(143)
         plt.plot(np.array(history['weights']), linewidth=2)
         plt.xlabel(r'Time step $(t)$')
         plt.ylabel(r'Ball Weights')
@@ -749,27 +750,35 @@ class DROSolver:
         })
         
         # Calculate total time statistics
-        total_times = history['computation_times']['total_iteration']
+        total_times = history['online_computation_times']['total_iteration']
+        total_times_DRO = history['DRO_computation_times']['solver_time']
+        total_times_MRO = history['MRO_computation_times']['solver_time'] + history['MRO_computation_times']['clustering']
+        # consider exponential
         total_times = np.exp(total_times)
+        total_times_DRO = np.exp(total_times_DRO)
         mean_total = np.mean(total_times)
         std_total = np.std(total_times)
-        
+        mean_total_DRO = np.mean(total_times_DRO)
+        std_total_DRO = np.std(total_times_DRO)
+        mean_total_MRO = np.mean(total_times_MRO)   
+        std_total_MRO = np.std(total_times_MRO)
+
         # Print total time statistics
         print(f"\nTotal Computation Time Statistics:")
         print(f"Mean: {mean_total:.3f} seconds")
         print(f"Standard Deviation: {std_total:.3f} seconds")
         
         # Create figure
-        plt.figure(figsize=(12, 6), dpi=300)
+        plt.figure(figsize=(12, 5))
         
         # Prepare data for boxplot
         data = [
-            total_times
+            total_times, total_times_DRO, total_times_MRO
         ]
         
         # Create boxplot
         bp = plt.boxplot(data, labels=[
-            r'Total Time'
+            r'Total Time: Online', r'Total Time: DRO', r'Total Time: MRO'
         ])
         
         # Customize boxplot colors
@@ -777,7 +786,36 @@ class DROSolver:
         plt.setp(bp['whiskers'], color='blue')
         plt.setp(bp['caps'], color='blue')
         plt.setp(bp['medians'], color='red')
+
+        # Add grid and labels
+        plt.grid(True, alpha=0.3)
+        plt.ylabel(r'Compuation time')
+        plt.yscale("log")
+        #plt.savefig('time.pdf', bbox_inches='tight', dpi=300)
         
+        plt.show()
+
+    def plot_computation_times_iter(self,history,T):
+        # Set up LaTeX rendering
+        plt.rcParams.update({
+            "text.usetex": True,
+            "font.family": "serif",
+            "font.serif": ["Computer Modern Roman"],
+            "font.size": 14,
+            "axes.labelsize": 16,
+            "axes.titlesize": 18,
+            "legend.fontsize": 12
+        })
+        plt.figure(figsize=(12, 5))
+        plt.plot(np.arange(1, T+1), history['online_computation_times']['total_iteration'], 'b-', linewidth=2, label = "online weight update")
+        plt.plot(np.arange(1, T+1), history['MRO_computation_times']['solver_time'] + history['MRO_computation_times']['clustering'], 'r-', linewidth=2, label = "online clustering")
+        plt.plot(np.arange(1, T+1), history['DRO_computation_times']['solver_time'], color ='black', linewidth=2, label = "DRO")
+        plt.legend()
+        plt.xlabel(r'Time step $(t)$')
+        plt.ylabel(r'Compuation time')
+        plt.grid(True, alpha=0.3)
+        plt.yscale("log")
+        #plt.savefig('time_iters.pdf', bbox_inches='tight', dpi=300)
         plt.show()
 
 # Example usage (only for gradient based version)
@@ -812,6 +850,8 @@ if __name__ == "__main__":
         'online_obj_values': [],
         'DRO_x': [],
         'DRO_obj_values': [],
+        'MRO_x': [],
+        'MRO_obj_values': [],
         'epsilon': [],
         'weights': [],
         'online_computation_times': {
@@ -822,10 +862,18 @@ if __name__ == "__main__":
         'DRO_computation_times':{
         'solver_time':[]
         },
+        'MRO_computation_times':{
+        'clustering':[],
+        'solver_time':[]
+        },
         'istantaneous_regret':[],
         'istantaneous_regret_SAA':[],
+        'istantaneous_regret_MRO':[],
+        'istantaneous_regret_MRO_SAA':[],
         'cumulative_regret':[],
-        'cumulative_regret_SAA':[]
+        'cumulative_regret_SAA':[],
+        'cumulative_regret_MRO':[],
+        'cumulative_regret_MRO_SAA':[]
     }
 
     # Generate initial sample and weights
@@ -855,14 +903,32 @@ if __name__ == "__main__":
                              ball_centres=solver.ball_centers)
 
     # Create CVXPY problem for benchmark (exact DRO)
-    problem, x, s, tau, lam, dat, eps, w = createproblem_resource_allocation(N, m, dro_params, R)
+    value_DRO, x_DRO, time_DRO = createproblem_resource_allocation(m, dro_params,R,N,total_data,radius_init,(1/N) * np.ones(N))
 
-    # Solve for offline-data
-    dat.value = total_data
-    eps.value = radius_init
-    w.value = (1/N) * np.ones(N)
-    problem.solve() # initial value of DRO problem
-    
+    # MRO with same number of clusters
+    start_time = time.time()
+    kmeans = KMeans(n_clusters=num_balls).fit(total_data)
+    MRO_centers = kmeans.cluster_centers_
+    wk_MRO = np.bincount(kmeans.labels_) / N
+    cluster_time = time.time()-start_time
+    history['MRO_computation_times']['clustering'].append(cluster_time)
+    # Solve actual MRO
+    # First: compute MRO radius
+    labels = kmeans.labels_ 
+    radius_MRO = 0
+    for i in range(num_balls):  # For each cluster
+    # Get points assigned to this cluster
+        cluster_points = total_data[labels == i]
+        if len(cluster_points) > 0:  # If cluster is not empty
+            # Compute squared distances from points to their centroid
+            distances = np.sum((cluster_points - MRO_centers[i]), axis=1)
+            radius_MRO += np.sum(distances)
+
+    radius_MRO = radius_MRO / N
+
+    value_MRO, x_MRO, time_MRO = createproblem_resource_allocation(m, dro_params,R,num_balls,MRO_centers,radius_init + radius_MRO,wk_MRO)
+    history['MRO_computation_times']['solver_time'].append(time_MRO)
+
     # Initialize solutions
     x_current = np.zeros(x_dim)
     y_current = np.zeros((num_balls, x_dim))
@@ -871,19 +937,21 @@ if __name__ == "__main__":
     history['x_online'].append(x_current)
     tmp = solver.evaluate_expected_cost(x_current,total_data,dro_params,N,radius_init)
     tmp_SAA = solver.evaluate_expected_cost_SAA(x_current,samples_SAA,dro_params,N_SAA)
-    value_DRO_eval_SAA = solver.evaluate_expected_cost_SAA(x.value,samples_SAA,dro_params,N_SAA)
+    value_DRO_eval_SAA = solver.evaluate_expected_cost_SAA(x_DRO,samples_SAA,dro_params,N_SAA)
+    value_MRO_eval_SAA = solver.evaluate_expected_cost_SAA(x_MRO,samples_SAA,dro_params,N_SAA)
     
     history['online_obj_values'].append(tmp)
-    history['DRO_x'].append(x.value)  # Use x.value instead of problem.x.value
-    history['DRO_obj_values'].append(problem.objective.value)
+    history['DRO_x'].append(x_DRO)  # Use x.value instead of problem.x.value
+    history['DRO_obj_values'].append(value_DRO)
+    history['MRO_x'].append(x_MRO)  # Use x.value instead of problem.x.value
+    history['MRO_obj_values'].append(value_MRO)
     history['epsilon'].append(initial_epsilon)
     history['weights'].append(weights)  
-    history['DRO_computation_times']['solver_time'].append(problem.solver_stats.solve_time)
-    history['online_computation_times']['weight_update'].append(0)
-    history['online_computation_times']['step_time'].append(0)
-    history['online_computation_times']['total_iteration'].append(0)
-    history['istantaneous_regret'].append(tmp - problem.objective.value)
+    history['DRO_computation_times']['solver_time'].append(time_DRO)
+    history['istantaneous_regret'].append(tmp - value_DRO)
     history['istantaneous_regret_SAA'].append(tmp_SAA - value_DRO_eval_SAA)
+    history['istantaneous_regret_MRO'].append(tmp - value_MRO)
+    history['istantaneous_regret_MRO_SAA'].append(tmp_SAA - value_MRO_eval_SAA)
 
 
     # Plot initial configuration
@@ -903,7 +971,7 @@ if __name__ == "__main__":
                 y_current=y_current
             )
             
-        x_next, min_obj = solver.solve_min_problem_gd(
+        x_next = solver.solve_min_problem_gd(
                 y_current,
                 weights,
                 dro_params,
@@ -931,7 +999,7 @@ if __name__ == "__main__":
         new_epsilon = new_radius + solver.radius
         toc = time.time()
         time_update = toc - tic
-        history['online_computation_times']['update_time'].append(time_update)
+        history['online_computation_times']['weight_update'].append(time_update)
         history['online_computation_times']['total_iteration'].append(time_update + time_step)
         dro_params.update_epsilon(new_epsilon)
         dro_params.update_ball_weights(weights)
@@ -944,16 +1012,45 @@ if __name__ == "__main__":
         history['online_obj_values'].append(tmp)
 
         # Solve DRO full
-        dat.value = total_data
-        eps.value = new_radius
-        w.value = (1/N) * np.ones(N)
-        problem.solve()
-        tmp_DRO_eval_SAA = solver.evaluate_expected_cost_SAA(x.value,samples_SAA,dro_params,N_SAA)
-        history['DRO_x'].append(x.value)  
-        history['DRO_obj_values'].append(problem.objective.value)
-        history['istantaneous_regret'].append(tmp - problem.objective.value)
+        value_DRO, x_DRO, time_DRO = createproblem_resource_allocation(m, dro_params,R,N,total_data,new_radius,(1/N) * np.ones(N))
+
+        # Solve MRO full
+        start_time = time.time()
+        kmeans = KMeans(n_clusters=num_balls).fit(total_data)
+        MRO_centers = kmeans.cluster_centers_
+        wk_MRO = np.bincount(kmeans.labels_) / N
+        cluster_time = time.time()-start_time
+        history['MRO_computation_times']['clustering'].append(cluster_time)
+        # Solve actual MRO
+        # First: compute MRO radius
+        labels = kmeans.labels_ 
+        radius_MRO = 0
+        for i in range(num_balls):  # For each cluster
+        # Get points assigned to this cluster
+            cluster_points = total_data[labels == i]
+            if len(cluster_points) > 0:  # If cluster is not empty
+                # Compute squared distances from points to their centroid
+                distances = np.sum((cluster_points - MRO_centers[i]), axis=1)
+                radius_MRO += np.sum(distances)
+
+        radius_MRO = radius_MRO / N
+
+        value_MRO, x_MRO, time_MRO = createproblem_resource_allocation(m, dro_params,R,num_balls,MRO_centers,new_radius + radius_MRO,wk_MRO)
+        history['MRO_computation_times']['solver_time'].append(time_MRO)
+
+
+        tmp_DRO_eval_SAA = solver.evaluate_expected_cost_SAA(x_DRO,samples_SAA,dro_params,N_SAA)
+        tmp_MRO_eval_SAA = solver.evaluate_expected_cost_SAA(x_MRO,samples_SAA,dro_params,N_SAA)
+        history['DRO_x'].append(x_DRO)  
+        history['DRO_obj_values'].append(value_DRO)
+        history['MRO_x'].append(x_MRO)
+        history['MRO_obj_values'].append(value_MRO)
+        history['istantaneous_regret'].append(tmp - value_DRO)
         history['istantaneous_regret_SAA'].append(tmp_SAA - tmp_DRO_eval_SAA)
-        history['DRO_computation_times']['solver_time'].append(problem.solver_stats.solve_time)
+        history['istantaneous_regret_MRO'].append(tmp - value_MRO)
+        history['istantaneous_regret_MRO_SAA'].append(tmp_SAA - tmp_MRO_eval_SAA)
+        history['DRO_computation_times']['solver_time'].append(time_DRO)
+        history['MRO_computation_times']['solver_time'].append(time_MRO)
         
         
         print(f"Current allocation: {x_current}")
@@ -961,7 +1058,7 @@ if __name__ == "__main__":
         print(f"Weight sum: {np.sum(weights)}")
 
     # After all iterations complete, create visualizations
-    solver.visualize_samples_and_covering(samples, np.array(online_samples))
+    solver.visualize_samples_and_covering(samples, np.array(total_data))
 
     # After the loop, compute cumulative regret
     cumulative_regret = np.cumsum(history['istantaneous_regret'])
@@ -977,7 +1074,7 @@ if __name__ == "__main__":
 
     # Plot time
     solver.plot_computation_times(history)
-
+    solver.plot_computation_times_iter(history,T)
  
     
     
