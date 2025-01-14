@@ -3,6 +3,7 @@ import cvxpy as cp
 from scipy.spatial.distance import cdist
 from scipy.optimize import minimize
 import matplotlib.pyplot as plt
+from mpl_toolkits.axes_grid1.inset_locator import mark_inset, zoomed_inset_axes
 from scipy.special import gamma
 from sklearn.cluster import KMeans
 import itertools
@@ -385,8 +386,8 @@ class DROSolver:
         ax.set_ylim(self.bounds[1,0] - self.radius, self.bounds[1,1] + self.radius)
         ax.set_aspect('equal')
         
-        plt.xlabel(r'$\xi_1$')
-        plt.ylabel(r'$\xi_2$')
+        plt.xlabel(r'$u_1$')
+        plt.ylabel(r'$u_2$')
         plt.title(r'Sample Distribution and Ball Covering')
         plt.grid(True, alpha=0.3)
         plt.legend(framealpha=0.9)
@@ -456,6 +457,7 @@ class DROSolver:
         MRO_regret = np.zeros(T)
         cumulative_regret = np.zeros(T)  # Cumulative regret up to each timestep
         MRO_cumulative_regret = np.zeros(T) 
+        theoretical = np.zeros(T)
 
         eval_values = np.zeros(T)
         MRO_eval_values = np.zeros(T)
@@ -472,8 +474,7 @@ class DROSolver:
             online_cost = evaluate_expected_cost(eval_samples, history['x'][t],history['tau'][t])
             MRO_cost = evaluate_expected_cost(eval_samples, history['MRO_x'][t],history['MRO_tau'][t])
             optimal_cost = evaluate_expected_cost(eval_samples, history['DRO_x'][t],history['DRO_tau'][t])
-            regret[t] = online_cost - optimal_cost
-            MRO_regret[t] = MRO_cost - optimal_cost
+            regret[t] = history['worst_values'][t] - history['DRO_obj_values'][t]
             eval_values[t] = online_cost
             MRO_eval_values[t] = MRO_cost
             DRO_eval_values[t] = optimal_cost
@@ -481,38 +482,63 @@ class DROSolver:
             # Update cumulative regret
             if t == 0:
                 cumulative_regret[t] = regret[t]
-                MRO_cumulative_regret[t] = MRO_regret[t]
+                theoretical[t] = 1/np.sqrt(10)
             else:
+                theoretical[t] = theoretical[t-1] + 1/np.sqrt(t+10)
                 cumulative_regret[t] = cumulative_regret[t-1] + regret[t]
-                MRO_cumulative_regret[t] = MRO_cumulative_regret[t-1] + MRO_regret[t]
         
-        return cumulative_regret, regret, MRO_cumulative_regret, MRO_regret, eval_values, MRO_eval_values, DRO_eval_values
+        return cumulative_regret, regret, eval_values, MRO_eval_values, DRO_eval_values, theoretical
 
-    def plot_regret_analysis(self, cumulative_regret, MRO_cumulative_regret):
+    def plot_regret_analysis(self, cumulative_regret, regret, theo):
         """Plot regret analysis results with LaTeX formatting and log scales."""
         # Set up LaTeX rendering
         plt.rcParams.update({
             "text.usetex": True,
             "font.family": "serif",
             "font.serif": ["Computer Modern Roman"],
-            "font.size": 14,
-            "axes.labelsize": 16,
-            "axes.titlesize": 18,
-            "legend.fontsize": 12
+            "font.size": 22,
+            "axes.labelsize": 22,
+            "axes.titlesize": 22,
+            "legend.fontsize": 22
         })
         
         # Create figure with 2x2 subplots
     
         T = len(cumulative_regret)
         t_range = np.arange(1, T+1)
-        plt.figure(figsize=(16, 4), dpi=300)
+        plt.figure(figsize=(9, 4), dpi=300)
         plt.semilogy(t_range, cumulative_regret, 'b-', linewidth=2, label = "online weight update")
-        plt.semilogy(t_range, MRO_cumulative_regret, 'r-', linewidth=2, label = "online clustering")
+        # plt.semilogy(t_range, MRO_cumulative_regret, 'r-', linewidth=2, label = "online clustering")
         plt.xlabel(r'Time step $(t)$')
         plt.ylabel(r'Cumulative Regret')
         plt.legend()
         plt.grid(True, alpha=0.3)
-        plt.savefig('regret_analysis.pdf', bbox_inches='tight', dpi=300)
+        plt.savefig('regret_analysis_cumulative.pdf', bbox_inches='tight', dpi=300)
+
+        plt.figure(figsize=(9, 4), dpi=300)
+        plt.semilogy(t_range, regret, 'b-', linewidth=2, label = "online weight update")
+        # plt.semilogy(t_range, MRO_cumulative_regret, 'r-', linewidth=2, label = "online clustering")
+        plt.xlabel(r'Time step $(t)$')
+        plt.ylabel(r'Instantaneous Regret')
+        plt.legend()
+        plt.grid(True, alpha=0.3)
+        plt.savefig('regret_analysis_inst.pdf', bbox_inches='tight', dpi=300)
+
+        fig, ax = plt.subplots(1,1, figsize=(9, 4), dpi=300)
+        ax.semilogy(t_range, cumulative_regret, 'b-', linewidth=2, label = "actual cumulative regret")
+        ax.semilogy(t_range, theo, 'r-', linewidth=2, label = "theoretical regret")
+        axins = zoomed_inset_axes(ax, 6, loc="lower right")
+        axins.set_xlim(3700, 4000)
+        axins.set_ylim(7, 10)
+        axins.plot(t_range, cumulative_regret, 'b-',linewidth=2)
+        axins.set_xticks(ticks=[])
+        axins.set_yticks(ticks=[])
+        mark_inset(ax, axins, loc1=1, loc2=2, fc="none", ec="0.5")
+        ax.set_xlabel(r'Time step $(t)$')
+        ax.set_ylabel(r'Cumulative Regret')
+        # ax.legend()
+        plt.grid(True, alpha=0.3)
+        plt.savefig('regret_analysis_comp.pdf', bbox_inches='tight', dpi=300)
 
 
     def plot_eval(self,eval, MRO_eval, DRO_eval):
@@ -521,14 +547,14 @@ class DROSolver:
             "text.usetex": True,
             "font.family": "serif",
             "font.serif": ["Computer Modern Roman"],
-            "font.size": 14,
-            "axes.labelsize": 16,
-            "axes.titlesize": 18,
-            "legend.fontsize": 12
+            "font.size": 22,
+            "axes.labelsize": 22,
+            "axes.titlesize": 22,
+            "legend.fontsize": 22
         })
         T = len(eval)
         t_range = np.arange(1, T+1)
-        plt.figure(figsize=(16, 4), dpi=300)
+        plt.figure(figsize=(7, 4), dpi=300)
         plt.plot(t_range, eval, 'b-', linewidth=2, label = "online weight update")
         plt.plot(t_range, MRO_eval, 'r-', linewidth=2, label = "online clustering")
         plt.plot(t_range, DRO_eval, color ='black', linewidth=2, label = "DRO")
@@ -546,14 +572,14 @@ class DROSolver:
             "text.usetex": True,
             "font.family": "serif",
             "font.serif": ["Computer Modern Roman"],
-            "font.size": 14,
-            "axes.labelsize": 16,
-            "axes.titlesize": 18,
-            "legend.fontsize": 12
+            "font.size": 22,
+            "axes.labelsize": 22,
+            "axes.titlesize": 22,
+            "legend.fontsize": 22
         })
         
         # Create figure with higher DPI
-        plt.figure(figsize=(16, 4), dpi=300)
+        plt.figure(figsize=(11, 4), dpi=300)
 
         # Plot 2: Epsilon Evolution
         plt.subplot(121)
@@ -581,24 +607,27 @@ class DROSolver:
             "text.usetex": True,
             "font.family": "serif",
             "font.serif": ["Computer Modern Roman"],
-            "font.size": 14,
-            "axes.labelsize": 16,
-            "axes.titlesize": 18,
-            "legend.fontsize": 12
+            "font.size": 22,
+            "axes.labelsize": 22,
+            "axes.titlesize": 22,
+            "legend.fontsize": 22
         })
         
         # Create figure
-        plt.figure(figsize=(10, 6), dpi=300)
+        plt.figure(figsize=(8, 3), dpi=300)
         
         # Prepare data for boxplot
         data = [
             history['online_computation_times']['total_iteration'], history['MRO_computation_times']['total_iteration'],history['DRO_computation_times']['total_iteration'] 
         ]
+        np.save("online",history['online_computation_times']['total_iteration'])
+        np.save("mro",history['MRO_computation_times']['total_iteration'])
+        np.save("dro",history['DRO_computation_times']['total_iteration'])
 
         # Create boxplot
         bp = plt.boxplot(data, labels=[
 
-            r'online weight update', r'online clustering', r'DRO' 
+            r'weight update', r'reclustering', r'DRO' 
         ])
         
         # Customize boxplot colors
@@ -620,14 +649,14 @@ class DROSolver:
             "text.usetex": True,
             "font.family": "serif",
             "font.serif": ["Computer Modern Roman"],
-            "font.size": 14,
-            "axes.labelsize": 16,
-            "axes.titlesize": 18,
-            "legend.fontsize": 12
+            "font.size": 22,
+            "axes.labelsize": 22,
+            "axes.titlesize": 22,
+            "legend.fontsize": 22
         })
         T = len(eval)
         t_range = np.arange(1, T+1)
-        plt.figure(figsize=(16, 4), dpi=300)
+        plt.figure(figsize=(9, 4), dpi=300)
         plt.plot(t_range, history['online_computation_times']['total_iteration'], 'b-', linewidth=2, label = "online weight update")
         plt.plot(t_range, history['MRO_computation_times']['total_iteration'], 'r-', linewidth=2, label = "online clustering")
         plt.plot(t_range, history['DRO_computation_times']['total_iteration'], color ='black', linewidth=2, label = "DRO")
@@ -660,7 +689,7 @@ if __name__ == "__main__":
     print(f"Ball centers:\n{solver.ball_centers}")
 
     # Initial problem parameters
-    T = 5000  # Number of timesteps
+    T = 4000  # Number of timesteps
 
     # Initial sample size and DRO parameters
     N = 10  # initial number of samples
@@ -699,6 +728,7 @@ if __name__ == "__main__":
         'DRO_x': [],
         'DRO_tau': [],
         'DRO_obj_values': [],
+        'worst_values': [],
         'epsilon': [],
         'weights': [],
         'online_computation_times': {
@@ -774,8 +804,17 @@ if __name__ == "__main__":
         DRO_min_obj = DRO_problem.objective.value
         DRO_min_time = DRO_problem.solver_stats.solve_time
         history['DRO_computation_times']['total_iteration'].append(DRO_min_time)
+
+        # compute online MRO worst value (wrt non clustered data)
+        orig_cons = DRO_problem.constraints
+        orig_obj = DRO_problem.objective
+        new_cons = orig_cons + [DRO_x == x_current.round(), DRO_tau == tau_current]
+        new_problem = cp.Problem(orig_obj, new_cons)
+        new_problem.solve(ignore_dpp=True, solver=cp.MOSEK, verbose=False, mosek_params={
+            mosek.dparam.optimizer_max_time:  1500.0})
+        new_worst = new_problem.objective.value
+        history['worst_values'].append(new_worst)
             
-        
         # New sample
         new_sample = solver.sample_from_mixture(size=1)
         new_sample = np.clip(new_sample, bounds[:,0], bounds[:,1])
@@ -819,7 +858,7 @@ if __name__ == "__main__":
     solver.plot_results(history)
 
     # Compute and plot regret analysis
-    cumulative_regret, instantaneous_regret, MRO_CR, MRO_IR, eval, MRO_eval, DRO_eval = solver.compute_cumulative_regret(
+    cumulative_regret, instantaneous_regret, eval, MRO_eval, DRO_eval, theo = solver.compute_cumulative_regret(
         history, 
         np.array(online_samples),
         seed=simulation_seed
@@ -828,8 +867,9 @@ if __name__ == "__main__":
     # Plot regret analysis
     solver.plot_regret_analysis(
         cumulative_regret, 
-        MRO_CR,
+        instantaneous_regret,theo
     )
+    np.save("regret2", cumulative_regret)
 
     # After all other plots
     solver.plot_computation_times(history)
