@@ -47,7 +47,7 @@ def createproblem_portMIP(N, m):
     constraints += [cp.sum(x) == 1]
     constraints += [x >= 0, x <= 1]
     constraints += [lam >= 0]
-    constraints += [x - z <= 0, cp.sum(z) <= 1]
+    constraints += [x - z <= 0, cp.sum(z) <= 10]
     # PROBLEM #
     problem = cp.Problem(cp.Minimize(objective), constraints)
     return problem, x, s, tau, lam, dat, eps, w
@@ -292,6 +292,7 @@ class DROSolver:
         
         # Compute distances between samples and ball centers
         distances = cdist(samples, self.ball_centers, metric='euclidean')
+        min_dist = np.min(distances, axis = 1)
         
         # Assign each sample to nearest ball center
         ball_assignments = np.argmin(distances, axis=1)
@@ -301,7 +302,7 @@ class DROSolver:
         for i in range(self.num_balls):
             weights[i] = np.sum(ball_assignments == i) / N
             
-        return samples, weights
+        return samples, weights, min_dist
 
     def update_weights_with_new_sample(self, sample, current_weights, N, beta, C, diam):
         """
@@ -328,6 +329,7 @@ class DROSolver:
         
         # Find closest ball center to new sample
         distances = cdist(sample, self.ball_centers, metric='euclidean')
+        min_dist = np.min(distances)
         assigned_ball = np.argmin(distances)
         
         # Update weights
@@ -338,7 +340,7 @@ class DROSolver:
         # Update radius based on new N
         new_radius = diam * (C/N + np.sqrt((2*np.log(1/beta)))/np.sqrt(N))
         
-        return new_weights, new_radius
+        return new_weights, new_radius, min_dist
 
 
 
@@ -689,7 +691,7 @@ if __name__ == "__main__":
     print(f"Ball centers:\n{solver.ball_centers}")
 
     # Initial problem parameters
-    T = 4000  # Number of timesteps
+    T = 100  # Number of timesteps
 
     # Initial sample size and DRO parameters
     N = 10  # initial number of samples
@@ -698,7 +700,8 @@ if __name__ == "__main__":
     beta = 0.1
 
     # Generate initial samples and weights with seed
-    samples, weights = solver.generate_data_and_weights(N, seed=simulation_seed)
+    samples, weights, min_dist = solver.generate_data_and_weights(N, seed=simulation_seed)
+    min_dist = list(min_dist)
 
     # Initial radius computation
     radius_init = diam*(C/N + np.sqrt((2*np.log(1/beta)))*1/np.sqrt(N))
@@ -743,7 +746,8 @@ if __name__ == "__main__":
         },
         'DRO_computation_times':{
         'total_iteration':[]
-        }
+        },
+        'distances':[]
     }
 
     # Plot initial configuration
@@ -759,7 +763,7 @@ if __name__ == "__main__":
         
         # solve online MRO problem
         data_train.value = dro_params.ball_centres
-        eps_train.value = dro_params.epsilon
+        eps_train.value = new_radius
         w_train.value = dro_params.ball_weights
         online_problem.solve(ignore_dpp=True, solver=cp.MOSEK, verbose=False, mosek_params={
             mosek.dparam.optimizer_max_time:  1500.0})
@@ -808,7 +812,7 @@ if __name__ == "__main__":
         # compute online MRO worst value (wrt non clustered data)
         orig_cons = DRO_problem.constraints
         orig_obj = DRO_problem.objective
-        new_cons = orig_cons + [DRO_x == x_current.round(), DRO_tau == tau_current]
+        new_cons = orig_cons + [DRO_x == x_current, DRO_tau == tau_current]
         new_problem = cp.Problem(orig_obj, new_cons)
         new_problem.solve(ignore_dpp=True, solver=cp.MOSEK, verbose=False, mosek_params={
             mosek.dparam.optimizer_max_time:  1500.0})
@@ -823,9 +827,10 @@ if __name__ == "__main__":
         
         N += 1
         start_time = time.time()
-        weights, new_radius = solver.update_weights_with_new_sample(
+        weights, new_radius, new_min = solver.update_weights_with_new_sample(
             new_sample, weights, N, beta, C, diam
         )
+        min_dist.append(new_min)
         weight_update_time = time.time()-start_time
         history['online_computation_times']['weight_update'].append(weight_update_time)
         history['online_computation_times']['total_iteration'].append(weight_update_time + min_time)
@@ -850,6 +855,13 @@ if __name__ == "__main__":
         print(f"Current allocation: {x_current}")
         print(f"Current epsilon: {new_epsilon}")
         print(f"Weight sum: {np.sum(weights)}")
+
+    min_dist.append(solver.radius)
+    history["distances"].append(min_dist)
+    np.save("min_dist1", min_dist)
+    np.save('recluster_obj1',history['obj_values'] )
+    np.save('dro_obj1', history['DRO_obj_values'])
+    np.save('recluster_worst1',history['worst_values'] )
 
     # After all iterations complete, create visualizations
     solver.visualize_samples_and_covering(samples, np.array(online_samples))
