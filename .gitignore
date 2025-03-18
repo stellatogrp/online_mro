@@ -171,3 +171,5 @@ poetry.toml
 pyrightconfig.json
 
 .DS_Store
+*.pdf
+*.npy
