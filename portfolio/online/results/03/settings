@@ -1,0 +1,9 @@
+T = 2001
+fixed_time = 1500
+interval = 50
+m = 30
+N_init = 50
+K = 5
+Q = 150
+radius = 0.008*(1/(num_dat**(1/(2*m))))
+rmse = 0.004

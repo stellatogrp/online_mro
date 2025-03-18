@@ -1,0 +1,8 @@
+T = 1325
+fixed_time = 1325
+interval = 100
+m = 30
+N_init = 10
+K = 5
+Q = 50
+

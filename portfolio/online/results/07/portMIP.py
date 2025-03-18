@@ -86,20 +86,6 @@ def createproblem_portMIP(N, m):
     return problem, x, s, tau, lam, dat, eps, w
     
 
-def create_scenario(dat,m,num_dat):
-    tau = cp.Variable()
-    x = cp.Variable(m)
-    z = cp.Variable(m, boolean=True)
-    objective = cp.sum(tau + 5*cp.maximum(-dat@x - tau,0))/num_dat
-    constraints = []
-    constraints += [cp.sum(x) == 1]
-    constraints += [x >= 0, x <= 1]
-    constraints += [x - z <= 0, cp.sum(z) <= 5]
-    problem = cp.Problem(cp.Minimize(objective), constraints)
-    return problem, x, tau
-    
-
-
 
 def port_experiment(dat, dateval, r, m, prob, N_tot, K_tot, K_nums, eps_tot, eps_nums, foldername):
     """Run the experiment for multiple K and epsilon
@@ -206,12 +192,11 @@ def cluster_k(K,q_dict, k_dict):
     return k_dict, total_time
 
 def online_cluster_update(K,new_dat, q_dict, k_dict,num_dat, t, fix_time):
-    new_dat = np.reshape(new_dat,(1,m))
     if t >= fix_time:
         k_dict, total_time = fixed_cluster(k_dict,new_dat,num_dat)
         return q_dict, k_dict, total_time
     start_time = time.time()
-    dists = cdist(new_dat,q_dict['a'])
+    dists = cdist(new_dat[np.newaxis,:],q_dict['a'])
     min_dist = np.min(dists)
     min_ind = np.argmin(dists)
     if min_dist <= 2*q_dict['rmse'][min_ind]:
@@ -289,9 +274,8 @@ def online_cluster_update(K,new_dat, q_dict, k_dict,num_dat, t, fix_time):
 
             
 def fixed_cluster(k_dict, new_dat,num_dat):
-    new_dat = np.reshape(new_dat,(1,m))
     start_time = time.time()
-    dists = cdist(new_dat,k_dict['a'])
+    dists = cdist(new_dat[np.newaxis,:],k_dict['a'])
     min_ind = np.argmin(dists)
     k_dict['d'][min_ind] = (k_dict['d'][min_ind]*k_dict['w'][min_ind]*num_dat + new_dat)/(k_dict['w'][min_ind]*num_dat + 1)
     w_k_temp = k_dict['w']*num_dat/(num_dat+1)
@@ -328,10 +312,9 @@ def compute_cumulative_regret(history, T):
     eval_values = np.zeros(T)
     MRO_eval_values = np.zeros(T)
     DRO_eval_values = np.zeros(T)
-    SA_eval_values = np.zeros(T)
     
     # Generate evaluation samples from true distribution for cost computation
-    eval_samples = dateval[init_ind:(init_ind+3000)]
+    eval_samples = dateval[:3000]
     
     # For each timestep t
     for t in range(T):            
@@ -339,11 +322,9 @@ def compute_cumulative_regret(history, T):
         online_cost = evaluate_expected_cost(eval_samples, history['x'][t],history['tau'][t])
         MRO_cost = evaluate_expected_cost(eval_samples, history['MRO_x'][t],history['MRO_tau'][t])
         optimal_cost = evaluate_expected_cost(eval_samples, history['DRO_x'][t],history['DRO_tau'][t])
-        SA_cost = evaluate_expected_cost(eval_samples, history['SA_x'][t],history['SA_tau'][t])
         eval_values[t] = online_cost
         MRO_eval_values[t] = MRO_cost
         DRO_eval_values[t] = optimal_cost
-        SA_eval_values[t] = SA_cost
         
     for t in range(T-1):
         regret[t] = history['worst_values'][t] - history['DRO_obj_values'][t+1]
@@ -353,13 +334,13 @@ def compute_cumulative_regret(history, T):
         if t == 0:
             cumulative_regret[t] = regret[t]
             MRO_cumulative_regret[t] = MRO_regret[t]
-            theoretical[t] = history['square_val'][t]
+            theoretical[t] = history['sig_val'][t]
         else:
-            theoretical[t] = theoretical[t-1] + history['square_val'][t]
+            theoretical[t] = theoretical[t-1] + history['sig_val'][t]
             cumulative_regret[t] = cumulative_regret[t-1] + regret[t]
             MRO_cumulative_regret[t] = MRO_cumulative_regret[t-1] + MRO_regret[t]
     
-    return cumulative_regret, regret, eval_values, MRO_eval_values, DRO_eval_values, SA_eval_values, theoretical, MRO_cumulative_regret, MRO_regret
+    return cumulative_regret, regret, eval_values, MRO_eval_values, DRO_eval_values, theoretical, MRO_cumulative_regret, MRO_regret
 
 def plot_regret_analysis(cumulative_regret, regret, theo, MRO_cumulative_regret, MRO_regret):
     """Plot regret analysis results with LaTeX formatting and log scales."""
@@ -413,7 +394,7 @@ def plot_regret_analysis(cumulative_regret, regret, theo, MRO_cumulative_regret,
     plt.savefig('regret_analysis_comp.pdf', bbox_inches='tight', dpi=300)
 
 
-def plot_eval(eval, MRO_eval, DRO_eval,SA_eval, history):
+def plot_eval(eval, MRO_eval, DRO_eval, history):
     # Set up LaTeX rendering
     plt.rcParams.update({
         "text.usetex": True,
@@ -429,7 +410,6 @@ def plot_eval(eval, MRO_eval, DRO_eval,SA_eval, history):
     plt.figure(figsize=(7, 4), dpi=300)
     plt.plot(t_range, eval, 'b-', linewidth=2, label = "online clustering")
     plt.plot(t_range, MRO_eval, 'r-', linewidth=2, label = "reclustering")
-    plt.plot(t_range, SA_eval, 'g-', linewidth=2, label = "SAA")
     plt.plot(t_range, DRO_eval, color ='black', linewidth=2, label = "DRO")
     plt.legend()
     plt.xlabel(r'Time step $(t)$')
@@ -440,7 +420,6 @@ def plot_eval(eval, MRO_eval, DRO_eval,SA_eval, history):
     plt.figure(figsize=(7, 4), dpi=300)
     plt.plot(t_range, history['obj_values'], 'b-', linewidth=2, label = "online clustering")
     plt.plot(t_range, history['MRO_obj_values'], 'r-', linewidth=2, label = "reclustering")
-    plt.plot(t_range, history['SA_obj_values'], 'g-', linewidth=2, label = "SAA")
     plt.plot(t_range, history['DRO_obj_values'], color ='black', linewidth=2, label = "DRO")
     plt.legend()
     plt.xlabel(r'Time step $(t)$')
@@ -452,11 +431,9 @@ def plot_eval(eval, MRO_eval, DRO_eval,SA_eval, history):
     plt.plot(t_range, history['obj_values'], 'b-', linewidth=2, label = "online clustering")
     plt.plot(t_range, history['MRO_obj_values'], 'r-', linewidth=2, label = "reclustering")
     plt.plot(t_range, history['DRO_obj_values'], color ='black', linewidth=2, label = "DRO")
-    plt.plot(t_range, history['SA_obj_values'], 'g-', linewidth=2, label = "SAA")
     plt.plot(t_range, eval,  'b', linewidth=2, linestyle='-.')
     plt.plot(t_range, MRO_eval, 'r', linewidth=2, linestyle='-.')
     plt.plot(t_range, DRO_eval, color ='black', linestyle='-.')
-    plt.plot(t_range, SA_eval,'g', linestyle='-.')
     plt.legend()
     plt.xlabel(r'Time step $(t)$')
     plt.ylabel(r'Objective value and evaluation value')
@@ -585,19 +562,18 @@ def calc_cluster_val(K,k_dict, num_dat,x):
 if __name__ == '__main__':
     synthetic_returns = pd.read_csv('portfolio/online/sp500_synthetic_returns.csv').to_numpy()[:, 1:]
     
-    T = 301
-    fixed_time = 200
-    interval = 50
+    T = 3001
+    fixed_time = 1500
+    interval = 120
     m = 30
     N_init = 50
-    K = 5
-    Q = 30
-    init_ind = 6000
+    K = 15
+    Q = 500
     num_dat = N_init
-    
+
     dat, dateval = train_test_split(
         synthetic_returns[:, :m], train_size=10000, test_size=10000, random_state=7)
-    init_dat = dat[init_ind:(init_ind+N_init)]
+    init_dat = dat[:N_init]
 
     q_dict, k_dict = online_cluster_init(K,Q,init_dat)
     new_k_dict = None
@@ -643,11 +619,7 @@ if __name__ == '__main__':
         'sig_val': [],
         'mean_val_MRO':[],
         'square_val_MRO': [],
-        'sig_val_MRO': [],
-        'SA_computation_times':[],
-        'SA_obj_values':[],
-        'SA_x': [],
-        'SA_tau':[]
+        'sig_val_MRO': []
     }
 
 
@@ -655,10 +627,10 @@ if __name__ == '__main__':
         print(f"\nTimestep {t+1}/{T}")
         
         radius = 0.004*(1/(num_dat**(1/(2*m))))
-        running_samples = dat[init_ind:(init_ind+num_dat)]
+        running_samples = dat[:num_dat]
 
         # solve online MRO problem
-        if t % interval == 0 or ((t-1) % interval == 0) :
+        if t % interval == 0:
             data_train.value = k_dict['d']
             eps_train.value = radius
             w_train.value = k_dict['w']
@@ -672,12 +644,10 @@ if __name__ == '__main__':
         # Store timing information
         history['online_computation_times']['min_problem'].append(min_time)
 
-        if t % interval == 0 or ((t-1) % interval == 0) :
+        if t % interval == 0:
             # solve MRO problem with new clusters
             start_time = time.time()
-            if t % (5*interval) == 0 or ((t-1) % (5*interval) == 0):
-                kmeans = KMeans(n_clusters=K, init='k-means++').fit(running_samples)
-            elif new_k_dict is not None:
+            if new_k_dict is not None:
                 kmeans = KMeans(n_clusters=K, init=new_k_dict['d']).fit(running_samples)
             else:
                 kmeans = KMeans(n_clusters=K).fit(running_samples)
@@ -705,7 +675,7 @@ if __name__ == '__main__':
         history['MRO_computation_times']['total_iteration'].append(MRO_min_time+cluster_time)
         history['MRO_computation_times']['clustering'].append(cluster_time)
 
-        if t % interval == 0 or ((t-1) % interval == 0) :
+        if t % interval == 0:
         # solve DRO problem 
             DRO_problem, DRO_x, DRO_s, DRO_tau, DRO_lmbda, DRO_data, DRO_eps, DRO_w = createproblem_portMIP(num_dat,m)
             DRO_data.value = running_samples
@@ -719,7 +689,7 @@ if __name__ == '__main__':
             DRO_min_time = DRO_problem.solver_stats.solve_time
         history['DRO_computation_times']['total_iteration'].append(DRO_min_time)
 
-        if t % interval == 0 or ((t-1) % interval == 0) :
+        if t % interval == 0:
             # compute online MRO worst value (wrt non clustered data)
             orig_cons = DRO_problem.constraints
             orig_obj = DRO_problem.objective
@@ -746,22 +716,8 @@ if __name__ == '__main__':
         history['worst_values'].append(new_worst)
         history['worst_values_MRO'].append(new_worst_MRO)
 
-        if t % interval == 0 or ((t-1) % interval == 0) :
-            s_prob, s_x, s_tau = create_scenario(running_samples,m,num_dat)
-            s_prob.solve(ignore_dpp=True, solver=cp.MOSEK, verbose=False, mosek_params={
-                    mosek.dparam.optimizer_max_time:  2000.0})
-            SA_x_current = s_x.value
-            SA_tau_current = s_tau.value
-            SA_obj_current = s_prob.objective.value
-            SA_time = s_prob.solver_stats.solve_time
-
-        history['SA_computation_times'].append(SA_time)
-        history['SA_x'].append(SA_x_current)
-        history['SA_tau'].append(SA_tau_current)
-        history['SA_obj_values'].append(SA_obj_current)
-
         # New sample
-        new_sample = dat[init_ind+num_dat]
+        new_sample = dat[num_dat]
         q_dict, k_dict, weight_update_time = online_cluster_update(K,new_sample, q_dict, k_dict,num_dat, t, fixed_time)
         num_dat += 1
         history['online_computation_times']['weight_update'].append(weight_update_time)
@@ -792,7 +748,7 @@ if __name__ == '__main__':
         print(f"Weights: {q_dict['w'], np.sum(q_dict['w']) }")
         
 
-    cumulative_regret, instantaneous_regret, eval, MRO_eval, DRO_eval, SA_eval,theo, MRO_cum_regret, MRO_regret = compute_cumulative_regret(
+    cumulative_regret, instantaneous_regret, eval, MRO_eval, DRO_eval, theo, MRO_cum_regret, MRO_regret = compute_cumulative_regret(
         history,T)
 
     # Plot regret analysis
@@ -804,40 +760,40 @@ if __name__ == '__main__':
     # After all other plots
     plot_computation_times(history)
 
-    plot_eval(eval, MRO_eval, DRO_eval, SA_eval, history)
+    plot_eval(eval, MRO_eval, DRO_eval, history)
 
     plot_computation_times_iter(history)
 
     df = pd.DataFrame({
     'x': history['x'],
-    'tau': np.array(history['tau']),
-    'obj_values': np.array(history['obj_values']),
+    'tau': history['tau'],
+    'obj_values': history['obj_values'],
     'MRO_x': history['MRO_x'],
-    'MRO_tau':np.array(history['MRO_tau']),
-    'MRO_obj_values': np.array(history['MRO_obj_values']),
+    'MRO_tau':history['MRO_tau'],
+    'MRO_obj_values': history['MRO_obj_values'],
     'DRO_x': history['DRO_x'],
-    'DRO_tau': np.array(history['DRO_tau']),
-    'DRO_obj_values': np.array(history['DRO_obj_values']),
-    'epsilon': np.array(history['epsilon']),
+    'DRO_tau': history['DRO_tau'],
+    'DRO_obj_values': history['DRO_obj_values'],
+    'epsilon': history['epsilon'],
     'weights':  history['weights'],
     'weights_q': history['weights_q'],
-    'online_time':  np.array(history['online_computation_times']['total_iteration']),
-    'MRO_time':  np.array(history['MRO_computation_times']['total_iteration']),
-    'DRO_time':  np.array(history['DRO_computation_times']['total_iteration']),
-    'MRO_mean_val': np.array(history['mean_val_MRO']),
-    'MRO_square_val': np.array(history['square_val_MRO']),
-    'MRO_sig_val': np.array(history['sig_val_MRO']),
-    'mean_val': np.array(history['mean_val']),
-    'square_val': np.array(history['square_val']),
-    'sig_val': np.array(history['sig_val']),
-    'cumulative_regret': np.array(np.concatenate([cumulative_regret,np.zeros(1)])),
-    'regret': np.array(np.concatenate([instantaneous_regret,np.zeros(1)])),
-    'eval': np.array(eval),
-    'MRO_eval': np.array(MRO_eval),
-    'DRO_eval': np.array(DRO_eval),
-    'theoretical': np.array(np.concatenate([theo,np.zeros(1)])),
-    'MRO_cumulative_regret': np.array(np.concatenate([MRO_cum_regret,np.zeros(1)])),
-    "MRO_regret": np.array(np.concatenate([MRO_regret,np.zeros(1)]))
+    'online_time':  history['online_computation_times']['total_iteration'],
+    'MRO_time':  history['MRO_computation_times']['total_iteration'],
+    'DRO_time':  history['DRO_computation_times']['total_iteration'],
+    'MRO_mean_val': history['mean_val_MRO'],
+    'MRO_square_val': history['square_val_MRO'],
+    'MRO_sig_val': history['sig_val_MRO'],
+    'mean_val': history['mean_val'],
+    'square_val': history['square_val'],
+    'sig_val': history['sig_val'],
+    'cumulative_regret': np.concatenate([cumulative_regret,np.zeros(1)]),
+    'regret': np.concatenate([instantaneous_regret,np.zeros(1)]),
+    'eval': eval,
+    'MRO_eval': MRO_eval,
+    'DRO_eval': DRO_eval,
+    'theoretical': np.concatenate([theo,np.zeros(1)]),
+    'MRO_cumulative_regret': np.concatenate([MRO_cum_regret,np.zeros(1)]),
+    "MRO_regret": np.concatenate([MRO_regret,np.zeros(1)])
     })
     df.to_csv('df.csv')
 
