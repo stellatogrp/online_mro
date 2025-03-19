@@ -153,7 +153,7 @@ if __name__ == '__main__':
     eps_tot = M
 
     dat, dateval = train_test_split(
-        synthetic_returns[:, :m], train_size=10000, test_size=10000, random_state=7)
+        synthetic_returns[:, :m], train_size=30000, test_size=30000, random_state=7)
     njobs = get_n_processes(30)
     results = Parallel(n_jobs=njobs)(delayed(port_experiment)(
         dat, dateval, r, m,

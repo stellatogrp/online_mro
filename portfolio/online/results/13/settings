@@ -1,0 +1,8 @@
+T = 3001
+fixed_time = 1500
+interval = 120
+m = 30
+N_init = 50
+K = 5
+Q = 500
+init = 0.002

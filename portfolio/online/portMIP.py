@@ -100,57 +100,6 @@ def create_scenario(dat,m,num_dat):
     
 
 
-
-def port_experiment(dat, dateval, r, m, prob, N_tot, K_tot, K_nums, eps_tot, eps_nums, foldername):
-    """Run the experiment for multiple K and epsilon
-    Parameters
-    ----------
-    Various inputs for combinations of experiments
-    Returns
-    -------
-    x_sols: array
-        The optimal solutions
-    df: dataframe
-        The results of the experiments
-    """
-    x_sols = np.zeros((K_tot, eps_tot, m, R))
-    df = pd.DataFrame(columns=["R", "K", "Epsilon", "Opt_val", "Eval_val",
-                               "satisfy", "solvetime", "bound"])
-    Data = dat
-    Data_eval = dateval
-
-    for K_count, K in enumerate(K_nums):
-        d_eval = Data_eval[(N_tot*r):(N_tot*(r+1))]
-        kmeans = KMeans(n_clusters=K).fit(Data[(N_tot*r):(N_tot*(r+1))])
-        d_train = kmeans.cluster_centers_
-        wk = np.bincount(kmeans.labels_) / N_tot
-        assert (d_train.shape == (K, m))
-        problem, x, s, tau, lmbda, data_train_pm, eps_pm, w_pm = prob(K, m)
-        data_train_pm.value = d_train
-        for eps_count, eps in enumerate(eps_nums):
-            w_pm.value = wk
-            eps_pm.value = eps
-            problem.solve(ignore_dpp=True, solver=cp.MOSEK, verbose=True, mosek_params={
-                mosek.dparam.optimizer_max_time:  2000.0})
-            x_sols[K_count, eps_count, :, r] = x.value
-            evalvalue = np.mean(
-                np.maximum(-5*d_eval@x.value - 4*tau.value, tau.value)) <= problem.objective.value
-            bound = np.max([np.max((d_train[k] - Data[(N_tot*r):(N_tot*(r+1))]
-                           [kmeans.labels_ == k])@x.value) for k in range(K)])
-            newrow = pd.Series(
-                {"R": r,
-                    "K": K,
-                    "Epsilon": eps,
-                    "Opt_val": problem.objective.value,
-                    "Eval_val": np.mean(np.maximum(-5*d_eval@x.value - 4*tau.value, tau.value)),
-                    "satisfy": evalvalue,
-                    "solvetime": problem.solver_stats.solve_time,
-                    "bound": bound
-                 })
-            df = df.append(newrow, ignore_index=True)
-            # df.to_csv(foldername + '/df11_'+str(r)+'.csv')
-    return x_sols, df
-
 def find_min_pairwise_distance(data):
     distances = distance.cdist(data, data)
     np.fill_diagonal(distances, np.inf)  # set diagonal to infinity to ignore self-distances
@@ -158,15 +107,22 @@ def find_min_pairwise_distance(data):
     return min_indices
 
 def online_cluster_init(K,Q,data):
+    start_time = time.time()
     k_dict = {}
     q_dict = {}
     init_num = data.shape[0]
-    q_dict['cur_Q'] = np.minimum(Q,init_num)
+    cur_Q =np.minimum(Q,init_num)
+    q_dict['cur_Q'] = cur_Q
     qmeans = KMeans(n_clusters=q_dict['cur_Q']).fit(data)
-    q_dict['a'] = qmeans.cluster_centers_
-    q_dict['d'] = qmeans.cluster_centers_
-    q_dict['w'] = np.bincount(qmeans.labels_) / init_num
-    q_dict['rmse'] = np.zeros(q_dict['cur_Q'])
+    q_dict['a'] = np.zeros((Q+1,m))
+    q_dict['d'] = np.zeros((Q+1,m))
+    q_dict['w'] = np.zeros(Q+1)
+    q_dict['rmse'] = np.zeros(Q+1)
+    q_dict['a'][:cur_Q,:] = qmeans.cluster_centers_
+    q_dict['d'][:cur_Q,:] = qmeans.cluster_centers_
+    q_dict['w'][:cur_Q] = np.bincount(qmeans.labels_) / init_num
+    q_dict['rmse'][:cur_Q] = np.zeros(q_dict['cur_Q'])
+    total_time = time.time() - start_time
     q_dict['data'] = {}
     for q in range(q_dict['cur_Q']):
         cluster_data = data[qmeans.labels_ == q]
@@ -177,26 +133,30 @@ def online_cluster_init(K,Q,data):
             rmse = 0.002
         q_dict['rmse'][q] = rmse
     k_dict = {}
-    k_dict['a'] = q_dict['a'][:K]
+    k_dict['a'] = np.zeros((K,m))
     k_dict['w'] = np.zeros(K)
     k_dict['d'] = np.zeros((K,m))
     k_dict['data'] = {}
-    k_dict, time = cluster_k(K,q_dict, k_dict)
-    return q_dict, k_dict
+    k_dict, t_time = cluster_k(K,q_dict, k_dict, init=True)
+    return q_dict, k_dict, total_time + t_time
 
-def cluster_k(K,q_dict, k_dict):
+def cluster_k(K,q_dict, k_dict, init=False):
     start_time = time.time()
     cur_K = np.minimum(K,q_dict['cur_Q'])
+    cur_Q = q_dict['cur_Q']
     k_dict['K'] = cur_K
-    kmeans = KMeans(n_clusters=cur_K, init=k_dict['a']).fit(q_dict['a'])
+    if init:
+        kmeans = KMeans(n_clusters=cur_K, init='k-means++').fit(q_dict['a'][:cur_Q,:])
+    else:
+        kmeans = KMeans(n_clusters=cur_K, init=k_dict['a']).fit(q_dict['a'][:cur_Q,:])
     k_dict['a'] = kmeans.cluster_centers_
     # k_dict['w'] = np.zeros(cur_K)
     # k_dict['d'] = np.zeros((cur_K,m))
     # k_dict['data'] = {}
     for k in range(cur_K):
         k_dict[k]= np.where(kmeans.labels_ == k)[0]
-        d_cur = q_dict['d'][kmeans.labels_ == k]
-        w_cur = q_dict['w'][kmeans.labels_ == k]
+        d_cur = q_dict['d'][:cur_Q,:][kmeans.labels_ == k]
+        w_cur = q_dict['w'][:cur_Q][kmeans.labels_ == k]
         k_dict['w'][k] = np.sum(w_cur)
         w_cur_norm = w_cur/(k_dict['w'][k])
         k_dict['d'][k] = np.sum(d_cur*w_cur_norm[:,np.newaxis],axis=0)
@@ -210,16 +170,17 @@ def online_cluster_update(K,new_dat, q_dict, k_dict,num_dat, t, fix_time):
     if t >= fix_time:
         k_dict, total_time = fixed_cluster(k_dict,new_dat,num_dat)
         return q_dict, k_dict, total_time
+    cur_Q = q_dict['cur_Q']
     start_time = time.time()
-    dists = cdist(new_dat,q_dict['a'])
+    dists = cdist(new_dat,q_dict['a'][:cur_Q,:])
     min_dist = np.min(dists)
     min_ind = np.argmin(dists)
     if min_dist <= 2*q_dict['rmse'][min_ind]:
         q_dict['d'][min_ind] = (q_dict['d'][min_ind]*q_dict['w'][min_ind]*num_dat + new_dat)/(q_dict['w'][min_ind]*num_dat + 1)
         q_dict['rmse'][min_ind] = np.sqrt((q_dict['rmse'][min_ind]**2*q_dict['w'][min_ind]*num_dat + np.linalg.norm(new_dat - q_dict['d'][min_ind],2)**2)/(q_dict['w'][min_ind]*num_dat + 1))
-        w_q_temp = q_dict['w']*num_dat/(num_dat+1)
+        w_q_temp = q_dict['w'][:cur_Q]*num_dat/(num_dat+1)
         increased_w = (q_dict['w'][min_ind]*num_dat + 1)/(num_dat+1)
-        q_dict['w'] = w_q_temp
+        q_dict['w'][:cur_Q] = w_q_temp
         q_dict['w'][min_ind] = increased_w
         for k in range(K):
             if min_ind in k_dict[k]:
@@ -235,54 +196,34 @@ def online_cluster_update(K,new_dat, q_dict, k_dict,num_dat, t, fix_time):
     else:
         start_time = time.time()
         cur_Q = q_dict['cur_Q'] + 1
-        new_a_q = np.zeros((cur_Q,m))
-        new_a_q[:cur_Q-1] = q_dict['a']
-        new_a_q[-1] = new_dat
-        new_d_q = np.zeros((cur_Q,m))
-        new_d_q[:cur_Q-1] = q_dict['d']
-        new_d_q[-1] = new_dat
-        new_rmse = np.zeros(cur_Q)
-        new_rmse[:cur_Q-1] = q_dict['rmse']
-        new_rmse[-1] = 2*np.min(q_dict['rmse'])
-        new_wq = np.zeros(cur_Q)
-        new_wq[:cur_Q-1] = (q_dict['w']*num_dat)/(num_dat+1)
-        new_wq[-1] = 1/(num_dat+1)
+        q_dict['cur_Q'] = cur_Q
+        q_dict['a'][cur_Q-1] = new_dat
+        q_dict['d'][cur_Q-1] = new_dat
+        q_dict['rmse'][cur_Q-1] = 2*np.min(q_dict['rmse'])
+        q_dict['w'][:cur_Q-1] = (q_dict['w'][:cur_Q-1]*num_dat)/(num_dat+1)
+        q_dict['w'][cur_Q-1] = 1/(num_dat+1)
         total_time = time.time() - start_time
         q_dict['data'][cur_Q-1] = new_dat
         if cur_Q > Q:
             start_time = time.time()
             q_dict['cur_Q'] = Q
-            min_pair = find_min_pairwise_distance(new_a_q)
-            merged_weight = np.sum(new_wq[min_pair[0]]+new_wq[min_pair[1]])
-            merged_center = (new_a_q[min_pair[0]]*new_wq[min_pair[0]] + new_a_q[min_pair[1]]*new_wq[min_pair[1]])/merged_weight
-            merged_centroid = (new_d_q[min_pair[0]]*new_wq[min_pair[0]] + new_d_q[min_pair[1]]*new_wq[min_pair[1]])/merged_weight
-            merged_rmse = np.sqrt((new_rmse[min_pair[0]]**2*new_wq[min_pair[0]] + new_rmse[min_pair[1]]**2*new_wq[min_pair[1]])/merged_weight + (new_wq[min_pair[0]]*np.linalg.norm( new_d_q[min_pair[0]]- merged_centroid)**2 + new_wq[min_pair[1]]*np.linalg.norm(new_d_q[min_pair[1]]- merged_centroid)**2)/(merged_weight ))
-            q_dict['a'] = np.zeros((Q,m))
-            q_dict['d'] = np.zeros((Q,m))
-            q_dict['w'] = np.zeros(Q)
-            q_dict['rmse'] = np.zeros(Q)
-            q_dict['a'][:Q-1] = np.delete(new_a_q,min_pair,axis=0)
-            q_dict['d'][:Q-1] = np.delete(new_d_q,min_pair,axis=0)
-            q_dict['w'][:Q-1] = np.delete(new_wq,min_pair)
-            q_dict['rmse'][:Q-1]= np.delete(new_rmse,min_pair)
-            q_dict['a'][Q-1] = merged_center
-            q_dict['d'][Q-1] = merged_centroid
-            q_dict['w'][Q-1] = merged_weight
-            q_dict['rmse'][Q-1] = merged_rmse
+            min_pair = find_min_pairwise_distance(q_dict['a'])
+            merged_weight = np.sum(q_dict['w'][min_pair[0]]+q_dict['w'][min_pair[1]])
+            merged_center = (q_dict['rmse'][min_pair[0]]*q_dict['w'][min_pair[0]] + q_dict['rmse'][min_pair[1]]*q_dict['w'][min_pair[1]])/merged_weight
+            merged_centroid = (q_dict['d'][min_pair[0]]*q_dict['w'][min_pair[0]] + q_dict['d'][min_pair[1]]*q_dict['w'][min_pair[1]])/merged_weight
+            merged_rmse = np.sqrt((q_dict['rmse'][min_pair[0]]**2*q_dict['w'][min_pair[0]] + q_dict['rmse'][min_pair[1]]**2*q_dict['w'][min_pair[1]])/merged_weight + (q_dict['w'][min_pair[0]]*np.linalg.norm( q_dict['d'][min_pair[0]]- merged_centroid)**2 + q_dict['w'][min_pair[1]]*np.linalg.norm(q_dict['d'][min_pair[1]]- merged_centroid)**2)/(merged_weight ))
+            q_dict['a'][min_pair[0]] = merged_center
+            q_dict['d'][min_pair[0]] = merged_centroid
+            q_dict['w'][min_pair[0]] = merged_weight
+            q_dict['rmse'][min_pair[0]] = merged_rmse
+            q_dict['a'][min_pair[1]] = q_dict['a'][Q]
+            q_dict['d'][min_pair[1]] = q_dict['d'][Q]
+            q_dict['w'][min_pair[1]] = q_dict['w'][Q]
+            q_dict['rmse'][min_pair[1]] = q_dict['rmse'][Q]
             total_time += time.time() - start_time
             merged_data = np.vstack([q_dict['data'][q] for q in min_pair])
-            ind = 0
-            for q in range(Q+1):
-                if q not in min_pair:
-                    q_dict['data'][ind] = q_dict['data'][q]
-                    ind += 1
-            q_dict['data'][Q-1] = merged_data
-        else:
-            q_dict['cur_Q'] = cur_Q
-            q_dict['a'] = new_a_q
-            q_dict['d'] = new_d_q
-            q_dict['w'] = new_wq
-            q_dict['rmse'] = new_rmse
+            q_dict['data'][min_pair[0]] = merged_data
+            q_dict['data'][min_pair[1]] = q_dict['data'][Q]
         k_dict, time_temp = cluster_k(K,q_dict,k_dict)
         total_time += time_temp
     return q_dict, k_dict, total_time
@@ -583,23 +524,23 @@ def calc_cluster_val(K,k_dict, num_dat,x):
 
         
 if __name__ == '__main__':
-    synthetic_returns = pd.read_csv('portfolio/online/sp500_synthetic_returns.csv').to_numpy()[:, 1:]
+    synthetic_returns = pd.read_csv('portfolio_time/synthetic.csv').to_numpy()[:, 1:]
     
-    T = 301
-    fixed_time = 200
-    interval = 50
+    T = 3001
+    fixed_time = 1500
+    interval = 120
     m = 30
     N_init = 50
     K = 5
-    Q = 30
-    init_ind = 6000
+    Q = 500
+    init_ind = 0
     num_dat = N_init
     
     dat, dateval = train_test_split(
-        synthetic_returns[:, :m], train_size=10000, test_size=10000, random_state=7)
+        synthetic_returns[:, :m], train_size=30000, test_size=30000, random_state=7)
     init_dat = dat[init_ind:(init_ind+N_init)]
 
-    q_dict, k_dict = online_cluster_init(K,Q,init_dat)
+    q_dict, k_dict,weight_update_time = online_cluster_init(K,Q,init_dat)
     new_k_dict = None
     assert k_dict["K"] == K
 
@@ -654,7 +595,7 @@ if __name__ == '__main__':
     for t in range(T):
         print(f"\nTimestep {t+1}/{T}")
         
-        radius = 0.004*(1/(num_dat**(1/(2*m))))
+        radius = 0.002*(1/(num_dat**(1/(2*m))))
         running_samples = dat[init_ind:(init_ind+num_dat)]
 
         # solve online MRO problem
@@ -671,13 +612,15 @@ if __name__ == '__main__':
 
         # Store timing information
         history['online_computation_times']['min_problem'].append(min_time)
+        history['online_computation_times']['total_iteration'].append(min_time+weight_update_time)
+        history['online_computation_times']['weight_update'].append(weight_update_time)
 
         if t % interval == 0 or ((t-1) % interval == 0) :
             # solve MRO problem with new clusters
             start_time = time.time()
-            if t % (5*interval) == 0 or ((t-1) % (5*interval) == 0):
-                kmeans = KMeans(n_clusters=K, init='k-means++').fit(running_samples)
-            elif new_k_dict is not None:
+            # if t % (5*interval) == 0 or ((t-1) % (5*interval) == 0):
+            #     kmeans = KMeans(n_clusters=K, init='k-means++').fit(running_samples)
+            if new_k_dict is not None:
                 kmeans = KMeans(n_clusters=K, init=new_k_dict['d']).fit(running_samples)
             else:
                 kmeans = KMeans(n_clusters=K).fit(running_samples)
@@ -764,8 +707,7 @@ if __name__ == '__main__':
         new_sample = dat[init_ind+num_dat]
         q_dict, k_dict, weight_update_time = online_cluster_update(K,new_sample, q_dict, k_dict,num_dat, t, fixed_time)
         num_dat += 1
-        history['online_computation_times']['weight_update'].append(weight_update_time)
-        history['online_computation_times']['total_iteration'].append(weight_update_time + min_time)
+        # history['online_computation_times']['total_iteration'].append(weight_update_time + min_time)
         
         history['mean_val'].append(mean_val)
         history['sig_val'].append(sig_val)
