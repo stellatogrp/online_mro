@@ -20,6 +20,6 @@ python portfolio_time/port_dfs.py --foldername /scratch/gpfs/iywang/mro_results/
 
 python portfolio_time/port_dfs.py --foldername /scratch/gpfs/iywang/mro_results/portfolio/ --R 5 --T 2001 --fixed_time 1500 --interval 100 --interval_online 100 --Q 500 --K 15
 
-# python portfolio_time/port_dfs.py --foldername /scratch/gpfs/iywang/mro_results/portfolio/ --R 5 --T 10001 --fixed_time 7000 --interval 2500 --interval_online 100 --Q 2000 --K 5
+python portfolio_time/port_dfs.py --foldername /scratch/gpfs/iywang/mro_results/portfolio/ --R 5 --T 10001 --fixed_time 7000 --interval 2500 --interval_online 100 --Q 2000 --K 5
 
 # python portfolio/MIP/plots.py --foldername /scratch/gpfs/iywang/mro_results/portfolio/new/m30_K1000_r10/
