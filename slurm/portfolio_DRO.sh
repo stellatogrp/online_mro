@@ -2,8 +2,8 @@
 #SBATCH --job-name=portfoliotest
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
-#SBATCH --cpus-per-task=35
-#SBATCH --mem-per-cpu=6G
+#SBATCH --cpus-per-task=30
+#SBATCH --mem-per-cpu=1G
 #SBATCH --time=23:00:00
 #SBATCH -o /scratch/gpfs/iywang/mro_results/portfolio_output/portfolio_test_%A_.txt
 #SBATCH --mail-type=BEGIN,END,FAIL,TIME_LIMIT

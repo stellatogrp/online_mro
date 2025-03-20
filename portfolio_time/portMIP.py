@@ -750,9 +750,9 @@ def port_experiments(r_input,K,T,N_init,dat,dateval,r_start):
             history['weights'].append(k_dict['w'].copy())
             history['weights_q'].append(q_dict['w'].copy())
             
-            print(f"Current allocation: {x_current}")
+            # print(f"Current allocation: {x_current}")
             print(f"Current epsilon: {radius}")
-            print(f"Weight sum: {np.sum(k_dict['w'])}")
+            # print(f"Weight sum: {np.sum(k_dict['w'])}")
 
         if t % interval == 0 or ((t-1) % interval == 0) :
 
@@ -918,7 +918,7 @@ if __name__ == '__main__':
     
     dfs_list = []
     for r in range(r_start+R):
-        newdf = pd.read_csv(newdatname+ 'df_' + 'K'+str(K)+'R'+ str(r) +'.csv').to_numpy()[:, 1:]
+        newdf = pd.read_csv(newdatname+ 'df_' + 'K'+str(K)+'R'+ str(r) +'.csv')
         dfs_list.append(newdf)
     
     sum_df = dfs_list[0].copy()

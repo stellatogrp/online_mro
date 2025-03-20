@@ -768,7 +768,7 @@ if __name__ == '__main__':
     
     dfs_list = []
     for r in range(r_start+R):
-        newdf = pd.read_csv(newdatname+ 'df_' + 'K'+str(0)+'R'+ str(r) +'.csv').to_numpy()[:, 1:]
+        newdf = pd.read_csv(newdatname+ 'df_' + 'K'+str(0)+'R'+ str(r) +'.csv')
         dfs_list.append(newdf)
     
     sum_df = dfs_list[0].copy()
