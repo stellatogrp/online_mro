@@ -559,6 +559,7 @@ def port_experiments(r_input,K,T,N_init,dat,dateval,r_start):
     MRO_x_prev = np.zeros(m)
     MRO_tau_prev = 0
     tau_prev = 0
+    x_prev = np.zeros(m)
 
     # History for analysis
     history = {
