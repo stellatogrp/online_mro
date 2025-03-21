@@ -539,8 +539,9 @@ def calc_cluster_val(K,k_dict, num_dat,x):
             cur_val = np.linalg.norm(dat-centroid,2)
             mean_val += cur_val
             square_val += cur_val**2
-            sig_val = np.maximum(sig_val,(dat-centroid)@x)
-    return mean_val/num_dat, square_val/num_dat, sig_val
+            #sig_val = np.maximum(sig_val,(dat-centroid)@x)
+            sig_val += (dat-centroid)@x
+    return mean_val/num_dat, square_val/num_dat, sig_val/num_dat
 
 def port_experiments(r_input,K,T,N_init,dat,dateval,r_start):
     r,epsnum = list_inds[r_input]
@@ -924,14 +925,14 @@ if __name__ == '__main__':
         findfs[r] = findfs[r].drop(columns=['weights','MRO_weights'])
         findfs[r].to_csv(newdatname + 'df_' + 'K'+str(K)+'R'+ str(r+r_start) +'.csv')
     
-    dfs_list = []
-    for r in range(r_start+R):
-        newdf = pd.read_csv(newdatname+ 'df_' + 'K'+str(K)+'R'+ str(r) +'.csv')
-        dfs_list.append(newdf)
+    # dfs_list = []
+    # for r in range(r_start+R):
+    #     newdf = pd.read_csv(newdatname+ 'df_' + 'K'+str(K)+'R'+ str(r) +'.csv')
+    #     dfs_list.append(newdf)
     
-    sum_df = dfs_list[0].copy()
-    for df in dfs_list[1:]:
-        sum_df = sum_df.add(df, fill_value=0)
-    sum_df = sum_df/(R+r_start)
-    sum_df.to_csv(newdatname+'df_'+ 'K'+str(K)+'.csv')
+    # sum_df = dfs_list[0].copy()
+    # for df in dfs_list[1:]:
+    #     sum_df = sum_df.add(df, fill_value=0)
+    # sum_df = sum_df/(R+r_start)
+    # sum_df.to_csv(newdatname+'df_'+ 'K'+str(K)+'.csv')
     print("DONE")
