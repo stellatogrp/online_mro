@@ -556,15 +556,17 @@ def port_experiments(r_input,K,T,N_init,dat,dateval,r_start):
     online_problem, online_x, online_s, online_tau, online_lmbda, data_train, eps_train, w_train = createproblem_portMIP(K, m)
 
     # Initialize solutions
-    x_current = np.zeros(30)
+    MRO_x_prev = np.zeros(m)
+    MRO_tau_prev = 0
+    tau_prev = 0
 
     # History for analysis
     history = {
-        'x': [np.zeros(30)],
-        'tau': [0],
+        'x': [],
+        'tau': [],
         'obj_values': [],
-        'MRO_x': [np.zeros(30)],
-        'MRO_tau': [0],
+        'MRO_x': [],
+        'MRO_tau': [],
         'MRO_obj_values': [],
         'worst_values': [],
         'worst_values_MRO':[],
@@ -697,9 +699,9 @@ def port_experiments(r_input,K,T,N_init,dat,dateval,r_start):
 
 
         if t % interval == 0 or ((t-1) % interval == 0) :
-            # compute online MRO worst value (wrt non clustered data)
-            x_d.value = np.array(history['x'][-1])
-            tau_d.value = np.array(history['tau'][-1])
+            # compute online worst value (wrt prev stage sols
+            x_d.value = x_prev
+            tau_d.value = tau_prev
             new_problem.solve(ignore_dpp=True, solver=cp.MOSEK, verbose=False, mosek_params={
                 mosek.dparam.optimizer_max_time:  2000.0})
             new_worst = new_problem.objective.value
@@ -709,8 +711,8 @@ def port_experiments(r_input,K,T,N_init,dat,dateval,r_start):
             history['worst_times_regret'].append(worst_time)
             
         if t % interval == 0 or ((t-1) % interval == 0) :
-            x_d.value = np.array(history['MRO_x'][-1])
-            tau_d.value = np.array(history['MRO_tau'][-1])
+            x_d.value = MRO_x_prev
+            tau_d.value = MRO_tau_prev
             new_problem.solve(ignore_dpp=True, solver=cp.MOSEK, verbose=False, mosek_params={
                 mosek.dparam.optimizer_max_time:  2000.0})
             new_worst_MRO = new_problem.objective.value
@@ -724,6 +726,11 @@ def port_experiments(r_input,K,T,N_init,dat,dateval,r_start):
             history['MRO_worst_values_regret'].append(new_worst_MRO)
             history['MRO_worst_times_regret'].append(MRO_worst_time)
             
+            MRO_x_prev = MRO_x_current
+            MRO_tau_prev = MRO_tau_current
+            x_prev = x_current
+            tau_prev = tau_current
+
             
 
         # New sample
@@ -760,11 +767,11 @@ def port_experiments(r_input,K,T,N_init,dat,dateval,r_start):
             history,dateval)
             
             df = pd.DataFrame({
-            'x': history['x'][1:],
-            'tau': np.array(history['tau'][1:]),
+            'x': history['x'],
+            'tau': np.array(history['tau']),
             'obj_values': np.array(history['obj_values']),
-            'MRO_x': history['MRO_x'][1:],
-            'MRO_tau':np.array(history['MRO_tau'][1:]),
+            'MRO_x': history['MRO_x'],
+            'MRO_tau':np.array(history['MRO_tau']),
             'MRO_obj_values': np.array(history['MRO_obj_values']),
             'epsilon': np.array(history['epsilon']),
             'weights':  history['weights'],
