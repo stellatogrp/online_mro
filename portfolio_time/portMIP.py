@@ -540,7 +540,7 @@ def calc_cluster_val(K,k_dict, num_dat,x):
             mean_val += cur_val
             square_val += cur_val**2
             #sig_val = np.maximum(sig_val,(dat-centroid)@x)
-            sig_val += (dat-centroid)@x
+            sig_val += max(0,(dat-centroid)@x)
     return mean_val/num_dat, square_val/num_dat, sig_val/num_dat
 
 def port_experiments(r_input,K,T,N_init,dat,dateval,r_start):
@@ -635,22 +635,27 @@ def port_experiments(r_input,K,T,N_init,dat,dateval,r_start):
 
         if t % interval == 0 or ((t-1) % interval == 0) :
             # solve MRO problem with new clusters
-            start_time = time.time()
-            if new_k_dict is not None:
-                kmeans = KMeans(n_clusters=K, init=new_k_dict['d'],n_init=1).fit(running_samples)
-            else:
-                kmeans = KMeans(n_clusters=K,init="k-means++", n_init=1).fit(running_samples)
-            new_centers = kmeans.cluster_centers_
-            wk = np.bincount(kmeans.labels_) / num_dat
-            cluster_time = time.time()-start_time
-            new_k_dict = {}
-            new_k_dict['data'] = {}
-            for k in range(K):
-                new_k_dict['data'][k] = running_samples[kmeans.labels_==k]
-            new_k_dict['d'] = new_centers
+            if t <= fixed_time:
+                start_time = time.time()
+                if new_k_dict is not None:
+                    kmeans = KMeans(n_clusters=K, init=new_k_dict['d'],n_init=1).fit(running_samples)
+                else:
+                    kmeans = KMeans(n_clusters=K,init="k-means++", n_init=1).fit(running_samples)
+                new_centers = kmeans.cluster_centers_
+                wk = np.bincount(kmeans.labels_) / num_dat
+                cluster_time = time.time()-start_time
+                new_k_dict = {}
+                new_k_dict['data'] = {}
+                new_k_dict['a'] = new_centers
+                new_k_dict['d'] = new_centers
+                new_k_dict['w'] = wk
+                for k in range(K):
+                    new_k_dict['data'][k] = running_samples[kmeans.labels_==k]
+                new_k_dict['d'] = new_centers
+                
 
-            data_train.value = new_centers
-            w_train.value = wk
+            data_train.value = new_k_dict['d']
+            w_train.value = new_k_dict['w']
             # eps_train.value = new_radius
             online_problem.solve(ignore_dpp=True, solver=cp.MOSEK, verbose=False, mosek_params={
                 mosek.dparam.optimizer_max_time:  2000.0})
@@ -663,7 +668,7 @@ def port_experiments(r_input,K,T,N_init,dat,dateval,r_start):
             history['MRO_computation_times']['min_problem'].append(MRO_min_time)
             history['MRO_computation_times']['total_iteration'].append(MRO_min_time+cluster_time)
             history['MRO_computation_times']['clustering'].append(cluster_time)
-            history['MRO_weights'].append(wk)
+            history['MRO_weights'].append(new_k_dict['w'])
 
     
         if t % interval == 0 or ((t-1) % interval == 0) :
@@ -738,6 +743,8 @@ def port_experiments(r_input,K,T,N_init,dat,dateval,r_start):
         # New sample
         new_sample = dat[init_ind+num_dat]
         q_dict, k_dict, weight_update_time = online_cluster_update(K,new_sample, q_dict, k_dict,num_dat, t, fixed_time)
+        if t >= fixed_time:
+            new_k_dict, cluster_time = fixed_cluster(new_k_dict,new_sample,num_dat=num_dat)
         num_dat += 1
         # history['online_computation_times']['weight_update'].append(weight_update_time)
         # history['online_computation_times']['total_iteration'].append(weight_update_time + min_time)
@@ -898,7 +905,8 @@ if __name__ == '__main__':
                                     ).to_numpy()[:, 1:]
     init_ind = 0
     njobs = get_n_processes(100)
-    eps_init = [0.006,0.005,0.004,0.0035,0.003,0.0025,0.002,0.0015,0.001]
+    #eps_init = [0.006,0.005,0.004,0.0035,0.003,0.0025,0.002,0.0015,0.001]
+    eps_init = [0.005,0.0045,0.004,0.0035,0.003,0.0025,0.002,0.0015]
     M = len(eps_init)
     list_inds = list(itertools.product(np.arange(R),np.arange(M)))
     dat, dateval = train_test_split(
