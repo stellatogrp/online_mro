@@ -969,7 +969,7 @@ if __name__ == '__main__':
     init_ind = 0
     njobs = get_n_processes(100)
     #eps_init = [0.006,0.005,0.004,0.0035,0.003,0.0025,0.002,0.0015,0.001]
-    #eps_init = [0.007,0.006,0.005,0.0048,0.0045,0.004,0.003,0.002,0.0015]
+    # eps_init = [0.007,0.006,0.005,0.0048,0.0045,0.004,0.003,0.002,0.0015]
     eps_init = [0.005,0.0048,0.0015]
     M = len(eps_init)
     list_inds = list(itertools.product(np.arange(R),np.arange(M)))
@@ -990,21 +990,10 @@ if __name__ == '__main__':
         findfs[r] = pd.concat([dfs[r][i] for i in range(len(eps_init))],ignore_index=True)
         findfs[r].to_csv(foldername + 'df_' + str(r+r_start) +'.csv')
 
-
     newdatname = '/scratch/gpfs/iywang/mro_mpc/portfolio_exp/T'+str(T-1)+'R'+str(R)+'/'
     os.makedirs(newdatname, exist_ok=True)
     for r in range(R):
         findfs[r] = findfs[r].drop(columns=['weights','MRO_weights'])
         findfs[r].to_csv(newdatname + 'df_' + 'K'+str(K)+'R'+ str(r+r_start) +'.csv')
     
-    # dfs_list = []
-    # for r in range(r_start+R):
-    #     newdf = pd.read_csv(newdatname+ 'df_' + 'K'+str(K)+'R'+ str(r) +'.csv')
-    #     dfs_list.append(newdf)
-    
-    # sum_df = dfs_list[0].copy()
-    # for df in dfs_list[1:]:
-    #     sum_df = sum_df.add(df, fill_value=0)
-    # sum_df = sum_df/(R+r_start)
-    # sum_df.to_csv(newdatname+'df_'+ 'K'+str(K)+'.csv')
     print("DONE")

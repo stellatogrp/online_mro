@@ -759,22 +759,10 @@ if __name__ == '__main__':
         findfs[r] = pd.concat([dfs[r][i] for i in range(len(eps_init))],ignore_index=True)
         findfs[r].to_csv(foldername + 'DRO_df_' + str(r+r_start) +'.csv')
 
-
     newdatname = '/scratch/gpfs/iywang/mro_mpc/portfolio_exp/T'+str(T-1)+'R'+str(R)+'/'
     os.makedirs(newdatname, exist_ok=True)
     for r in range(R):
         findfs[r] = findfs[r].drop(columns=["DRO_x","SA_x"])
         findfs[r].to_csv(newdatname + 'df_' + 'K'+str(0)+'R'+ str(r+r_start) +'.csv')
     
-    # dfs_list = []
-    # for r in range(r_start+R):
-    #     newdf = pd.read_csv(newdatname+ 'df_' + 'K'+str(0)+'R'+ str(r) +'.csv')
-    #     dfs_list.append(newdf)
-    
-    # sum_df = dfs_list[0].copy()
-    # for df in dfs_list[1:]:
-    #     sum_df = sum_df.add(df, fill_value=0)
-    # sum_df = sum_df/(R+r_start)
-    # sum_df.to_csv(newdatname+'df_'+ 'K'+str(0)+'.csv')
-
     print("DONE")
