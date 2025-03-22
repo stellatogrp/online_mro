@@ -14,9 +14,7 @@ from scipy.spatial.distance import cdist
 from scipy.spatial import distance
 import time
 import matplotlib.pyplot as plt
-from mpl_toolkits.axes_grid1.inset_locator import mark_inset, zoomed_inset_axes
-from sklearn.metrics import mean_squared_error
-import math
+import ot
 import itertools
 
 output_stream = sys.stdout
@@ -111,6 +109,46 @@ def worst_case(N,m,dat):
     problem = cp.Problem(cp.Minimize(objective), constraints)
     return problem, s, lam, x, tau, eps, w
     
+
+def wasserstein(samples_p, samples_q):
+    """
+    Compute the Wasserstein-1 distance between two multi-dimensional empirical distributions.
+
+    Parameters:
+        samples_p (np.array): Samples from distribution P, shape (N, D).
+        samples_q (np.array): Samples from distribution Q, shape (M, D).
+
+    Returns:
+        float: The Wasserstein-1 distance.
+    """
+    # Ensure the input arrays are 2D
+    if samples_p.ndim == 1:
+        samples_p = samples_p.reshape(-1, 1)
+    if samples_q.ndim == 1:
+        samples_q = samples_q.reshape(-1, 1)
+
+    # Number of samples in each distribution
+    N = samples_p.shape[0]
+    M = samples_q.shape[0]
+
+    # Create uniform weights for the samples
+    weights_p = np.ones(N) / N  # Uniform weights for P
+    weights_q = np.ones(M) / M  # Uniform weights for Q
+
+    # Compute the cost matrix (pairwise Euclidean distances)
+    cost_matrix = ot.dist(samples_p, samples_q, metric='euclidean')
+
+    # Compute the Wasserstein-1 distance
+    w_distance = ot.emd2(weights_p, weights_q, cost_matrix)
+
+    return w_distance
+
+def w2_dist(k1,k2):
+    K = k1['K']
+    val = 0
+    for k in range(K):
+        val += np.abs(k1["w"][k] - k2["w"][k])*np.linalg.norm(k1["d"][k] - k2["d"][k])
+    return val
 
 def create_scenario(dat,m,num_dat):
     tau = cp.Variable()
@@ -551,8 +589,11 @@ def port_experiments(r_input,K,T,N_init,dat,dateval,r_start):
     init_eps = eps_init[epsnum]
     num_dat = N_init
     q_dict, k_dict,weight_update_time= online_cluster_init(K,Q,dat[init_ind:(init_ind+num_dat)])
+    k_dict_prev = k_dict.copy()
+    new_k_dict_prev = k_dict.copy()
     new_k_dict = None
     assert k_dict["K"] == K
+    init_samples = dat[init_ind:(init_ind+N_init)]
 
     online_problem, online_x, online_s, online_tau, online_lmbda, data_train, eps_train, w_train = createproblem_portMIP(K, m)
 
@@ -561,6 +602,7 @@ def port_experiments(r_input,K,T,N_init,dat,dateval,r_start):
     MRO_tau_prev = 0
     tau_prev = 0
     x_prev = np.zeros(m)
+    init_radius_val = init_eps*(1/(num_dat**(1/(2*m))))
 
     # History for analysis
     history = {
@@ -604,6 +646,10 @@ def port_experiments(r_input,K,T,N_init,dat,dateval,r_start):
         'worst_values_regret':[],
         'MRO_worst_times_regret':[],
         'worst_times_regret':[],
+        'regret_bound':[],
+        'MRO_regret_bound':[],
+        'regret_K': [],
+        'MRO_regret_K':[]
     }
 
 
@@ -631,7 +677,6 @@ def port_experiments(r_input,K,T,N_init,dat,dateval,r_start):
             history['online_computation_times']['total_iteration'].append(min_time+weight_update_time)
             history['online_computation_times']['weight_update'].append(weight_update_time)
             history['t'].append(t)
-        
 
         if t % interval == 0 or ((t-1) % interval == 0) :
             # solve MRO problem with new clusters
@@ -645,6 +690,7 @@ def port_experiments(r_input,K,T,N_init,dat,dateval,r_start):
                 wk = np.bincount(kmeans.labels_) / num_dat
                 cluster_time = time.time()-start_time
                 new_k_dict = {}
+                new_k_dict['K'] = K
                 new_k_dict['data'] = {}
                 new_k_dict['a'] = new_centers
                 new_k_dict['d'] = new_centers
@@ -750,6 +796,17 @@ def port_experiments(r_input,K,T,N_init,dat,dateval,r_start):
         # history['online_computation_times']['total_iteration'].append(weight_update_time + min_time)
 
         if t % interval == 0 or ((t-1) % interval == 0) :
+            N_dist_cur = wasserstein(init_samples,running_samples)
+            
+            history['regret_K'].append(w2_dist(k_dict,k_dict_prev)+ 2*radius )
+            history['MRO_regret_K'].append(w2_dist(new_k_dict,new_k_dict_prev)+ 2*radius)
+            regret_bound = (np.sum(history['regret_K']) + N_dist_cur+ radius + init_radius_val)/(t+1)
+            MRO_regret_bound = (np.sum(history['MRO_regret_K']) + N_dist_cur+ radius + init_radius_val)/(t+1)
+            history["regret_bound"].append(regret_bound)
+            history["MRO_regret_bound"].append(MRO_regret_bound)
+            k_dict_prev = k_dict.copy()
+            new_k_dict_prev = new_k_dict.copy()
+            
             history['mean_val'].append(mean_val)
             history['sig_val'].append(sig_val)
             history['square_val'].append(square_val)
@@ -762,9 +819,11 @@ def port_experiments(r_input,K,T,N_init,dat,dateval,r_start):
             history['MRO_x'].append(MRO_x_current)
             history['MRO_tau'].append(MRO_tau_current)
             history['MRO_obj_values'].append(MRO_min_obj)
-            history['epsilon'].append(radius)
             history['weights'].append(k_dict['w'].copy())
             history['weights_q'].append(q_dict['w'].copy())
+            history['epsilon'].append(radius)
+
+            
             
             # print(f"Current allocation: {x_current}")
             print(f"Current epsilon: {radius}")
@@ -803,6 +862,8 @@ def port_experiments(r_input,K,T,N_init,dat,dateval,r_start):
             "worst_times_regret":np.array(history['worst_times_regret']),
             "MRO_worst_times_regret":np.array(history['MRO_worst_times_regret']),
             't': np.array(history['t']),
+            'regret_bound': history["regret_bound"],
+            'MRO_regret_bound': history["MRO_regret_bound"]
             })
             colnames = ['MRO_eval', "MRO_satisfy",'O_eval',"O_satisfy", "O_worst_satisfy", "MRO_worst_satisfy"]
             colvals = [MRO_e, MRO_s, online_e, online_s, online_ws, MRO_ws]
@@ -843,6 +904,8 @@ def port_experiments(r_input,K,T,N_init,dat,dateval,r_start):
     "worst_times_regret":np.array(history['worst_times_regret']),
     "MRO_worst_times_regret":np.array(history['MRO_worst_times_regret']),
     't': np.array(history['t']),
+    'regret_bound': history["regret_bound"],
+            'MRO_regret_bound': history["MRO_regret_bound"]
     })
     colnames = ['MRO_eval', "MRO_satisfy",'O_eval',"O_satisfy", "O_worst_satisfy", "MRO_worst_satisfy"]
     colvals = [MRO_e, MRO_s, online_e, online_s, online_ws, MRO_ws]
@@ -906,7 +969,7 @@ if __name__ == '__main__':
     init_ind = 0
     njobs = get_n_processes(100)
     #eps_init = [0.006,0.005,0.004,0.0035,0.003,0.0025,0.002,0.0015,0.001]
-    eps_init = [0.005,0.0045,0.004,0.0035,0.003,0.0025,0.002,0.0015]
+    eps_init = [0.007,0.006,0.005,0.0048,0.0045,0.004,0.003,0.002,0.0015]
     M = len(eps_init)
     list_inds = list(itertools.product(np.arange(R),np.arange(M)))
     dat, dateval = train_test_split(
