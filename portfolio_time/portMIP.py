@@ -573,7 +573,8 @@ def calc_cluster_val(K,k_dict, num_dat,x):
     mean_val = 0
     square_val = 0
     sig_val = 0
-    for k in range(K):
+    cur_K = np.min(K,num_dat)
+    for k in range(cur_K):
         centroid = k_dict['d'][k]
         for dat in k_dict['data'][k]:
             cur_val = np.linalg.norm(dat-centroid,2)
@@ -684,7 +685,7 @@ def port_experiments(r_input,K,T,N_init,dat,dateval,r_start):
             if t <= fixed_time:
                 start_time = time.time()
                 cur_K = np.minimum(K,num_dat)
-                if new_k_dict is not None:
+                if new_k_dict is not None and (num_dat > (1+interval+N_init)):
                     kmeans = KMeans(n_clusters=cur_K, init=new_k_dict['d'],n_init=1).fit(running_samples)
                 else:
                     kmeans = KMeans(n_clusters=cur_K,init="k-means++", n_init=1).fit(running_samples)
@@ -692,7 +693,7 @@ def port_experiments(r_input,K,T,N_init,dat,dateval,r_start):
                 wk = np.bincount(kmeans.labels_) / num_dat
                 cluster_time = time.time()-start_time
                 new_k_dict = {}
-                new_k_dict['K'] = K
+                new_k_dict['K'] = cur_K
                 new_k_dict['data'] = {}
                 new_k_dict['a'] = new_centers
                 new_k_dict['d'] = new_centers
@@ -971,7 +972,7 @@ if __name__ == '__main__':
     init_ind = 0
     njobs = get_n_processes(100)
     #eps_init = [0.006,0.005,0.004,0.0035,0.003,0.0025,0.002,0.0015,0.001]
-    eps_init = [0.007,0.006,0.005,0.0048,0.0045,0.004,0.003,0.002,0.0015]
+    eps_init = [0.007,0.006,0.005,0.0048,0.0045,0.004,0.003,0.002,0.0015,0.0012]
     # eps_init = [0.007,0.006,0.005,0.0015]
     M = len(eps_init)
     list_inds = list(itertools.product(np.arange(R),np.arange(M)))
