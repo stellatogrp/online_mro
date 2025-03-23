@@ -17,7 +17,7 @@ conda activate mroenv
 module load gurobi/12.0.0
 import mosek
 
-python portfolio_time_larger/portMIP_DRO.py --foldername /scratch/gpfs/iywang/mro_results/portfolio_larger/ --R 5 --T 3001 --interval 100  --interval_SAA 100 --r_start 15
+python portfolio_time_larger/portMIP_DRO.py --foldername /scratch/gpfs/iywang/mro_results/portfolio_larger/ --R 5 --T 3001 --interval 100  --interval_SAA 100 --r_start 35
 
 # python portfolio_time/portMIP.py --foldername /scratch/gpfs/iywang/mro_results/portfolio/ --R 5 --T 10001 --fixed_time 7000 --interval 2500 --interval_online 100 --Q 2000 --K 5
 

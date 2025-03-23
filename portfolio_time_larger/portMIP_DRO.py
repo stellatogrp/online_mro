@@ -742,7 +742,7 @@ if __name__ == '__main__':
     if T >= 10000:
         eps_init = [0.003]
     else:
-        eps_init = [0.007,0.006,0.005,0.004,0.003,0.002,0.0015,0.001,0.0005]
+        eps_init = [0.004,0.003,0.002,0.0018,0.0017,0.0015,0.001]
     M = len(eps_init)
     list_inds = list(itertools.product(np.arange(R),np.arange(M)))
     
