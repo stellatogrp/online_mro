@@ -726,7 +726,7 @@ if __name__ == '__main__':
     interval = arguments.interval
     interval_SAA = arguments.interval_SAA
     N_init = arguments.N_init
-    K_arr = [5,8,10,15]
+    K_arr = [5,15]
     foldername = foldername +'R'+str(R)+'_T'+str(T-1)+'/'
     os.makedirs(foldername, exist_ok=True)
     print(foldername)
@@ -738,7 +738,7 @@ if __name__ == '__main__':
     if T >= 10000:
         eps_init = [0.003]
     else:
-        eps_init = [0.006,0.005,0.004,0.003,0.002,0.0015,0.001,0.0005]
+        eps_init = [0.003,0.002,0.0015,0.001,0.0005]
     M = len(eps_init)
     list_inds = list(itertools.product(np.arange(R),np.arange(M)))
     

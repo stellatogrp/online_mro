@@ -204,6 +204,7 @@ def online_cluster_init(K,Q,data):
     k_dict['w'] = np.zeros(K)
     k_dict['d'] = np.zeros((K,m))
     k_dict['data'] = {}
+    k_dict['K'] = np.minimum(K,init_num)
     k_dict, t_time = cluster_k(K,q_dict, k_dict, init=True)
     return q_dict, k_dict, total_time + t_time
 
@@ -212,7 +213,7 @@ def cluster_k(K,q_dict, k_dict, init=False):
     cur_K = np.minimum(K,q_dict['cur_Q'])
     cur_Q = q_dict['cur_Q']
     k_dict['K'] = cur_K
-    if init:
+    if init or (cur_Q<=K):
         kmeans = KMeans(n_clusters=cur_K, init='k-means++', n_init=1).fit(q_dict['a'][:cur_Q,:])
     else:
         kmeans = KMeans(n_clusters=cur_K, init=k_dict['a'], n_init=1).fit(q_dict['a'][:cur_Q,:])
@@ -233,6 +234,7 @@ def cluster_k(K,q_dict, k_dict, init=False):
     return k_dict, total_time
 
 def online_cluster_update(K,new_dat, q_dict, k_dict,num_dat, t, fix_time):
+    cur_K = k_dict['K']
     new_dat = np.reshape(new_dat,(1,m))
     if t >= fix_time:
         k_dict, total_time = fixed_cluster(k_dict,new_dat,num_dat)
@@ -249,7 +251,7 @@ def online_cluster_update(K,new_dat, q_dict, k_dict,num_dat, t, fix_time):
         increased_w = (q_dict['w'][min_ind]*num_dat + 1)/(num_dat+1)
         q_dict['w'][:cur_Q] = w_q_temp
         q_dict['w'][min_ind] = increased_w
-        for k in range(K):
+        for k in range(cur_K):
             if min_ind in k_dict[k]:
                 k_dict['d'][k] = (k_dict['d'][k]*k_dict['w'][k]*num_dat + new_dat)/(k_dict['w'][k]*num_dat + 1)
                 k_dict['w'][k] = (k_dict['w'][k]*num_dat + 1)/(num_dat + 1)
@@ -257,7 +259,7 @@ def online_cluster_update(K,new_dat, q_dict, k_dict,num_dat, t, fix_time):
                 k_dict['w'][k] = (k_dict['w'][k]*num_dat)/(num_dat + 1)
         total_time = time.time() - start_time
         q_dict['data'][min_ind] = np.vstack([q_dict['data'][min_ind],new_dat])
-        for k in range(K):
+        for k in range(cur_K):
             if min_ind in k_dict[k]:
                 k_dict['data'][k] = np.vstack([k_dict['data'][k],new_dat])
     else:
@@ -592,7 +594,6 @@ def port_experiments(r_input,K,T,N_init,dat,dateval,r_start):
     k_dict_prev = k_dict.copy()
     new_k_dict_prev = k_dict.copy()
     new_k_dict = None
-    assert k_dict["K"] == K
     init_samples = dat[init_ind:(init_ind+N_init)]
 
     online_problem, online_x, online_s, online_tau, online_lmbda, data_train, eps_train, w_train = createproblem_portMIP(K, m)
@@ -682,10 +683,11 @@ def port_experiments(r_input,K,T,N_init,dat,dateval,r_start):
             # solve MRO problem with new clusters
             if t <= fixed_time:
                 start_time = time.time()
+                cur_K = np.minimum(K,num_dat)
                 if new_k_dict is not None:
-                    kmeans = KMeans(n_clusters=K, init=new_k_dict['d'],n_init=1).fit(running_samples)
+                    kmeans = KMeans(n_clusters=cur_K, init=new_k_dict['d'],n_init=1).fit(running_samples)
                 else:
-                    kmeans = KMeans(n_clusters=K,init="k-means++", n_init=1).fit(running_samples)
+                    kmeans = KMeans(n_clusters=cur_K,init="k-means++", n_init=1).fit(running_samples)
                 new_centers = kmeans.cluster_centers_
                 wk = np.bincount(kmeans.labels_) / num_dat
                 cluster_time = time.time()-start_time
@@ -958,7 +960,7 @@ if __name__ == '__main__':
     fixed_time = arguments.fixed_time
     interval = arguments.interval
     N_init = arguments.N_init
-    K_arr = [5,8,10,15]
+    K_arr = [5,15]
     K = K_arr[idx]
     foldername = foldername + 'K'+str(K)+'_R'+str(R)+'_T'+str(T-1)+'/'
     os.makedirs(foldername, exist_ok=True)
