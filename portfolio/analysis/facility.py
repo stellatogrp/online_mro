@@ -1,0 +1,1014 @@
+import argparse
+import os
+import sys
+
+import cvxpy as cp
+import joblib
+import mosek
+import numpy as np
+import pandas as pd
+from joblib import Parallel, delayed
+from sklearn.cluster import KMeans
+from sklearn.model_selection import train_test_split
+from scipy.spatial.distance import cdist
+from scipy.spatial import distance
+import time
+import matplotlib.pyplot as plt
+import ot
+import itertools
+
+output_stream = sys.stdout
+
+
+def get_n_processes(max_n=np.inf):
+    """Get number of processes from current cps number
+    Parameters
+    ----------
+    max_n: int
+        Maximum number of processes.
+    Returns
+    -------
+    float
+        Number of processes to use.
+    """
+
+    try:
+        # Check number of cpus if we are on a SLURM server
+        n_cpus = int(os.environ["SLURM_CPUS_PER_TASK"])
+    except KeyError:
+        n_cpus = joblib.cpu_count()
+
+    n_proc = max(min(max_n, n_cpus), 1)
+
+    return n_proc
+
+def prob_facility(K, m, n,p,c,C):
+    """Create the problem in cvxpy
+    Parameters
+    ----------
+    K: int
+        Number of data samples
+    m: int
+        Number of customers
+    n: int
+        Number of facilities
+    Returns
+    -------
+    The instance and parameters of the cvxpy problem
+    """
+    eps = cp.Parameter()
+    d_train = cp.Parameter((K, m))
+    wk = cp.Parameter(K)
+    x = cp.Variable(n, boolean=True)
+    X = cp.Variable((n, m))
+    lmbda = cp.Variable(K)
+    tau_obj = cp.Variable()
+    tau = cp.Variable()
+    s = cp.Variable(K)
+    gam = cp.Variable((n, K*2*m))
+    a = 5
+    C_r = np.vstack([-np.eye(m), np.eye(m)])
+    d_r = np.hstack([-np.zeros(m), np.ones(m)*10])
+
+    objective = cp.Minimize(tau_obj)
+
+    constraints = []
+    for j in range(m):
+        constraints += [cp.sum(X[:, j]) == 1]
+
+    constraints += [cp.trace(C.T @ X) + c@x + 20*wk @ s <= tau_obj]
+    for k in range(K):
+        for i in range(n):
+            constraints += [tau + -a*tau + lmbda[k]*eps - a*p[i]*x[i] + a*d_train[k]@X[i] +
+                            gam[i, (k*2*m):((k+1)*2*m)]@(d_r - C_r@d_train[k]) <= s[k]]
+            constraints += [cp.norm(C_r.T@gam[i, (k*2*m):((k+1)*2*m)
+                                              ] - a*X[i], 1) <= lmbda[k]]
+        constraints += [lmbda[k]*eps <= s[k]]
+    constraints += [s >= tau]
+    constraints += [X >= 0, lmbda >= 0, gam >= 0]
+
+    problem = cp.Problem(objective, constraints)
+
+    return problem, x, X, d_train, wk, eps, tau
+
+
+def prob_facility_nosup(K, m, n,p,c,C):
+    """Create the problem in cvxpy
+    Parameters
+    ----------
+    K: int
+        Number of data samples
+    m: int
+        Number of customers
+    n: int
+        Number of facilities
+    Returns
+    -------
+    The instance and parameters of the cvxpy problem
+    """
+    eps = cp.Parameter()
+    d_train = cp.Parameter((K, m))
+    wk = cp.Parameter(K)
+    x = cp.Variable(n, boolean=True)
+    X = cp.Variable((n, m))
+    lmbda = cp.Variable(K)
+    tau_obj = cp.Variable()
+    tau = cp.Variable()
+    s = cp.Variable(K)
+    gam = cp.Variable((n, K*2*m))
+    a = 5
+    C_r = np.vstack([-np.eye(m), np.eye(m)])
+    d_r = np.hstack([-np.zeros(m), np.ones(m)*10])
+
+    objective = cp.Minimize(tau_obj)
+
+    constraints = []
+    for j in range(m):
+        constraints += [cp.sum(X[:, j]) == 1]
+
+    constraints += [cp.trace(C.T @ X) + c@x + 20*wk @ s <= tau_obj]
+    constraints += [tau - a*tau + cp.vstack([lmbda*eps]*n).T - a*cp.vstack([cp.multiply(p,x)]*K) + a*d_train@X.T <= cp.vstack([s]*n).T]
+    for i in range(n):
+        constraints += [cp.vstack([cp.norm(-a*X[i], 1)]*K) <= cp.reshape(lmbda,(K,1))]
+    constraints += [lmbda*eps + tau<= s]
+    constraints += [X >= 0, lmbda >= 0, s >= 0]
+
+    problem = cp.Problem(objective, constraints)
+    return problem, x, X, d_train, wk, eps, tau
+
+
+def worse_case(K, m, n,d_train,p,c,C):
+    """Create the problem in cvxpy
+    Parameters
+    ----------
+    K: int
+        Number of data samples
+    m: int
+        Number of customers
+    n: int
+        Number of facilities
+    Returns
+    -------
+    The instance and parameters of the cvxpy problem
+    """
+    eps = cp.Parameter()
+    wk = cp.Parameter(K)
+    x = cp.Parameter(n)
+    X = cp.Parameter((n, m))
+    lmbda = cp.Variable(K)
+    tau_obj = cp.Variable()
+    tau = cp.Parameter()
+    s = cp.Variable(K)
+    gam = cp.Variable((n, K*2*m))
+    a = 5
+    C_r = np.vstack([-np.eye(m), np.eye(m)])
+    d_r = np.hstack([-np.zeros(m), np.ones(m)*10])
+
+    objective = cp.Minimize(tau_obj)
+
+    constraints = []
+    for j in range(m):
+        constraints += [cp.sum(X[:, j]) == 1]
+
+    constraints += [cp.trace(C.T @ X) + c@x + 20*wk @ s <= tau_obj]
+    constraints += [tau - a*tau + cp.vstack([lmbda*eps]*n).T - a*cp.vstack([cp.multiply(p,x)]*K) + a*d_train@X.T <= cp.vstack([s]*n).T]
+    for i in range(n):
+        constraints += [cp.vstack([cp.norm(-a*X[i], 1)]*K) <= cp.reshape(lmbda,(K,1))]
+    constraints += [lmbda*eps + tau<= s]
+    constraints += [X >= 0, lmbda >= 0, s >= 0]
+
+    problem = cp.Problem(objective, constraints)
+
+    return problem, wk, eps, x, X, tau
+
+def generate_facility_data(n=10, m=50):
+    """Generate data for one problem instance
+    Parameters
+    ----------
+    m: int
+        Number of customers
+    n: int
+        Number of facilities
+    Returns
+    -------
+    c: vector
+        Opening cost of each facility
+    C: array
+        Shipment cost between customers and facilities
+    p: vector
+        Production capacity of each facility
+    """
+    # Cost for facility
+    np.random.seed(1)
+    c = np.random.uniform(3, 9, n)
+
+    # Cost for shipment
+    fac_loc = np.random.uniform(0, 2.5, size=(n, 2))
+    cus_loc = np.random.uniform(0, 2.5, size=(m, 2))
+    #  rho = 4
+
+    C = np.zeros((n, m))
+    for i in range(n):
+        for j in range(m):
+            C[i, j] = np.linalg.norm(fac_loc[i, :] - cus_loc[j, :])
+
+    # Capacities for each facility
+    p = np.random.randint(20, 60, n)
+
+    # Past demands of customer (past uncertain data)
+    return c, C, p
+
+
+def generate_facility_demands(N, m,seed):
+    """Generate uncertain demand
+    Parameters:
+     ----------
+    N: int
+        Number of data samples
+    m: int
+        Number of facilities
+    R: int
+        Number of sets of data samples
+    Returns:
+    -------
+    d_train: vector
+        Demand vector
+    """
+    np.random.seed(seed)
+    dat = np.random.normal(2, 0.3, (N, m))
+    dat2 = np.random.normal(3, 0.3, (N, m))
+    dat3 = np.random.normal(4, 0.5, (N, m))
+    dat = np.vstack([dat, dat2, dat3])
+    dat = np.minimum(dat, 10)
+    dat = np.maximum(dat, 0)
+    indices = np.random.choice(3*N,3*N,replace=False) 
+    dat = dat[indices]
+    return dat
+
+
+def evaluate_k(x, X, d, tau,p,c,C):
+    """Evaluate stricter constraint satisfaction
+    Parameters
+    ----------
+    p: vector
+        Prices
+    x: vector
+        Decision variables of the optimization problem
+    X: matrix
+        Decision variables of the optimization problem
+    d: matrix
+        Validation data matrix
+    Returns:
+    -------
+    boolean: indicator of constraint satisfaction
+    """
+    retval = 1
+    maxval = np.zeros((np.shape(d)[0], np.shape(x)[0]))
+    maxval2 = np.zeros((np.shape(d)[0], np.shape(x)[0]))
+    for fac in range(np.shape(x)[0]):
+        for ind in range(np.shape(d)[0]):
+            maxval[ind, fac] = 20*np.maximum(tau + 5*np.maximum(-p[fac]*x[fac] + d[ind]@X[fac] - tau,0),0)
+            maxval2[ind,fac] = -p[fac]*x[fac] + d[ind]@X[fac]
+    if np.mean(np.max(maxval2, axis=1)) >= 0.00001:
+        retval = 0
+    return np.trace(C.T @ X) + c@x + np.mean(np.max(maxval, axis=1)), retval
+
+
+def wasserstein(samples_p, samples_q):
+    """
+    Compute the Wasserstein-1 distance between two multi-dimensional empirical distributions.
+
+    Parameters:
+        samples_p (np.array): Samples from distribution P, shape (N, D).
+        samples_q (np.array): Samples from distribution Q, shape (M, D).
+
+    Returns:
+        float: The Wasserstein-1 distance.
+    """
+    # Ensure the input arrays are 2D
+    if samples_p.ndim == 1:
+        samples_p = samples_p.reshape(-1, 1)
+    if samples_q.ndim == 1:
+        samples_q = samples_q.reshape(-1, 1)
+
+    # Number of samples in each distribution
+    N = samples_p.shape[0]
+    M = samples_q.shape[0]
+
+    # Create uniform weights for the samples
+    weights_p = np.ones(N) / N  # Uniform weights for P
+    weights_q = np.ones(M) / M  # Uniform weights for Q
+
+    # Compute the cost matrix (pairwise Euclidean distances)
+    cost_matrix = ot.dist(samples_p, samples_q, metric='euclidean')
+
+    # Compute the Wasserstein-1 distance
+    w_distance = ot.emd2(weights_p, weights_q, cost_matrix)
+
+    return w_distance
+
+def w2_dist(k1,k2):
+    K = k2['K']
+    val = 0
+    for k in range(K):
+        val += np.abs(k1["w"][k] - k2["w"][k])*np.linalg.norm(k1["d"][k] - k2["d"][k])
+    if k1['K']>K:
+        dists = cdist(k1['d'][K].reshape((1,m)),k2['d'][:K])
+        val += np.min(dists)*(k1['w'][K])
+    return val
+
+def create_scenario(dat,m,num_dat):
+    x = cp.Variable(n, boolean=True)
+    X = cp.Variable((n, m))
+    tau_obj = cp.Variable()
+    tau = cp.Variable()
+    objective = cp.Minimize(tau_obj)
+
+    constraints = []
+    for j in range(m):
+        constraints += [cp.sum(X[:, j]) == 1]
+
+    constraints += [cp.trace(C.T @ X) + c@x + 20*(cp.sum(cp.maximum(tau + 5*cp.maximum(cp.max(dat@X.T - cp.vstack([cp.multiply(x,p)]*(num_dat)) -tau,axis=1),0),0))/(num_dat)) <= tau_obj]
+
+    constraints += [X >=0]
+
+    problem = cp.Problem(objective, constraints)
+    return problem, x, X, tau
+    
+def calc_rmse(dat,mean):
+    rmse = 0
+    for d in dat:
+        rmse += np.linalg.norm(d-mean,2)**2
+    return rmse
+
+def find_min_pairwise_distance(data):
+    distances = distance.cdist(data, data)
+    np.fill_diagonal(distances, np.inf)  # set diagonal to infinity to ignore self-distances
+    min_indices = np.unravel_index(np.argmin(distances), distances.shape)
+    return min_indices
+
+def online_cluster_init(K,Q,data):
+    start_time = time.time()
+    k_dict = {}
+    q_dict = {}
+    init_num = data.shape[0]
+    cur_Q =np.minimum(Q,init_num)
+    q_dict['cur_Q'] = cur_Q
+    qmeans = KMeans(n_clusters=q_dict['cur_Q']).fit(data)
+    q_dict['a'] = np.zeros((Q+1,m))
+    q_dict['d'] = np.zeros((Q+1,m))
+    q_dict['w'] = np.zeros(Q+1)
+    q_dict['rmse'] = np.zeros(Q+1)
+    q_dict['a'][:cur_Q,:] = qmeans.cluster_centers_
+    q_dict['d'][:cur_Q,:] = qmeans.cluster_centers_
+    q_dict['w'][:cur_Q] = np.bincount(qmeans.labels_) / init_num
+    q_dict['rmse'][:cur_Q] = np.zeros(q_dict['cur_Q'])
+    total_time = time.time() - start_time
+    q_dict['data'] = {}
+    for q in range(q_dict['cur_Q']):
+        cluster_data = data[qmeans.labels_ == q]
+        q_dict['data'][q] = cluster_data
+        rmse = np.sqrt(calc_rmse(cluster_data,np.reshape(q_dict['d'][q],(1,m))))
+        if rmse <= 1e-6:
+            rmse = 0.03
+        q_dict['rmse'][q] = rmse
+    k_dict = {}
+    k_dict['a'] = np.zeros((K,m))
+    k_dict['w'] = np.zeros(K)
+    k_dict['d'] = np.zeros((K,m))
+    k_dict['data'] = {}
+    k_dict['K'] = np.minimum(K,init_num)
+    k_dict, t_time = cluster_k(K,q_dict, k_dict, init=True)
+    return q_dict, k_dict, total_time + t_time
+
+def cluster_k(K,q_dict, k_dict, init=False):
+    start_time = time.time()
+    cur_K = np.minimum(K,q_dict['cur_Q'])
+    cur_Q = q_dict['cur_Q']
+    k_dict['K'] = cur_K
+    if init or (cur_Q<=K):
+        kmeans = KMeans(n_clusters=cur_K, init='k-means++', n_init=1).fit(q_dict['a'][:cur_Q,:])
+    else:
+        kmeans = KMeans(n_clusters=cur_K, init=k_dict['a'], n_init=1).fit(q_dict['a'][:cur_Q,:])
+    k_dict['a'] = kmeans.cluster_centers_
+    # k_dict['w'] = np.zeros(cur_K)
+    # k_dict['d'] = np.zeros((cur_K,m))
+    # k_dict['data'] = {}
+    for k in range(cur_K):
+        k_dict[k]= np.where(kmeans.labels_ == k)[0]
+        d_cur = q_dict['d'][:cur_Q,:][kmeans.labels_ == k]
+        w_cur = q_dict['w'][:cur_Q][kmeans.labels_ == k]
+        k_dict['w'][k] = np.sum(w_cur)
+        w_cur_norm = w_cur/(k_dict['w'][k])
+        k_dict['d'][k] = np.sum(d_cur*w_cur_norm[:,np.newaxis],axis=0)
+    total_time = time.time() - start_time
+    for k in range(cur_K):
+        k_dict['data'][k] = np.vstack([q_dict['data'][q] for q in k_dict[k]])
+    return k_dict, total_time
+
+def online_cluster_update(K,new_dat, q_dict, k_dict,num_dat, t, fix_time):
+    cur_K = k_dict['K']
+    new_dat = np.reshape(new_dat,(1,m))
+    if t >= fix_time:
+        k_dict, total_time = fixed_cluster(k_dict,new_dat,num_dat)
+        return q_dict, k_dict, total_time
+    cur_Q = q_dict['cur_Q']
+    start_time = time.time()
+    dists = cdist(new_dat,q_dict['a'][:cur_Q,:])
+    min_dist = np.min(dists)
+    min_ind = np.argmin(dists)
+    if min_dist <= 2*q_dict['rmse'][min_ind]:
+        q_dict['d'][min_ind] = (q_dict['d'][min_ind]*q_dict['w'][min_ind]*num_dat + new_dat)/(q_dict['w'][min_ind]*num_dat + 1)
+        q_dict['rmse'][min_ind] = np.sqrt((q_dict['rmse'][min_ind]**2*q_dict['w'][min_ind]*num_dat + np.linalg.norm(new_dat - q_dict['d'][min_ind],2)**2)/(q_dict['w'][min_ind]*num_dat + 1))
+        w_q_temp = q_dict['w'][:cur_Q]*num_dat/(num_dat+1)
+        increased_w = (q_dict['w'][min_ind]*num_dat + 1)/(num_dat+1)
+        q_dict['w'][:cur_Q] = w_q_temp
+        q_dict['w'][min_ind] = increased_w
+        for k in range(cur_K):
+            if min_ind in k_dict[k]:
+                k_dict['d'][k] = (k_dict['d'][k]*k_dict['w'][k]*num_dat + new_dat)/(k_dict['w'][k]*num_dat + 1)
+                k_dict['w'][k] = (k_dict['w'][k]*num_dat + 1)/(num_dat + 1)
+            else:
+                k_dict['w'][k] = (k_dict['w'][k]*num_dat)/(num_dat + 1)
+        total_time = time.time() - start_time
+        q_dict['data'][min_ind] = np.vstack([q_dict['data'][min_ind],new_dat])
+        for k in range(cur_K):
+            if min_ind in k_dict[k]:
+                k_dict['data'][k] = np.vstack([k_dict['data'][k],new_dat])
+    else:
+        start_time = time.time()
+        cur_Q = q_dict['cur_Q'] + 1
+        q_dict['cur_Q'] = cur_Q
+        q_dict['a'][cur_Q-1] = new_dat
+        q_dict['d'][cur_Q-1] = new_dat
+        q_dict['rmse'][cur_Q-1] = min_dist
+        q_dict['w'][:cur_Q-1] = (q_dict['w'][:cur_Q-1]*num_dat)/(num_dat+1)
+        q_dict['w'][cur_Q-1] = 1/(num_dat+1)
+        total_time = time.time() - start_time
+        q_dict['data'][cur_Q-1] = new_dat
+        if cur_Q > Q:
+            start_time = time.time()
+            q_dict['cur_Q'] = Q
+            min_pair = find_min_pairwise_distance(q_dict['a'])
+            merged_weight = np.sum(q_dict['w'][min_pair[0]]+q_dict['w'][min_pair[1]])
+            merged_center = (q_dict['rmse'][min_pair[0]]*q_dict['w'][min_pair[0]] + q_dict['rmse'][min_pair[1]]*q_dict['w'][min_pair[1]])/merged_weight
+            merged_centroid = (q_dict['d'][min_pair[0]]*q_dict['w'][min_pair[0]] + q_dict['d'][min_pair[1]]*q_dict['w'][min_pair[1]])/merged_weight
+            merged_rmse = np.sqrt((q_dict['rmse'][min_pair[0]]**2*q_dict['w'][min_pair[0]] + q_dict['rmse'][min_pair[1]]**2*q_dict['w'][min_pair[1]])/merged_weight + (q_dict['w'][min_pair[0]]*np.linalg.norm( q_dict['d'][min_pair[0]]- merged_centroid)**2 + q_dict['w'][min_pair[1]]*np.linalg.norm(q_dict['d'][min_pair[1]]- merged_centroid)**2)/(merged_weight ))
+            q_dict['a'][min_pair[0]] = merged_center
+            q_dict['d'][min_pair[0]] = merged_centroid
+            q_dict['w'][min_pair[0]] = merged_weight
+            q_dict['rmse'][min_pair[0]] = merged_rmse
+            q_dict['a'][min_pair[1]] = q_dict['a'][Q]
+            q_dict['d'][min_pair[1]] = q_dict['d'][Q]
+            q_dict['w'][min_pair[1]] = q_dict['w'][Q]
+            q_dict['rmse'][min_pair[1]] = q_dict['rmse'][Q]
+            total_time += time.time() - start_time
+            merged_data = np.vstack([q_dict['data'][q] for q in min_pair])
+            q_dict['data'][min_pair[0]] = merged_data
+            q_dict['data'][min_pair[1]] = q_dict['data'][Q]
+        k_dict, time_temp = cluster_k(K,q_dict,k_dict)
+        total_time += time_temp
+    return q_dict, k_dict, total_time
+
+            
+def fixed_cluster(k_dict, new_dat,num_dat):
+    new_dat = np.reshape(new_dat,(1,m))
+    start_time = time.time()
+    dists = cdist(new_dat,k_dict['a'])
+    min_ind = np.argmin(dists)
+    k_dict['d'][min_ind] = (k_dict['d'][min_ind]*k_dict['w'][min_ind]*num_dat + new_dat)/(k_dict['w'][min_ind]*num_dat + 1)
+    w_k_temp = k_dict['w']*num_dat/(num_dat+1)
+    increased_w = (k_dict['w'][min_ind]*num_dat + 1)/(num_dat+1)
+    k_dict['w'] = w_k_temp
+    k_dict['w'][min_ind] = increased_w
+    total_time = time.time() - start_time
+    k_dict['data'][min_ind] = np.vstack([k_dict['data'][min_ind],new_dat])
+    return k_dict, total_time
+
+
+def compute_cumulative_regret(history,dateval,p,c,C):
+    """
+    Compute cumulative regret by comparing online decisions against optimal DRO solution in hindsight.
+    At each time t, use the same samples that were available to the online policy.
+    
+    Args:
+        history (dict): History of online decisions and parameters
+        dro_params (DROParameters): Problem parameters
+        online_samples (np.array): Array of observed samples
+        num_eval_samples (int): Number of samples to use for SAA evaluation
+        seed (int): Random seed for reproducibility
+    """
+    
+    MRO_e = []
+    MRO_s = []
+    online_e = []
+    online_s = []
+    online_ws = []
+    MRO_ws = []
+    satisfy_probs = []
+    MRO_satisfy_probs = []
+
+    T = len(history['t'])
+    # Generate evaluation samples from true distribution for cost computation
+    for j in range(4):
+        eval_values = np.zeros(T)
+        MRO_eval_values = np.zeros(T)
+        MRO_satisfy_prob = np.zeros(T)
+        satisfy_prob = np.zeros(T)
+        eval_samples = dateval[(j*2000):(j+1)*2000,:m]
+    # For each timestep t
+        for t in range(T):            
+            # Compute instantaneous regret at time t using true distribution
+            online_cost,o1 = evaluate_k(history['x'][t],history['X'][t], eval_samples,history['tau'][t],p,c,C)
+            MRO_cost,m1 = evaluate_k(history['MRO_x'][t],history['MRO_X'][t], eval_samples,history['MRO_tau'][t],p,c,C)
+            eval_values[t] = online_cost
+            MRO_eval_values[t] = MRO_cost
+            satisfy_prob[t] = o1
+            MRO_satisfy_prob[t] = m1
+            
+
+        MRO_satisfy = np.array(history['MRO_obj_values'] >= MRO_eval_values).astype(float)
+        satisfy = np.array(history['obj_values'] >= eval_values).astype(float)
+        worst_satisfy = np.array(history['worst_values'] >= eval_values).astype(float)
+        MRO_worst_satisfy = np.array(history['MRO_worst_values'] >= MRO_eval_values).astype(float)
+
+        MRO_e.append(MRO_eval_values)
+        MRO_s.append(MRO_satisfy)
+        online_e.append(eval_values)
+        online_s.append(satisfy)
+        online_ws.append(worst_satisfy)
+        MRO_ws.append(MRO_worst_satisfy)
+        MRO_satisfy_probs.append(MRO_satisfy_prob)
+        satisfy_probs.append(satisfy_prob)
+    
+    return MRO_e, MRO_s, online_e, online_s, online_ws, MRO_ws,satisfy_probs, MRO_satisfy_probs
+
+def calc_cluster_val(K,k_dict, num_dat,X):
+    mean_val = 0
+    square_val = 0
+    sig_val = 0
+    cur_K = min(K,num_dat)
+    for k in range(cur_K):
+        centroid = k_dict['d'][k]
+        for dat in k_dict['data'][k]:
+            cur_val = np.linalg.norm(dat-centroid,2)
+            mean_val += cur_val
+            square_val += cur_val**2
+            sig_val += max(np.max([(centroid - dat)@(X[i]) for i 
+        in range(n)]),0)
+    return mean_val/num_dat, square_val/num_dat, sig_val/num_dat
+
+def facility_experiments(r_input,K,T,N_init,dateval,r_start,p,c,C):
+    r,epsnum = list_inds[r_input]
+    dat = generate_facility_demands(2000, m,seed = r_start+r)
+    init_eps = eps_init[epsnum]
+    num_dat = N_init
+    q_dict, k_dict,weight_update_time= online_cluster_init(K,Q,dat[init_ind:(init_ind+num_dat)])
+    k_dict_prev = k_dict.copy()
+    new_k_dict_prev = k_dict.copy()
+    new_k_dict = None
+    init_samples = dat[init_ind:(init_ind+N_init)]
+
+    # Initialize solutions
+    MRO_x_prev = np.zeros(n)
+    MRO_tau_prev = 0
+    tau_prev = 0
+    x_prev = np.zeros(n)
+    X_prev = np.zeros((n,m))
+    MRO_X_prev = np.zeros((n,m))
+
+    online_problem, online_x, online_X, data_train, online_wk,eps_train, online_tau = prob_facility_nosup(np.minimum(num_dat,K), m, n,p,c,C)
+
+    init_radius_val = init_eps*(1/(num_dat**(1/(30))))
+
+    # History for analysis
+    history = {
+        'x': [],
+        'tau': [],
+        'obj_values': [],
+        'MRO_x': [],
+        'MRO_tau': [],
+        'MRO_obj_values': [],
+        'worst_values': [],
+        'worst_values_MRO':[],
+        'epsilon': [],
+        'weights': [],
+        'weights_q': [],
+        'online_computation_times': {
+            'weight_update': [],
+            'min_problem': [],
+            'total_iteration': []
+        },
+        'MRO_computation_times':{
+        'clustering': [],
+        'min_problem': [],
+        'total_iteration':[]
+        },
+        'distances':[],
+        'mean_val':[],
+        'square_val': [],
+        'sig_val': [],
+        'mean_val_MRO':[],
+        'square_val_MRO': [],
+        'sig_val_MRO': [],
+        "satisfy":[],
+        "MRO_satisfy":[],
+        'worst_times':[],
+        'MRO_worst_times':[],
+        'MRO_worst_values':[],
+        'worst_values':[],
+        't':[],
+        'MRO_weights':[],
+        'MRO_worst_values_regret':[],
+        'worst_values_regret':[],
+        'MRO_worst_times_regret':[],
+        'worst_times_regret':[],
+        'regret_bound':[],
+        'MRO_regret_bound':[],
+        'regret_K': [],
+        'MRO_regret_K':[],
+        'X':[],
+        'MRO_X':[],
+        'obj_values_act':[],
+        'MRO_obj_values_act':[],
+        "SA_obj_values_act":[],
+        "SA_obj_values":[],
+        "SA_satisfy_p":[],
+        "SA_eval0":[],
+        "SA_satisfy":[]
+    }
+
+
+    for t in range(T):
+        print(f"\nTimestep {t+1}/{T}")
+        
+        radius = init_eps*(1/(num_dat**(1/(2*m))))
+        running_samples = dat[init_ind:(init_ind+num_dat)]
+
+        # solve online MRO problem
+        if t % interval == 0 or ((t-1) % interval == 0) :
+            if num_dat <= K or data_train.shape[0] < K:
+                cur_K = np.minimum(num_dat,K)
+                online_problem, online_x, online_X, data_train, online_wk,eps_train, online_tau = prob_facility_nosup(cur_K, m, n,p,c,C)
+            data_train.value = k_dict['d'][:num_dat]
+            eps_train.value = radius
+            online_wk.value = k_dict['w'][:num_dat]
+            online_problem.solve(solver=cp.MOSEK, verbose=False, mosek_params={
+                mosek.dparam.optimizer_max_time:  2000.0})
+            x_current = online_x.value
+            X_current = online_X.value
+            tau_current = online_tau.value
+            min_obj = online_problem.objective.value
+            min_time = online_problem.solver_stats.solve_time
+            
+
+            # Store timing information
+            history['online_computation_times']['min_problem'].append(min_time)
+            history['online_computation_times']['total_iteration'].append(min_time+weight_update_time)
+            history['online_computation_times']['weight_update'].append(weight_update_time)
+            history['t'].append(t)
+
+        if t % interval == 0 or ((t-1) % interval == 0) :
+            # solve MRO problem with new clusters
+            if t <= fixed_time:
+                start_time = time.time()
+                cur_K = np.minimum(K,num_dat)
+                if new_k_dict is not None and (num_dat > (1+interval+N_init)):
+                    kmeans = KMeans(n_clusters=cur_K, init=new_k_dict['d'],n_init=1).fit(running_samples)
+                else:
+                    kmeans = KMeans(n_clusters=cur_K,init="k-means++", n_init=1).fit(running_samples)
+                new_centers = kmeans.cluster_centers_
+                wk = np.bincount(kmeans.labels_) / num_dat
+                cluster_time = time.time()-start_time
+                new_k_dict = {}
+                new_k_dict['K'] = cur_K
+                new_k_dict['data'] = {}
+                new_k_dict['a'] = new_centers
+                new_k_dict['d'] = new_centers
+                new_k_dict['w'] = wk
+                for k in range(K):
+                    new_k_dict['data'][k] = running_samples[kmeans.labels_==k]
+                new_k_dict['d'] = new_centers
+                
+
+            data_train.value = new_k_dict['d']
+            online_wk.value = new_k_dict['w']
+            # eps_train.value = new_radius
+            online_problem.solve(solver=cp.MOSEK, verbose=False, mosek_params={
+                mosek.dparam.optimizer_max_time:  2000.0})
+            MRO_x_current = online_x.value
+            MRO_X_current = online_X.value
+            MRO_tau_current = online_tau.value
+            MRO_min_obj = online_problem.objective.value
+            MRO_min_time = online_problem.solver_stats.solve_time
+            mean_val_mro, square_val_mro, sig_val_mro = calc_cluster_val(K, new_k_dict,num_dat,MRO_X_current)
+        
+            history['MRO_computation_times']['min_problem'].append(MRO_min_time)
+            history['MRO_computation_times']['total_iteration'].append(MRO_min_time+cluster_time)
+            history['MRO_computation_times']['clustering'].append(cluster_time)
+            history['MRO_weights'].append(new_k_dict['w'])
+
+    
+        if t % interval == 0 or ((t-1) % interval == 0) :
+            # compute online MRO worst value (wrt non clustered data)
+            new_problem, w_d, eps_d, x_d, X_d, tau_d =  worse_case(num_dat, m, n,running_samples,p,c,C)
+            w_d.value = (1/num_dat)*np.ones(num_dat)
+            eps_d.value = radius
+            x_d.value = x_current
+            tau_d.value = tau_current
+            X_d.value = X_current
+            new_problem.solve(solver=cp.MOSEK, verbose=False, mosek_params={
+                mosek.dparam.optimizer_max_time:  2000.0})
+            new_worst = new_problem.objective.value
+            worst_time = new_problem.solver_stats.solve_time
+            
+            history['worst_values'].append(new_worst)
+            history['worst_times'].append(worst_time)
+            
+        if t % interval == 0 or ((t-1) % interval == 0) :
+            x_d.value = MRO_x_current
+            tau_d.value = MRO_tau_current
+            X_d.value = MRO_X_current
+            new_problem.solve(solver=cp.MOSEK, verbose=False, mosek_params={
+                mosek.dparam.optimizer_max_time:  2000.0})
+            new_worst_MRO = new_problem.objective.value
+            MRO_worst_time = new_problem.solver_stats.solve_time
+
+            mean_val, square_val, sig_val = calc_cluster_val(K, k_dict,num_dat,X_current)
+            # q_lens = [len(q_dict['data'][i]) for i in range(q_dict['cur_Q'])]
+            # k_lens = [len(k_dict['data'][i]) for i in range(k_dict['K'])]
+            # print("Q nums", q_lens, np.sum(q_lens), num_dat)
+            # print("K nums", k_lens, np.sum(k_lens), num_dat)
+
+            history['MRO_worst_values'].append(new_worst_MRO)
+            history['MRO_worst_times'].append(MRO_worst_time)
+
+
+        if t % interval == 0 or ((t-1) % interval == 0) :
+            # compute online worst value (wrt prev stage sols
+            x_d.value = x_prev
+            tau_d.value = tau_prev
+            X_d.value = X_prev
+            new_problem.solve(solver=cp.MOSEK, verbose=False, mosek_params={
+                mosek.dparam.optimizer_max_time:  2000.0})
+            new_worst = new_problem.objective.value
+            worst_time = new_problem.solver_stats.solve_time
+            
+            history['worst_values_regret'].append(new_worst)
+            history['worst_times_regret'].append(worst_time)
+            
+        if t % interval == 0 or ((t-1) % interval == 0) :
+            x_d.value = MRO_x_prev
+            tau_d.value = MRO_tau_prev
+            X_d.value = MRO_X_prev
+            new_problem.solve(solver=cp.MOSEK, verbose=False, mosek_params={
+                mosek.dparam.optimizer_max_time:  2000.0})
+            new_worst_MRO = new_problem.objective.value
+            MRO_worst_time = new_problem.solver_stats.solve_time
+
+            # q_lens = [len(q_dict['data'][i]) for i in range(q_dict['cur_Q'])]
+            # k_lens = [len(k_dict['data'][i]) for i in range(k_dict['K'])]
+            # print("Q nums", q_lens, np.sum(q_lens), num_dat)
+            # print("K nums", k_lens, np.sum(k_lens), num_dat)
+
+            history['MRO_worst_values_regret'].append(new_worst_MRO)
+            history['MRO_worst_times_regret'].append(MRO_worst_time)
+            
+            MRO_x_prev = MRO_x_current
+            MRO_tau_prev = MRO_tau_current
+            X_prev = X_current
+            MRO_X_prev = MRO_X_current
+            x_prev = x_current
+            tau_prev = tau_current
+
+            prob_new, xnew, Xnew,taunew = create_scenario(running_samples,m,num_dat)
+            prob_new.solve(solver=cp.MOSEK, verbose=False, mosek_params={
+                mosek.dparam.optimizer_max_time:  2000.0})
+            history["SA_obj_values"].append(prob_new.objective.value)
+            history["SA_obj_values_act"].append(np.trace(C.T @ Xnew.value) + c@xnew.value)
+            val, sat = evaluate_k(xnew.value,Xnew.value,dateval[:2000,:m],taunew.value,p,c,C)
+            history["SA_eval0"].append(val)
+            history["SA_satisfy_p"].append(sat)
+            history['SA_satisfy'].append(float(prob_new.objective.value >= val))
+
+
+
+        # New sample
+        new_sample = dat[init_ind+num_dat]
+        q_dict, k_dict, weight_update_time = online_cluster_update(K,new_sample, q_dict, k_dict,num_dat, t, fixed_time)
+        if t >= fixed_time:
+            new_k_dict, cluster_time = fixed_cluster(new_k_dict,new_sample,num_dat=num_dat)
+        num_dat += 1
+        # history['online_computation_times']['weight_update'].append(weight_update_time)
+        # history['online_computation_times']['total_iteration'].append(weight_update_time + min_time)
+
+        if t % interval == 0 or ((t-1) % interval == 0) :
+            N_dist_cur = wasserstein(init_samples,running_samples)
+            
+            history['regret_K'].append(w2_dist(k_dict,k_dict_prev)+ 2*radius )
+            history['MRO_regret_K'].append(w2_dist(new_k_dict,new_k_dict_prev)+ 2*radius)
+            regret_bound = (np.sum(history['regret_K']) + N_dist_cur+ radius + init_radius_val)/(t+1)
+            MRO_regret_bound = (np.sum(history['MRO_regret_K']) + N_dist_cur+ radius + init_radius_val)/(t+1)
+            history["regret_bound"].append(regret_bound)
+            history["MRO_regret_bound"].append(MRO_regret_bound)
+            k_dict_prev = k_dict.copy()
+            new_k_dict_prev = new_k_dict.copy()
+            
+            history['mean_val'].append(mean_val)
+            history['sig_val'].append(sig_val)
+            history['square_val'].append(square_val)
+            history['mean_val_MRO'].append(mean_val_mro)
+            history['sig_val_MRO'].append(sig_val_mro)
+            history['square_val_MRO'].append(square_val_mro)
+            history['x'].append(x_current)
+            history['X'].append(X_current)
+            history['tau'].append(tau_current)
+            history['obj_values'].append(min_obj)
+            history['MRO_x'].append(MRO_x_current)
+            history['MRO_X'].append(MRO_X_current)
+            history['MRO_tau'].append(MRO_tau_current)
+            history['MRO_obj_values'].append(MRO_min_obj)
+            history['weights'].append(k_dict['w'].copy())
+            history['weights_q'].append(q_dict['w'].copy())
+            history['epsilon'].append(radius)
+            history['MRO_obj_values_act'].append(np.trace(C.T @ MRO_X_current) + c@MRO_x_current)
+            history['obj_values_act'].append(np.trace(C.T @ X_current) + c@x_current)
+
+            
+            
+            # print(f"Current allocation: {x_current}")
+            print(f"Current epsilon: {radius}")
+            # print(f"Weight sum: {np.sum(k_dict['w'])}")
+
+        if t % interval == 0 or ((t-1) % interval == 0) :
+
+            MRO_e, MRO_s, online_e, online_s, online_ws, MRO_ws, satisfy_p, MRO_satisfy_p = compute_cumulative_regret(
+            history,dateval,p,c,C)
+            
+            df = pd.DataFrame({
+            'x': history['x'],
+            'tau': np.array(history['tau']),
+            'obj_values': np.array(history['obj_values']),
+            'MRO_x': history['MRO_x'],
+            'MRO_tau':np.array(history['MRO_tau']),
+            'MRO_obj_values': np.array(history['MRO_obj_values']),
+            'obj_val_act': np.array(history['obj_values_act']),
+            'MRO_obj_val_act': np.array(history['MRO_obj_values_act']),
+            'epsilon': np.array(history['epsilon']),
+            'weights':  history['weights'],
+            'MRO_weights': history['MRO_weights'],
+            'weights_q': history['weights_q'],
+            'online_time':  np.array(history['online_computation_times']['total_iteration']),
+            'MRO_time':  np.array(history['MRO_computation_times']['total_iteration']),
+            'MRO_mean_val': np.array(history['mean_val_MRO']),
+            'MRO_square_val': np.array(history['square_val_MRO']),
+            'MRO_sig_val': np.array(history['sig_val_MRO']),
+            'mean_val': np.array(history['mean_val']),
+            'square_val': np.array(history['square_val']),
+            'sig_val': np.array(history['sig_val']),
+            "worst_values":np.array(history['worst_values']),
+            "MRO_worst_values":np.array(history['MRO_worst_values']),
+            "worst_times":np.array(history['worst_times']),
+            "MRO_worst_times":np.array(history['MRO_worst_times']),
+            "worst_values_regret":np.array(history['worst_values_regret']),
+            "MRO_worst_values_regret":np.array(history['MRO_worst_values_regret']),
+            "worst_times_regret":np.array(history['worst_times_regret']),
+            "MRO_worst_times_regret":np.array(history['MRO_worst_times_regret']),
+            't': np.array(history['t']),
+            'regret_bound': history["regret_bound"],
+            'MRO_regret_bound': history["MRO_regret_bound"],
+            "SA_obj_values": history["SA_obj_values"],
+            'SA_obj_values_act': history["SA_obj_values_act"],
+            "SA_satisfy_p":history["SA_satisfy_p"],
+            "SA_eval0": history["SA_eval0"],
+            'SA_satisfy': history['SA_satisfy']
+            })
+            colnames = ['MRO_eval', "MRO_satisfy",'O_eval',"O_satisfy", "O_worst_satisfy", "MRO_worst_satisfy", "satisfy_p", "MRO_satisfy_p"]
+            colvals = [MRO_e, MRO_s, online_e, online_s, online_ws, MRO_ws, satisfy_p, MRO_satisfy_p]
+            for i in range(len(colnames)):
+                for j in range(4):
+                    df[colnames[i]+str(j)] = np.array(colvals[i][j])
+            # df.to_csv(foldername+str(epsnum)+'_R'+str(r+r_start)+'_df.csv')
+            # print(f"Weights: {q_dict['w'], np.sum(q_dict['w']) }")
+        
+    MRO_e, MRO_s, online_e, online_s, online_ws, MRO_ws, satisfy_p, MRO_satisfy_p = compute_cumulative_regret(
+            history,dateval,p,c,C)
+            
+    df = pd.DataFrame({
+    # 'x': history['x'],
+    # 'tau': np.array(history['tau'][1:]),
+    'obj_values': np.array(history['obj_values']),
+    # 'MRO_x': history['MRO_x'],
+    # 'MRO_tau':np.array(history['MRO_tau'][1:]),
+    'MRO_obj_values': np.array(history['MRO_obj_values']),
+    'epsilon': np.array(history['epsilon']),
+    'weights':  history['weights'],
+    'MRO_weights': history['MRO_weights'],
+    # 'weights_q': history['weights_q'],
+    'online_time':  np.array(history['online_computation_times']['total_iteration']),
+    'MRO_time':  np.array(history['MRO_computation_times']['total_iteration']),
+    'MRO_mean_val': np.array(history['mean_val_MRO']),
+    'MRO_square_val': np.array(history['square_val_MRO']),
+    'MRO_sig_val': np.array(history['sig_val_MRO']),
+    'mean_val': np.array(history['mean_val']),
+    'square_val': np.array(history['square_val']),
+    'obj_val_act': np.array(history['obj_values_act']),
+    'MRO_obj_val_act': np.array(history['MRO_obj_values_act']),
+    'sig_val': np.array(history['sig_val']),
+    "worst_values":np.array(history['worst_values']),
+    "MRO_worst_values":np.array(history['MRO_worst_values']),
+    "worst_times":np.array(history['worst_times']),
+    "MRO_worst_times":np.array(history['MRO_worst_times']),
+    "worst_values_regret":np.array(history['worst_values_regret']),
+    "MRO_worst_values_regret":np.array(history['MRO_worst_values_regret']),
+    "worst_times_regret":np.array(history['worst_times_regret']),
+    "MRO_worst_times_regret":np.array(history['MRO_worst_times_regret']),
+    't': np.array(history['t']),
+    'regret_bound': history["regret_bound"],
+            'MRO_regret_bound': history["MRO_regret_bound"],
+                        "SA_obj_values": history["SA_obj_values"],
+            'SA_obj_values_act': history["SA_obj_values_act"],
+            "SA_satisfy_p":history["SA_satisfy_p"],
+            "SA_eval0": history["SA_eval0"],
+    })
+    colnames = ['MRO_eval', "MRO_satisfy",'O_eval',"O_satisfy", "O_worst_satisfy", "MRO_worst_satisfy", "satisfy_p", "MRO_satisfy_p"]
+    colvals = [MRO_e, MRO_s, online_e, online_s, online_ws, MRO_ws, satisfy_p, MRO_satisfy_p]
+    for i in range(len(colnames)):
+        for j in range(4):
+            df[colnames[i]+str(j)] = np.array(colvals[i][j])
+    # df.to_csv(foldername+str(epsnum)+'_R'+str(r+r_start)+'_df.csv')
+  
+    return df
+    
+        
+if __name__ == '__main__':
+
+    # idx = int(os.environ["SLURM_ARRAY_TASK_ID"])
+    # parser = argparse.ArgumentParser()
+    # parser.add_argument('--foldername', type=str,
+    #                     default="/scratch/gpfs/iywang/mro_results/", metavar='N')
+    # parser.add_argument('--K', type=int, default=5)
+    # parser.add_argument('--T', type=int, default=3001)
+    # parser.add_argument('--R', type=int, default=5)
+    # parser.add_argument('--m', type=int, default=50)
+    # parser.add_argument('--n', type=int, default=15)
+    # parser.add_argument('--Q', type=int, default=500)
+    # parser.add_argument('--fixed_time', type=int, default=1500)
+    # parser.add_argument('--interval', type=int, default=100)
+    # parser.add_argument('--N_init', type=int, default=50)
+    # parser.add_argument('--r_start', type=int, default=0)
+
+  
+
+    # arguments = parser.parse_args()
+    # foldername = arguments.foldername
+    K = 5
+    R = 1
+    m = 30
+    n = 8
+    Q = 100
+    T = 200
+    r_start = 0
+    fixed_time = 100
+    interval = 20
+    N_init = 5
+    K_arr = [5,10,15]
+    K = K_arr[0]
+
+    c, C, p = generate_facility_data(n, m)
+    dateval = generate_facility_demands(3000, m,seed = 1)
+    
+    init_ind = 0
+    njobs = get_n_processes(100)
+    #eps_init = [0.006,0.005,0.004,0.0035,0.003,0.0025,0.002,0.0015,0.001]
+    #eps_init = [0.4,0.35,0.3,0.25,0.2,0.1]
+    eps_init = [0.0012,0.001,0.0009,0.0008,0.0007,0.0006,0.0005,0]
+    # eps_init = [0.007,0.006,0.005,0.0015]
+    M = len(eps_init)
+    list_inds = list(itertools.product(np.arange(R),np.arange(M)))
+
+    # results = Parallel(n_jobs=njobs)(delayed(facility_experiments)(
+    #     r_input,K,T,N_init,dateval,r_start) for r_input in range(len(list_inds)))
+
+    results = facility_experiments(0,K,T,N_init,dateval,r_start,p,c,C)
+    
+    dfs = {}
+    for r in range(R):
+        dfs[r] = {}
+    for r_input in range(len(list_inds)):
+        r,epsnum = list_inds[r_input]
+        dfs[r][epsnum] = results
+
+    findfs = {}
+    for r in range(R):
+        findfs[r] = pd.concat([dfs[r][i] for i in range(len(eps_init))],ignore_index=True)
+        findfs[r] = findfs[r].drop(columns=['weights','MRO_weights'])
+        findfs[r].to_csv('df_' + str(r+r_start) +'.csv')
+
+    # newdatname = '/scratch/gpfs/iywang/mro_mpc/portfolio_exp/T'+str(T-1)+'R'+str(R)+'/'
+    # os.makedirs(newdatname, exist_ok=True)
+    # for r in range(R):
+    #     findfs[r] = findfs[r].drop(columns=['weights','MRO_weights'])
+    #     findfs[r].to_csv(newdatname + 'df_' + 'K'+str(K)+'R'+ str(r+r_start) +'.csv')
+    
+    print("DONE")
