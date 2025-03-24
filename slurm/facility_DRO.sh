@@ -17,7 +17,6 @@ module load anaconda3/2024.2
 conda activate mroenv
 
 
-python facility/facility_DRO.py --foldername /scratch/gpfs/iywang/mro_results/facility/ --R 1 --T 501 --fixed_time 300 --interval 20 --interval_SAA 20 --Q 300 --K 15 --N_init 5 --r_start 0  
-#--n 5 --m 25
+python facility/facility_DRO.py --foldername /scratch/gpfs/iywang/mro_results/facility/1050/ --R 4 --T 501 --fixed_time 300 --interval 20 --interval_SAA 20 --Q 300 --K 15 --N_init 5 --r_start 0  --n 10 --m 50
 
 # python portfolio_time/portMIP.py --foldername /scratch/gpfs/iywang/mro_results/portfolio/ --R 40 --T 10001 --fixed_time 7000  --interval 100 --Q 500 --K 5 --r_start 0

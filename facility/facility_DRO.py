@@ -608,7 +608,7 @@ def facility_experiments(r_input,K,T,N_init,dateval,r_start,p,c,C):
     for t in range(T):
         print(f"\nTimestep {t+1}/{T}")
         
-        radius = init_eps*(1/(num_dat**(1/(20))))
+        radius = init_eps*(1/(num_dat**(1/(10))))
         running_samples = dat[init_ind:(init_ind+num_dat)]
 
         if t % interval == 0 or ((t-1) % interval == 0) :
@@ -794,8 +794,7 @@ if __name__ == '__main__':
     njobs = get_n_processes(100)
     #eps_init = [0.006,0.005,0.004,0.0035,0.003,0.0025,0.002,0.0015,0.001]
     # eps_init = [0.007,0.006,0.005,0.0015]
-    eps_init = [0.001,0.0008,0.0006,0.0003,0.0002,0.0001,0.00005]
-
+    eps_init = [0.02,0.015,0.01,0.008,0.007,0.006,0.005,0.003,0.001]
     M = len(eps_init)
     list_inds = list(itertools.product(np.arange(R),np.arange(M)))
 

@@ -152,7 +152,7 @@ def w2_dist(k1,k2):
     if k1['K']>K:
         dists = cdist(k1['d'][K].reshape((1,m)),k2['d'][:K])
         val += dists@np.abs(k2['w'][:K] - k1['w'][:K])
-    return val
+    return float(val)
 
 def create_scenario(dat,m,num_dat):
     tau = cp.Variable()
