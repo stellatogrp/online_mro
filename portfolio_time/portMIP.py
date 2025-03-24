@@ -666,7 +666,7 @@ def port_experiments(r_input,K,T,N_init,dat,dateval,r_start):
         running_samples = dat[init_ind:(init_ind+num_dat)]
 
         # solve online MRO problem
-        if t % interval == 0 or ((t-1) % interval == 0) or t<=200 :
+        if t % interval == 0 or ((t-1) % interval == 0)  :
             if num_dat <= K or data_train.shape[0] < K:
                 cur_K = np.minimum(num_dat,K)
                 online_problem, online_x, online_s, online_tau, online_lmbda, data_train, eps_train, w_train = createproblem_portMIP(cur_K, m)
@@ -687,12 +687,12 @@ def port_experiments(r_input,K,T,N_init,dat,dateval,r_start):
             history['online_computation_times']['weight_update'].append(weight_update_time)
             history['t'].append(t)
 
-        if t % interval == 0 or ((t-1) % interval == 0) or t<=200 :
+        if t % interval == 0 or ((t-1) % interval == 0)  :
             # solve MRO problem with new clusters
             if t <= fixed_time:
                 start_time = time.time()
                 cur_K = np.minimum(K,num_dat)
-                if new_k_dict is not None and (num_dat > (15)):
+                if new_k_dict is not None and (num_dat > (interval+N_init)):
                     kmeans = KMeans(n_clusters=cur_K, init=new_k_dict['d'],n_init=1).fit(running_samples)
                 else:
                     print("restart kmeans", cur_K, num_dat)
@@ -728,7 +728,7 @@ def port_experiments(r_input,K,T,N_init,dat,dateval,r_start):
             history['MRO_weights'].append(new_k_dict['w'])
 
     
-        if t % interval == 0 or ((t-1) % interval == 0) or t<=200:
+        if t % interval == 0 or ((t-1) % interval == 0) :
             # compute online MRO worst value (wrt non clustered data)
 
             new_problem, s_d, lam_d, x_d, tau_d, eps_d, w_d =  worst_case(num_dat,m,running_samples)
@@ -744,7 +744,7 @@ def port_experiments(r_input,K,T,N_init,dat,dateval,r_start):
             history['worst_values'].append(new_worst)
             history['worst_times'].append(worst_time)
             
-        if t % interval == 0 or ((t-1) % interval == 0) or t<=200 :
+        if t % interval == 0 or ((t-1) % interval == 0)  :
             x_d.value = MRO_x_current
             tau_d.value = MRO_tau_current
             new_problem.solve(ignore_dpp=True, solver=cp.MOSEK, verbose=False, mosek_params={
@@ -762,7 +762,7 @@ def port_experiments(r_input,K,T,N_init,dat,dateval,r_start):
             history['MRO_worst_times'].append(MRO_worst_time)
 
 
-        if t % interval == 0 or ((t-1) % interval == 0) or t<=200:
+        if t % interval == 0 or ((t-1) % interval == 0) :
             # compute online worst value (wrt prev stage sols
             x_d.value = x_prev
             tau_d.value = tau_prev
@@ -774,7 +774,7 @@ def port_experiments(r_input,K,T,N_init,dat,dateval,r_start):
             history['worst_values_regret'].append(new_worst)
             history['worst_times_regret'].append(worst_time)
             
-        if t % interval == 0 or ((t-1) % interval == 0) or t<=200 :
+        if t % interval == 0 or ((t-1) % interval == 0)  :
             x_d.value = MRO_x_prev
             tau_d.value = MRO_tau_prev
             new_problem.solve(ignore_dpp=True, solver=cp.MOSEK, verbose=False, mosek_params={
@@ -806,7 +806,7 @@ def port_experiments(r_input,K,T,N_init,dat,dateval,r_start):
         # history['online_computation_times']['weight_update'].append(weight_update_time)
         # history['online_computation_times']['total_iteration'].append(weight_update_time + min_time)
 
-        if t % interval == 0 or ((t-1) % interval == 0) or t<=200:
+        if t % interval == 0 or ((t-1) % interval == 0) :
             N_dist_cur = wasserstein(init_samples,running_samples)
             
             history['regret_K'].append(w2_dist(k_dict,k_dict_prev)+ 2*radius )
@@ -840,7 +840,7 @@ def port_experiments(r_input,K,T,N_init,dat,dateval,r_start):
             print(f"Current epsilon: {radius}")
             # print(f"Weight sum: {np.sum(k_dict['w'])}")
 
-        if t % interval == 0 or ((t-1) % interval == 0) or t<=200:
+        if t % interval == 0 or ((t-1) % interval == 0) :
 
             MRO_e, MRO_s, online_e, online_s, online_ws, MRO_ws = compute_cumulative_regret(
             history,dateval)

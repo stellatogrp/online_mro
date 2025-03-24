@@ -213,7 +213,7 @@ def generate_facility_data(n=10, m=50):
             C[i, j] = np.linalg.norm(fac_loc[i, :] - cus_loc[j, :])
 
     # Capacities for each facility
-    p = np.random.randint(20, 60, n)
+    p = np.random.randint(10, 40, n)
 
     # Past demands of customer (past uncertain data)
     return c, C, p
@@ -853,9 +853,9 @@ def facility_experiments(r_input,K,T,N_init,dateval,r_start,p,c,C):
             'obj_val_act': np.array(history['obj_values_act']),
             'MRO_obj_val_act': np.array(history['MRO_obj_values_act']),
             'epsilon': np.array(history['epsilon']),
-            'weights':  history['weights'],
-            'MRO_weights': history['MRO_weights'],
-            'weights_q': history['weights_q'],
+            # 'weights':  history['weights'],
+            # 'MRO_weights': history['MRO_weights'],
+            # 'weights_q': history['weights_q'],
             'online_time':  np.array(history['online_computation_times']['total_iteration']),
             'MRO_time':  np.array(history['MRO_computation_times']['total_iteration']),
             'MRO_mean_val': np.array(history['mean_val_MRO']),
@@ -981,7 +981,7 @@ if __name__ == '__main__':
     init_ind = 0
     njobs = get_n_processes(100)
     #eps_init = [0.006,0.005,0.004,0.0035,0.003,0.0025,0.002,0.0015,0.001]
-    eps_init = [0.0012,0.001,0.0009,0.0008,0.0007,0.0006,0.0005,0]
+    eps_init = [0.001,0.0008,0.0006,0.0003,0.0002,0.0001,0.00005]
     # eps_init = [0.007,0.006,0.005,0.0015]
     M = len(eps_init)
     list_inds = list(itertools.product(np.arange(R),np.arange(M)))

@@ -16,6 +16,7 @@ import time
 import matplotlib.pyplot as plt
 import ot
 import itertools
+import gurobipy
 
 output_stream = sys.stdout
 
@@ -208,7 +209,7 @@ def generate_facility_data(n=10, m=50):
             C[i, j] = np.linalg.norm(fac_loc[i, :] - cus_loc[j, :])
 
     # Capacities for each facility
-    p = np.random.randint(20, 60, n)
+    p = np.random.randint(10, 40, n)
 
     # Past demands of customer (past uncertain data)
     return c, C, p
@@ -793,7 +794,7 @@ if __name__ == '__main__':
     njobs = get_n_processes(100)
     #eps_init = [0.006,0.005,0.004,0.0035,0.003,0.0025,0.002,0.0015,0.001]
     # eps_init = [0.007,0.006,0.005,0.0015]
-    eps_init = [0.0012,0.001,0.0009,0.0008,0.0007,0.0006,0.0005,0.0003]
+    eps_init = [0.001,0.0008,0.0006,0.0003,0.0002,0.0001,0.00005]
 
     M = len(eps_init)
     list_inds = list(itertools.product(np.arange(R),np.arange(M)))

@@ -570,7 +570,7 @@ def port_experiments(r_input,T,N_init,dat,dateval,r_start):
         radius = init_eps*(1/(num_dat**(1/(2*m))))
         running_samples = dat[init_ind:(init_ind+num_dat)]
     
-        if t % interval == 0 or ((t-1) % interval == 0) or t<=200 :
+        if t % interval == 0 or ((t-1) % interval == 0)  :
         # solve DRO problem 
             DRO_problem, DRO_x, DRO_s, DRO_tau, DRO_lmbda, DRO_data, DRO_eps, DRO_w = createproblem_portMIP(num_dat,m)
             DRO_data.value = running_samples
@@ -585,7 +585,7 @@ def port_experiments(r_input,T,N_init,dat,dateval,r_start):
 
 
 
-        if t % interval_SAA == 0 or ((t-1) % interval_SAA == 0) or t<=200 :
+        if t % interval_SAA == 0 or ((t-1) % interval_SAA == 0)  :
             s_prob, s_x, s_tau = create_scenario(running_samples,m,num_dat)
             s_prob.solve(ignore_dpp=True, solver=cp.MOSEK, verbose=False, mosek_params={
                     mosek.dparam.optimizer_max_time:  2000.0})
@@ -614,7 +614,7 @@ def port_experiments(r_input,T,N_init,dat,dateval,r_start):
         # history['online_computation_times']['total_iteration'].append(weight_update_time + min_time)
     
 
-        if t % interval_SAA == 0 or ((t-1) % interval_SAA == 0) or t<=200:
+        if t % interval_SAA == 0 or ((t-1) % interval_SAA == 0) :
 
             DRO_eval, DRO_satisfy,SA_eval, SA_satisfy = compute_cumulative_regret(
             history,dateval)
