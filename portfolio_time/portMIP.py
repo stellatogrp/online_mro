@@ -218,9 +218,9 @@ def cluster_k(K,q_dict, k_dict, init=False):
     cur_Q = q_dict['cur_Q']
     k_dict['K'] = cur_K
     if init or (cur_Q<=K):
-        kmeans = KMeans(n_clusters=cur_K, init='k-means++', n_init=1).fit(q_dict['a'][:cur_Q,:])
+        kmeans = KMeans(n_clusters=cur_K, init='k-means++', n_init=1).fit(q_dict['d'][:cur_Q,:])
     else:
-        kmeans = KMeans(n_clusters=cur_K, init=k_dict['a'], n_init=1).fit(q_dict['a'][:cur_Q,:])
+        kmeans = KMeans(n_clusters=cur_K, init=k_dict['a'], n_init=1).fit(q_dict['d'][:cur_Q,:])
     k_dict['a'] = kmeans.cluster_centers_
     # k_dict['w'] = np.zeros(cur_K)
     # k_dict['d'] = np.zeros((cur_K,m))
@@ -245,7 +245,7 @@ def online_cluster_update(K,new_dat, q_dict, k_dict,num_dat, t, fix_time):
         return q_dict, k_dict, total_time
     cur_Q = q_dict['cur_Q']
     start_time = time.time()
-    dists = cdist(new_dat,q_dict['a'][:cur_Q,:])
+    dists = cdist(new_dat,q_dict['d'][:cur_Q,:])
     min_dist = np.min(dists)
     min_ind = np.argmin(dists)
     if min_dist <= 2*q_dict['rmse'][min_ind] and cur_K == K:
@@ -282,7 +282,7 @@ def online_cluster_update(K,new_dat, q_dict, k_dict,num_dat, t, fix_time):
             q_dict['cur_Q'] = Q
             min_pair = find_min_pairwise_distance(q_dict['a'])
             merged_weight = np.sum(q_dict['w'][min_pair[0]]+q_dict['w'][min_pair[1]])
-            merged_center = (q_dict['rmse'][min_pair[0]]*q_dict['w'][min_pair[0]] + q_dict['rmse'][min_pair[1]]*q_dict['w'][min_pair[1]])/merged_weight
+            merged_center = (q_dict['a'][min_pair[0]]*q_dict['w'][min_pair[0]] + q_dict['a'][min_pair[1]]*q_dict['w'][min_pair[1]])/merged_weight
             merged_centroid = (q_dict['d'][min_pair[0]]*q_dict['w'][min_pair[0]] + q_dict['d'][min_pair[1]]*q_dict['w'][min_pair[1]])/merged_weight
             merged_rmse = np.sqrt((q_dict['rmse'][min_pair[0]]**2*q_dict['w'][min_pair[0]] + q_dict['rmse'][min_pair[1]]**2*q_dict['w'][min_pair[1]])/merged_weight + (q_dict['w'][min_pair[0]]*np.linalg.norm( q_dict['d'][min_pair[0]]- merged_centroid)**2 + q_dict['w'][min_pair[1]]*np.linalg.norm(q_dict['d'][min_pair[1]]- merged_centroid)**2)/(merged_weight ))
             q_dict['a'][min_pair[0]] = merged_center
@@ -980,7 +980,7 @@ if __name__ == '__main__':
     init_ind = 0
     njobs = get_n_processes(100)
     #eps_init = [0.006,0.005,0.004,0.0035,0.003,0.0025,0.002,0.0015,0.001]
-    eps_init = [0.007,0.006,0.005,0.0048,0.0045,0.004,0.003,0.002,0.0015,0.0012]
+    eps_init = [0.007,0.0065,0.006,0.005,0.0048,0.0045,0.004,0.003,0.002,0.0015,0.0012]
     # eps_init = [0.007,0.006,0.005,0.0015]
     M = len(eps_init)
     list_inds = list(itertools.product(np.arange(R),np.arange(M)))
