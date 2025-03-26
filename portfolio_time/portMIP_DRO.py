@@ -269,7 +269,7 @@ def compute_cumulative_regret(history,dateval):
     for j in range(4):
         DRO_eval_values = np.zeros(T)
         SA_eval_values = np.zeros(T)
-        eval_samples = dateval[(j*3000):(j+1)*3000,:m]
+        eval_samples = dateval[(j*600):(j+1)*600,:m]
     # For each timestep t
         for t in range(T):            
             # Compute instantaneous regret at time t using true distribution
@@ -506,11 +506,13 @@ def calc_cluster_val(K,k_dict, num_dat,x):
             sig_val = np.maximum(sig_val,(dat-centroid)@x)
     return mean_val/num_dat, square_val/num_dat, sig_val
 
-def port_experiments(r_input,T,N_init,dat,dateval,r_start):
+def port_experiments(r_input,T,N_init,synthetic_returns,r_start):
     r,epsnum = list_inds[r_input]
     np.random.seed(r_start+r)
-    dat_indices = np.random.choice(48000,48000,replace=False) 
-    dat = dat[dat_indices]
+    dat, dateval = train_test_split(
+         synthetic_returns[:, :m], train_size=57000, test_size=3000, random_state=r_start+r)
+    # dat_indices = np.random.choice(48000,48000,replace=False) 
+    # dat = dat[dat_indices]
 
     init_eps = eps_init[epsnum]
     num_dat = N_init
@@ -742,10 +744,10 @@ if __name__ == '__main__':
     M = len(eps_init)
     list_inds = list(itertools.product(np.arange(R),np.arange(M)))
     
-    dat, dateval = train_test_split(
-        synthetic_returns[:, :m], train_size=48000, test_size=12000, random_state=50)
+    # dat, dateval = train_test_split(
+    #     synthetic_returns[:, :m], train_size=48000, test_size=12000, random_state=50)
     results = Parallel(n_jobs=njobs)(delayed(port_experiments)(
-        r_input,T,N_init,dat,dateval,r_start) for r_input in range(len(list_inds)))
+        r_input,T,N_init,synthetic_returns,r_start) for r_input in range(len(list_inds)))
     
     dfs = {}
     for r in range(R):
