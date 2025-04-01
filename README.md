@@ -25,7 +25,7 @@ pip install -r requirements.txt
 ## Instructions
 ### Running experiments
 A valid mosek license is required in the mosek folder.
-Experiments can from the root folder using the commands below. The value R controls the number of repetitions.
+Experiments can be ran from the root folder using the commands below. The value R controls the number of repetitions.
 If you wish to run experiments in separate batches, you can set r_start to the cumulative total already ran. 
 E.g. r_start 0 with R = 10 is equivalent to running R = 5 twice, with r_start = 0 then r_start 5. 
 
