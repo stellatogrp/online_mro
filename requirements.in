@@ -1,0 +1,10 @@
+numpy
+scipy
+cvxpy
+matplotlib
+scikit-learn
+joblib
+mosek
+argparse
+pandas
+pot

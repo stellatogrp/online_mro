@@ -13,7 +13,6 @@ from sklearn.model_selection import train_test_split
 from scipy.spatial.distance import cdist
 from scipy.spatial import distance
 import time
-import matplotlib.pyplot as plt
 import ot
 import itertools
 import copy
@@ -86,6 +85,19 @@ def createproblem_portMIP(N, m):
     return problem, x, s, tau, lam, dat, eps, w
 
 def worst_case(N,m,dat):
+    """Problem to solve with fixed x
+    Parameters
+    ----------
+    N: int
+        Number of data samples
+    m: int
+        Size of each data sample
+    dat: array
+        Data samples
+    Returns
+    -------
+    The instance and parameters of the cvxpy problem
+    """
     # PARAMETERS #
     eps = cp.Parameter()
     w = cp.Parameter(N)
@@ -145,6 +157,7 @@ def wasserstein(samples_p, samples_q):
     return w_distance
 
 def w2_dist(k1,k2):
+    """calculates the wasserstein distance between the two empirical distributions with up to K atoms"""
     K = k2['K']
     val = 0
     for k in range(K):
@@ -154,31 +167,24 @@ def w2_dist(k1,k2):
         val += dists@np.abs(k2['w'][:K] - k1['w'][:K])
     return float(val)
 
-def create_scenario(dat,m,num_dat):
-    tau = cp.Variable()
-    x = cp.Variable(m)
-    z = cp.Variable(m, boolean=True)
-    objective = cp.sum(tau + 5*cp.maximum(-dat@x - tau,0))/num_dat
-    constraints = []
-    constraints += [cp.sum(x) == 1]
-    constraints += [x >= 0, x <= 1]
-    constraints += [x - z <= 0, cp.sum(z) <= 5]
-    problem = cp.Problem(cp.Minimize(objective), constraints)
-    return problem, x, tau
     
 def calc_rmse(dat,mean):
+    """calculates the rmse of a cluster"""
     rmse = 0
     for d in dat:
         rmse += np.linalg.norm(d-mean,2)**2
     return rmse
 
 def find_min_pairwise_distance(data):
+    """find the minimum pairwise distance of entries of an array"""
     distances = distance.cdist(data, data)
     np.fill_diagonal(distances, np.inf)  # set diagonal to infinity to ignore self-distances
     min_indices = np.unravel_index(np.argmin(distances), distances.shape)
     return min_indices
 
 def online_cluster_init(K,Q,data):
+    """Initialize the online clustering algorithm, with K macroclusters
+    and Q microclusters. """
     start_time = time.time()
     k_dict = {}
     q_dict = {}
@@ -213,6 +219,7 @@ def online_cluster_init(K,Q,data):
     return q_dict, k_dict, total_time + t_time
 
 def cluster_k(K,q_dict, k_dict, init=False):
+    """Find K macroclusters using the Q microclusters """
     start_time = time.time()
     cur_K = np.minimum(K,q_dict['cur_Q'])
     cur_Q = q_dict['cur_Q']
@@ -235,8 +242,10 @@ def cluster_k(K,q_dict, k_dict, init=False):
     return k_dict, total_time
 
 def online_cluster_update(K,new_dat, q_dict, k_dict,num_dat, t, fix_time):
+    """Update the online clustering algorithm with the new datapoint. If t is greater than fix_time, update only the K macroclusters."""
     cur_K = k_dict['K']
     new_dat = np.reshape(new_dat,(1,m))
+    # if greater than threshold, only update K macroclusters
     if t >= fix_time:
         k_dict, total_time = fixed_cluster(k_dict,new_dat,num_dat)
         return q_dict, k_dict, total_time
@@ -245,6 +254,7 @@ def online_cluster_update(K,new_dat, q_dict, k_dict,num_dat, t, fix_time):
     dists = cdist(new_dat,q_dict['d'][:cur_Q,:])
     min_dist = np.min(dists)
     min_ind = np.argmin(dists)
+    # if the new datapoint is close to existing clusters, add it
     if min_dist <= 2*q_dict['rmse'][min_ind] and cur_K == K:
         q_dict['d'][min_ind] = (q_dict['d'][min_ind]*q_dict['w'][min_ind]*num_dat + new_dat)/(q_dict['w'][min_ind]*num_dat + 1)
         q_dict['rmse'][min_ind] = np.sqrt((q_dict['rmse'][min_ind]**2*q_dict['w'][min_ind]*num_dat + np.linalg.norm(new_dat - q_dict['d'][min_ind],2)**2)/(q_dict['w'][min_ind]*num_dat + 1))
@@ -264,6 +274,7 @@ def online_cluster_update(K,new_dat, q_dict, k_dict,num_dat, t, fix_time):
             if min_ind in k_dict[k]:
                 k_dict['data'][k] = np.vstack([k_dict['data'][k],new_dat])
     else:
+        # create a new microclsuter
         start_time = time.time()
         cur_Q = q_dict['cur_Q'] + 1
         q_dict['cur_Q'] = cur_Q
@@ -275,6 +286,7 @@ def online_cluster_update(K,new_dat, q_dict, k_dict,num_dat, t, fix_time):
         total_time = time.time() - start_time
         q_dict['data'][cur_Q-1] = new_dat
         if cur_Q > Q:
+            # merge existing microclusters
             start_time = time.time()
             q_dict['cur_Q'] = Q
             min_pair = find_min_pairwise_distance(q_dict['a'])
@@ -294,12 +306,14 @@ def online_cluster_update(K,new_dat, q_dict, k_dict,num_dat, t, fix_time):
             merged_data = np.vstack([q_dict['data'][q] for q in min_pair])
             q_dict['data'][min_pair[0]] = merged_data
             q_dict['data'][min_pair[1]] = q_dict['data'][Q]
+        # redo K macroclusters
         k_dict, time_temp = cluster_k(K,q_dict,k_dict)
         total_time += time_temp
     return q_dict, k_dict, total_time
 
             
 def fixed_cluster(k_dict, new_dat,num_dat):
+    """Update K macroclusters only"""
     new_dat = np.reshape(new_dat,(1,m))
     start_time = time.time()
     dists = cdist(new_dat,k_dict['a'])
@@ -314,18 +328,14 @@ def fixed_cluster(k_dict, new_dat,num_dat):
     return k_dict, total_time
 
 
-def compute_cumulative_regret(history,dateval):
+def compute_eval(history,dateval):
     """
-    Compute cumulative regret by comparing online decisions against optimal DRO solution in hindsight.
-    At each time t, use the same samples that were available to the online policy.
-    
-    Args:
-        history (dict): History of online decisions and parameters
-        dro_params (DROParameters): Problem parameters
-        online_samples (np.array): Array of observed samples
-        num_eval_samples (int): Number of samples to use for SAA evaluation
-        seed (int): Random seed for reproducibility
-    """
+        Compute evaluation values
+        At each time t, use the evaluation dataset
+        Args:
+            history (dict): History of online decisions and parameters
+            dateval (np.array): Array of evalution samples
+        """
     def evaluate_expected_cost(d_eval, x, tau):
         return np.mean(
             np.maximum(-5*d_eval@x - 4*tau, tau)) 
@@ -362,7 +372,8 @@ def compute_cumulative_regret(history,dateval):
     
     return MRO_e, MRO_s, online_e, online_s, online_ws, MRO_ws
 
-def calc_cluster_val(K,k_dict, num_dat,x):
+def calc_cluster_val(K,k_dict, num_dat,x,running_samples):
+    """Compute clustering distances"""
     mean_val = 0
     square_val = 0
     sig_val = 0
@@ -374,9 +385,30 @@ def calc_cluster_val(K,k_dict, num_dat,x):
             mean_val += cur_val
             square_val += cur_val**2
             sig_val += max(0,(dat-centroid)@x)
-    return mean_val/num_dat, square_val/num_dat, sig_val/num_dat
+    cost_matrix = ot.dist(running_samples, k_dict['d'][:cur_K], metric='euclidean')
+    w_distance = ot.emd2(np.ones(num_dat)/num_dat, k_dict['w'][:cur_K], cost_matrix)
+    return w_distance, square_val/num_dat, sig_val/num_dat
 
 def port_experiments(r_input,K,T,N_init,synthetic_returns,r_start):
+    """One round of the experiment, with a certain seed
+        Parameters
+        ----------
+        r_input: int
+            The index of the experiment. controls the epsilon value
+        r_start: int
+            controls the seed
+        K: int
+            Number of clusters
+        T: int
+            Maximum time
+        N_init:
+            Number of datapoints to start with
+        synthetic_return
+            training + testing data
+        Returns
+        -------
+        The dataframe with all key metrics
+        """
     r,epsnum = list_inds[r_input]
     np.random.seed(r_start+r)
     dat, dateval = train_test_split(
@@ -501,14 +533,13 @@ def port_experiments(r_input,K,T,N_init,synthetic_returns,r_start):
 
             data_train.value = new_k_dict['d']
             w_train.value = new_k_dict['w']
-            # eps_train.value = new_radius
             online_problem.solve(ignore_dpp=True, solver=cp.MOSEK, verbose=False, mosek_params={
                 mosek.dparam.optimizer_max_time:  2000.0})
             MRO_x_current = online_x.value
             MRO_tau_current = online_tau.value
             MRO_min_obj = online_problem.objective.value
             MRO_min_time = online_problem.solver_stats.solve_time
-            mean_val_mro, square_val_mro, sig_val_mro = calc_cluster_val(K, new_k_dict,num_dat,MRO_x_current)
+            mean_val_mro, square_val_mro, sig_val_mro = calc_cluster_val(K, new_k_dict,num_dat,MRO_x_current,running_samples)
         
             history['MRO_computation_times']['min_problem'].append(MRO_min_time)
             history['MRO_computation_times']['total_iteration'].append(MRO_min_time+cluster_time)
@@ -517,8 +548,7 @@ def port_experiments(r_input,K,T,N_init,synthetic_returns,r_start):
 
     
         if t % interval == 0 or ((t-1) % interval == 0) :
-            # compute online MRO worst value (wrt non clustered data)
-
+            # compute online worst value (wrt non clustered data)
             new_problem, s_d, lam_d, x_d, tau_d, eps_d, w_d =  worst_case(num_dat,m,running_samples)
             w_d.value = (1/num_dat)*np.ones(num_dat)
             eps_d.value = radius
@@ -533,6 +563,7 @@ def port_experiments(r_input,K,T,N_init,synthetic_returns,r_start):
             history['worst_times'].append(worst_time)
             
         if t % interval == 0 or ((t-1) % interval == 0)  :
+            # compute MRO online worst value
             x_d.value = MRO_x_current
             tau_d.value = MRO_tau_current
             new_problem.solve(ignore_dpp=True, solver=cp.MOSEK, verbose=False, mosek_params={
@@ -540,7 +571,7 @@ def port_experiments(r_input,K,T,N_init,synthetic_returns,r_start):
             new_worst_MRO = new_problem.objective.value
             MRO_worst_time = new_problem.solver_stats.solve_time
 
-            mean_val, square_val, sig_val = calc_cluster_val(K, k_dict,num_dat,x_current)
+            mean_val, square_val, sig_val = calc_cluster_val(K, k_dict,num_dat,x_current,running_samples)
 
             history['MRO_worst_values'].append(new_worst_MRO)
             history['MRO_worst_times'].append(MRO_worst_time)
@@ -559,6 +590,7 @@ def port_experiments(r_input,K,T,N_init,synthetic_returns,r_start):
             history['worst_times_regret'].append(worst_time)
             
         if t % interval == 0 or ((t-1) % interval == 0)  :
+            # compute MRO online worst value (wrt prev stage sols)
             x_d.value = MRO_x_prev
             tau_d.value = MRO_tau_prev
             new_problem.solve(ignore_dpp=True, solver=cp.MOSEK, verbose=False, mosek_params={
@@ -583,6 +615,7 @@ def port_experiments(r_input,K,T,N_init,synthetic_returns,r_start):
         num_dat += 1
 
         if t % interval == 0 or ((t-1) % interval == 0) :
+            # calculate regret upper bound
             N_dist_cur = wasserstein(init_samples,running_samples)
             
             history['regret_K'].append(w2_dist(k_dict,k_dict_prev)+ 2*radius )
@@ -614,7 +647,8 @@ def port_experiments(r_input,K,T,N_init,synthetic_returns,r_start):
 
         if t % interval == 0 or ((t-1) % interval == 0) :
 
-            MRO_e, MRO_s, online_e, online_s, online_ws, MRO_ws = compute_cumulative_regret(
+            # compute key metrics
+            MRO_e, MRO_s, online_e, online_s, online_ws, MRO_ws = compute_eval(
             history,dateval)
             
             df = pd.DataFrame({
@@ -650,7 +684,7 @@ def port_experiments(r_input,K,T,N_init,synthetic_returns,r_start):
                     df[colnames[i]] = np.array(colvals[i][j])
             # df.to_csv(foldername+str(epsnum)+'_R'+str(r+r_start)+'_df.csv')
         
-    MRO_e, MRO_s, online_e, online_s, online_ws, MRO_ws = compute_cumulative_regret(
+    MRO_e, MRO_s, online_e, online_s, online_ws, MRO_ws = compute_eval(
             history,dateval)
             
     df = pd.DataFrame({
@@ -691,7 +725,7 @@ def port_experiments(r_input,K,T,N_init,synthetic_returns,r_start):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--foldername', type=str,
-                        default="/scratch/gpfs/iywang/mro_results/", metavar='N')
+                        default="portfolio_exp/", metavar='N')
     parser.add_argument('--K', type=int, default=5)
     parser.add_argument('--T', type=int, default=3001)
     parser.add_argument('--R', type=int, default=5)
@@ -713,10 +747,7 @@ if __name__ == '__main__':
     fixed_time = arguments.fixed_time
     interval = arguments.interval
     N_init = arguments.N_init
-    foldername = foldername + 'K'+str(K)+'_R'+str(R)+'_T'+str(T-1)+'/'
-    os.makedirs(foldername, exist_ok=True)
-    print(foldername)
-    datname = 'portfolio_time/synthetic.csv'
+    datname = 'portfolio/synthetic.csv'
     synthetic_returns = pd.read_csv(datname
                                     ).to_numpy()[:, 1:]
     init_ind = 0
@@ -734,7 +765,7 @@ if __name__ == '__main__':
         r,epsnum = list_inds[r_input]
         dfs[r][epsnum] = results[r_input]
 
-    newdatname = 'portfolio_exp/T'+str(T-1)+'R'+str(R)+'/'
+    newdatname = foldername + '/T'+str(T-1)+'/'
     os.makedirs(newdatname, exist_ok=True)
 
     findfs = {}

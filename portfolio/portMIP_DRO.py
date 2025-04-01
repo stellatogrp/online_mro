@@ -8,13 +8,7 @@ import mosek
 import numpy as np
 import pandas as pd
 from joblib import Parallel, delayed
-from sklearn.cluster import KMeans
 from sklearn.model_selection import train_test_split
-from scipy.spatial.distance import cdist
-from scipy.spatial import distance
-import time
-import matplotlib.pyplot as plt
-from sklearn.metrics import mean_squared_error
 import itertools
 
 output_stream = sys.stdout
@@ -86,6 +80,19 @@ def createproblem_portMIP(N, m):
     
 
 def create_scenario(dat,m,num_dat):
+    """Create the SAA problem in cvxpy
+    Parameters
+    ----------
+    dat: array
+        Data samples
+    num_dat: int
+        Number of data samples
+    m: int
+        Size of each data sample
+    Returns
+    -------
+    The instance and parameters of the cvxpy problem
+    """
     tau = cp.Variable()
     x = cp.Variable(m)
     z = cp.Variable(m, boolean=True)
@@ -98,17 +105,13 @@ def create_scenario(dat,m,num_dat):
     return problem, x, tau
     
 
-def compute_cumulative_regret(history,dateval):
+def compute_eval(history,dateval):
     """
-    Compute cumulative regret by comparing online decisions against optimal DRO solution in hindsight.
-    At each time t, use the same samples that were available to the online policy.
-    
+    Compute evaluation values
+    At each time t, use the evaluation dataset
     Args:
         history (dict): History of online decisions and parameters
-        dro_params (DROParameters): Problem parameters
-        online_samples (np.array): Array of observed samples
-        num_eval_samples (int): Number of samples to use for SAA evaluation
-        seed (int): Random seed for reproducibility
+        dateval (np.array): Array of evalution samples
     """
     def evaluate_expected_cost(d_eval, x, tau):
         return np.mean(
@@ -119,13 +122,11 @@ def compute_cumulative_regret(history,dateval):
     SA_e = []
     SA_s = []
     T = len(history['t'])
-    # Generate evaluation samples from true distribution for cost computation
     for j in range(1):
         DRO_eval_values = np.zeros(T)
         SA_eval_values = np.zeros(T)
         eval_samples = dateval[(j*1000):(j+1)*1000,:m]
         
-        # For each timestep t
         for t in range(T):            
             # Compute out of sample values
             optimal_cost = evaluate_expected_cost(eval_samples, history['DRO_x'][t],history['DRO_tau'][t])
@@ -133,6 +134,7 @@ def compute_cumulative_regret(history,dateval):
             DRO_eval_values[t] = optimal_cost
             SA_eval_values[t] = SA_cost
 
+        # compute whether or not in sample >= out of sample value
         DRO_satisfy = np.array(history['DRO_obj_values'] >= DRO_eval_values).astype(float)
         SA_satisfy = np.array(history['SA_obj_values'] >= SA_eval_values).astype(float)
 
@@ -145,6 +147,23 @@ def compute_cumulative_regret(history,dateval):
 
 
 def port_experiments(r_input,T,N_init,synthetic_returns,r_start):
+    """One round of the experiment, with a certain seed
+        Parameters
+        ----------
+        r_input: int
+            The index of the experiment. controls the epsilon value
+        r_start: int
+            controls the seed
+        T: int
+            Maximum time
+        N_init:
+            Number of datapoints to start with
+        synthetic_return
+            training + testing data
+        Returns
+        -------
+        The dataframe with all key metrics
+        """
     r,epsnum = list_inds[r_input]
     np.random.seed(r_start+r)
     dat, dateval = train_test_split(
@@ -178,7 +197,9 @@ def port_experiments(r_input,T,N_init,synthetic_returns,r_start):
 
     for t in range(T):
         print(f"\nTimestep {t+1}/{T}")
-        
+
+
+        # set radius
         radius = init_eps*(1/(num_dat**(1/(2*m))))
         running_samples = dat[init_ind:(init_ind+num_dat)]
     
@@ -198,6 +219,7 @@ def port_experiments(r_input,T,N_init,synthetic_returns,r_start):
 
 
         if t % interval_SAA == 0 or ((t-1) % interval_SAA == 0)  :
+            # solve SAA problem
             s_prob, s_x, s_tau = create_scenario(running_samples,m,num_dat)
             s_prob.solve(ignore_dpp=True, solver=cp.MOSEK, verbose=False, mosek_params={
                     mosek.dparam.optimizer_max_time:  2000.0})
@@ -225,7 +247,8 @@ def port_experiments(r_input,T,N_init,synthetic_returns,r_start):
 
         if t % interval_SAA == 0 or ((t-1) % interval_SAA == 0) :
 
-            DRO_eval, DRO_satisfy,SA_eval, SA_satisfy = compute_cumulative_regret(
+            # record key metrics
+            DRO_eval, DRO_satisfy,SA_eval, SA_satisfy = compute_eval(
             history,dateval)
             
             df = pd.DataFrame({
@@ -242,7 +265,7 @@ def port_experiments(r_input,T,N_init,synthetic_returns,r_start):
             })
             # df.to_csv(foldername+'DRO'+str(epsnum)+'_R'+str(r+r_start)+'_df.csv')
 
-    DRO_eval, DRO_satisfy,SA_eval, SA_satisfy = compute_cumulative_regret(
+    DRO_eval, DRO_satisfy,SA_eval, SA_satisfy = compute_eval(
             history,dateval)
             
     df = pd.DataFrame({
@@ -266,7 +289,7 @@ if __name__ == '__main__':
 
     parser = argparse.ArgumentParser()
     parser.add_argument('--foldername', type=str,
-                        default="/scratch/gpfs/iywang/mro_results/", metavar='N')
+                        default="portfolio_exp/", metavar='N')
     parser.add_argument('--T', type=int, default=3001)
     parser.add_argument('--R', type=int, default=5)
     parser.add_argument('--m', type=int, default=30)
@@ -287,10 +310,7 @@ if __name__ == '__main__':
     interval = arguments.interval
     interval_SAA = arguments.interval_SAA
     N_init = arguments.N_init
-    foldername = foldername +'R'+str(R)+'_T'+str(T-1)+'/'
-    os.makedirs(foldername, exist_ok=True)
-    print(foldername)
-    datname = 'portfolio_time/synthetic.csv'
+    datname = 'portfolio/synthetic.csv'
     synthetic_returns = pd.read_csv(datname
                                     ).to_numpy()[:, 1:]
     init_ind = 0
@@ -313,7 +333,7 @@ if __name__ == '__main__':
         r,epsnum = list_inds[r_input]
         dfs[r][epsnum] = results[r_input]
 
-    newdatname = 'portfolio_exp/T'+str(T-1)+'R'+str(R)+'/'
+    newdatname = foldername + '/T'+str(T-1)+'/'
     os.makedirs(newdatname, exist_ok=True)
 
     findfs = {}
