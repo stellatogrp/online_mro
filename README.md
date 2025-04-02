@@ -1,4 +1,4 @@
-# Fast Data-Driven Model Predictive Control via Mean Robust Optimization
+# Data Compression for Fast Online Stochastic Optimization
 This repository is by
 [Irina Wang](https://sites.google.com/view/irina-wang),
 Marta Fochesato,
