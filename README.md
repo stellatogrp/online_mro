@@ -34,7 +34,7 @@ Install dependencies with
 ```
 pip install -r requirements.txt
 ```
-In addition, a valid mosek license is required in the mosek folder.
+In addition, a valid [Mosek license](https://docs.mosek.com/latest/install/installation.html#setting-up-the-license).
 
 ## Instructions
 ### Running experiments
