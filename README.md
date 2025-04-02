@@ -17,14 +17,28 @@ clustering-dependent distance, even when nominal DRO has access,  in hindsight, 
 Numerical experiments in mixed-integer portfolio optimization demonstrate significant computational savings, with minimal loss in solution quality.
 
 ## Dependencies
+Dependencies include: 
+```
+numpy
+scipy
+cvxpy
+matplotlib
+scikit-learn
+joblib
+mosek
+argparse
+pandas
+pot
+```
 Install dependencies with
 ```
 pip install -r requirements.txt
 ```
+In addition, a valid mosek license is required in the mosek folder.
 
 ## Instructions
 ### Running experiments
-A valid mosek license is required in the mosek folder.
+
 Experiments can be ran from the root folder using the commands below. The value R controls the number of repetitions.
 If you wish to run experiments in separate batches, you can set r_start to the cumulative total already ran. 
 E.g. r_start 0 with R = 10 is equivalent to running R = 5 twice, with r_start = 0 then r_start 5. 

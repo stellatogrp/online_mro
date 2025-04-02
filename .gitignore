@@ -173,3 +173,4 @@ pyrightconfig.json
 .DS_Store
 *.pdf
 *.npy
+mosek/.lic
