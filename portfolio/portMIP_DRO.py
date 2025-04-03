@@ -272,7 +272,7 @@ def port_experiments(r_input,T,N_init,synthetic_returns,r_start):
             'DRO_obj_values': np.array(history['DRO_obj_values']),
             'epsilon': np.array(history['epsilon']),
             'DRO_time':  np.array(history['DRO_computation_times']['total_iteration']),
-            'DRO_eval': DRO_eval[0],
+            'DRO_eval1': DRO_eval[0],
             "DRO_satisfy1": DRO_satisfy[0],
             'SA_eval1' : SA_eval[0],
             'SA_satisfy1': SA_satisfy[0],
