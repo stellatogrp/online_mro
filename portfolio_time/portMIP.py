@@ -80,7 +80,7 @@ def createproblem_portMIP(N, m):
     constraints += [cp.sum(x) == 1]
     constraints += [x >= 0, x <= 1]
     constraints += [lam >= 0]
-    constraints += [x - z <= 0, cp.sum(z) <= 5]
+    constraints += [x - z <= 0, cp.sum(z) <= 20]
     # PROBLEM #
     problem = cp.Problem(cp.Minimize(objective), constraints)
     return problem, x, s, tau, lam, dat, eps, w
@@ -594,7 +594,7 @@ def port_experiments(r_input,K,T,N_init,synthetic_returns,r_start):
     r,epsnum = list_inds[r_input]
     np.random.seed(r_start+r)
     dat, dateval = train_test_split(
-         synthetic_returns[:, :m], train_size=57000, test_size=3000, random_state=r_start+r)
+         synthetic_returns[:, :m], train_size=19000, test_size=1000, random_state=r_start+r)
     # dat_indices = np.random.choice(48000,48000,replace=False) 
     # dat = dat[dat_indices]
     init_eps = eps_init[epsnum]
@@ -611,7 +611,7 @@ def port_experiments(r_input,K,T,N_init,synthetic_returns,r_start):
     MRO_tau_prev = 0
     tau_prev = 0
     x_prev = np.zeros(m)
-    init_radius_val = init_eps*(3/(num_dat**(1/(3))))
+    init_radius_val = mults[0]*init_eps*(1/(num_dat**(1/(10))))
     online_problem, online_x, online_s, online_tau, online_lmbda, data_train, eps_train, w_train = createproblem_portMIP(np.minimum(num_dat,K), m)
 
     # History for analysis
@@ -666,7 +666,7 @@ def port_experiments(r_input,K,T,N_init,synthetic_returns,r_start):
     for t in range(T):
         print(f"\nTimestep {t+1}/{T}")
         
-        radius = init_eps*(3/(num_dat**(1/(3))))
+        radius = mults[t]*init_eps*(1/(num_dat**(1/(10))))
         running_samples = dat[init_ind:(init_ind+num_dat)]
 
         # solve online MRO problem
@@ -850,10 +850,10 @@ def port_experiments(r_input,K,T,N_init,synthetic_returns,r_start):
             history,dateval)
             
             df = pd.DataFrame({
-            'x': history['x'],
+            # 'x': history['x'],
             'tau': np.array(history['tau']),
             'obj_values': np.array(history['obj_values']),
-            'MRO_x': history['MRO_x'],
+            # 'MRO_x': history['MRO_x'],
             'MRO_tau':np.array(history['MRO_tau']),
             'MRO_obj_values': np.array(history['MRO_obj_values']),
             'epsilon': np.array(history['epsilon']),
@@ -979,12 +979,14 @@ if __name__ == '__main__':
     os.makedirs(foldername, exist_ok=True)
     print(foldername)
     datname = '/scratch/gpfs/iywang/mro_mpc/portfolio_time/synthetic.csv'
+    datname = '/scratch/gpfs/iywang/mro_mpc/synthetic/synthetic_200_1.csv'
     synthetic_returns = pd.read_csv(datname
-                                    ).to_numpy()[:, 1:]
+                                    ).to_numpy()[:, 1:][:,:m]
     init_ind = 0
     njobs = get_n_processes(100)
     #eps_init = [0.006,0.005,0.004,0.0035,0.003,0.0025,0.002,0.0015,0.001]
-    eps_init = [0.008,0.007,0.0065,0.006,0.0055,0.005,0.004,0.003,0.002,0.0015]
+    eps_init = [0.01,0.009,0.008,0.007,0.006,0.005,0.004,0.003]
+    mults = np.concatenate((5*np.ones(51),4*np.ones(50),3*np.ones(100),2*np.ones(100),1*np.ones(1000)))
     # eps_init = [0.007,0.006,0.005,0.0015]
     M = len(eps_init)
     list_inds = list(itertools.product(np.arange(R),np.arange(M)))

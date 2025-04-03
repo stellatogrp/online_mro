@@ -81,7 +81,7 @@ def createproblem_portMIP(N, m):
     constraints += [cp.sum(x) == 1]
     constraints += [x >= 0, x <= 1]
     constraints += [lam >= 0]
-    constraints += [x - z <= 0, cp.sum(z) <= 5]
+    constraints += [x - z <= 0, cp.sum(z) <= 20]
     # PROBLEM #
     problem = cp.Problem(cp.Minimize(objective), constraints)
     return problem, x, s, tau, lam, dat, eps, w
@@ -95,7 +95,7 @@ def create_scenario(dat,m,num_dat):
     constraints = []
     constraints += [cp.sum(x) == 1]
     constraints += [x >= 0, x <= 1]
-    constraints += [x - z <= 0, cp.sum(z) <= 5]
+    constraints += [x - z <= 0, cp.sum(z) <= 20]
     problem = cp.Problem(cp.Minimize(objective), constraints)
     return problem, x, tau
     
@@ -510,7 +510,7 @@ def port_experiments(r_input,T,N_init,synthetic_returns,r_start):
     r,epsnum = list_inds[r_input]
     np.random.seed(r_start+r)
     dat, dateval = train_test_split(
-         synthetic_returns[:, :m], train_size=57000, test_size=3000, random_state=r_start+r)
+         synthetic_returns[:, :m], train_size=19000, test_size=1000, random_state=r_start+r)
     # dat_indices = np.random.choice(48000,48000,replace=False) 
     # dat = dat[dat_indices]
 
@@ -569,7 +569,7 @@ def port_experiments(r_input,T,N_init,synthetic_returns,r_start):
     for t in range(T):
         print(f"\nTimestep {t+1}/{T}")
         
-        radius = init_eps*(3/(num_dat**(1/(3))))
+        radius = mults[t]*init_eps*(1/(num_dat**(1/(10))))
         running_samples = dat[init_ind:(init_ind+num_dat)]
     
         if t % interval == 0 or ((t-1) % interval == 0)  :
@@ -622,7 +622,7 @@ def port_experiments(r_input,T,N_init,synthetic_returns,r_start):
             history,dateval)
             
             df = pd.DataFrame({
-            'DRO_x': history['DRO_x'],
+            # 'DRO_x': history['DRO_x'],
             'DRO_tau': np.array(history['DRO_tau']),
             'DRO_obj_values': np.array(history['DRO_obj_values']),
             'epsilon': np.array(history['epsilon']),
@@ -645,7 +645,7 @@ def port_experiments(r_input,T,N_init,synthetic_returns,r_start):
             # 'SA_satisfy4': SA_satisfy[3],
             'SA_obj_values': np.array(history['SA_obj_values']),
             'SA_time':np.array(history['SA_computation_times']),
-            'SA_x': history['SA_x'],
+            # 'SA_x': history['SA_x'],
             'SA_tau': np.array(history['SA_tau']),
             't':np.array(history['t'])
             })
@@ -657,7 +657,7 @@ def port_experiments(r_input,T,N_init,synthetic_returns,r_start):
             history,dateval)
             
     df = pd.DataFrame({
-            'DRO_x': history['DRO_x'],
+            # 'DRO_x': history['DRO_x'],
             'DRO_tau': np.array(history['DRO_tau']),
             'DRO_obj_values': np.array(history['DRO_obj_values']),
             'epsilon': np.array(history['epsilon']),
@@ -680,7 +680,7 @@ def port_experiments(r_input,T,N_init,synthetic_returns,r_start):
             # 'SA_satisfy4': SA_satisfy[3],
             'SA_obj_values': np.array(history['SA_obj_values']),
             'SA_time':np.array(history['SA_computation_times']),
-            'SA_x': history['SA_x'],
+            # 'SA_x': history['SA_x'],
             'SA_tau': np.array(history['SA_tau']),
             't':np.array(history['t'])
             })
@@ -733,16 +733,19 @@ if __name__ == '__main__':
     os.makedirs(foldername, exist_ok=True)
     print(foldername)
     datname = '/scratch/gpfs/iywang/mro_mpc/portfolio_time/synthetic.csv'
+    datname = '/scratch/gpfs/iywang/mro_mpc/synthetic/synthetic_200_1.csv'
     synthetic_returns = pd.read_csv(datname
-                                    ).to_numpy()[:, 1:]
+                                    ).to_numpy()[:, 1:][:,:m]
+                                    
     init_ind = 0
     njobs = get_n_processes(100)
     if T >= 10000:
         eps_init = [0.003]
     else:
-        eps_init = [0.004,0.0035,0.003,0.0025,0.002,0.0015]
+        eps_init = [0.004,0.0035,0.003,0.0025,0.002]
     M = len(eps_init)
     list_inds = list(itertools.product(np.arange(R),np.arange(M)))
+    mults = np.concatenate((5*np.ones(51),4*np.ones(50),3*np.ones(100),2*np.ones(100),1*np.ones(1000)))
     
     # dat, dateval = train_test_split(
     #     synthetic_returns[:, :m], train_size=48000, test_size=12000, random_state=50)
@@ -764,7 +767,7 @@ if __name__ == '__main__':
     newdatname = '/scratch/gpfs/iywang/mro_mpc/portfolio_exp/T'+str(T-1)+'R'+str(R)+'/'
     os.makedirs(newdatname, exist_ok=True)
     for r in range(R):
-        findfs[r] = findfs[r].drop(columns=["DRO_x","SA_x"])
+        # findfs[r] = findfs[r].drop(columns=["DRO_x","SA_x"])
         findfs[r].to_csv(newdatname + 'df_' + 'K'+str(0)+'R'+ str(r+r_start) +'.csv')
     
     print("DONE")
