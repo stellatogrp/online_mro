@@ -68,9 +68,9 @@ def plot_eval_all(df, quantiles, df1=None, quantiles1=None,end_ind=61,j=(0,0,0),
     ax2.grid(True, alpha=0.3)
 
     # online and reclustering
-    ax3.plot(t_range, df['O_satisfy1'][(j1*end_ind):(j1+1)*end_ind:2], 'b-', linewidth=1, label = "online clustering", marker="v",ms=1.5)
+    ax3.plot(t_range, df['O_satisfy'][(j1*end_ind):(j1+1)*end_ind:2], 'b-', linewidth=1, label = "online clustering", marker="v",ms=1.5)
 
-    ax3.plot(t_range, df['MRO_satisfy1'][(j4*end_ind):(j4+1)*end_ind:2], 'r',linestyle='-', linewidth=1, label = "reclustering",marker="D",ms=1.5)
+    ax3.plot(t_range, df['MRO_satisfy'][(j4*end_ind):(j4+1)*end_ind:2], 'r',linestyle='-', linewidth=1, label = "reclustering",marker="D",ms=1.5)
 
     # DRO and SAA
     ax3.plot(t_range, df1['SA_satisfy1'][(j3*end_ind):(j3+1)*end_ind:2], 'g-', linewidth=1, label = "SAA",marker="o",ms=1.5)
@@ -246,11 +246,11 @@ def plot_eval(df, quantiles, df1=None, quantiles1=None,end_ind=61,j=(0,0,0), q =
     })
     t_range = np.array(df['t'])[(0*end_ind)+1:(1)*end_ind:2]
     plt.figure(figsize=(3, 2), dpi=300)
-    plt.plot(t_range, df['O_eval0'][(j1*end_ind)+1:(j1+1)*end_ind:2], 'b-', linewidth=1, label = "online clustering")
+    plt.plot(t_range, df['O_eval'][(j1*end_ind)+1:(j1+1)*end_ind:2], 'b-', linewidth=1, label = "online clustering")
 
-    plt.fill_between(np.array(t_range),y1=np.array(quantiles[q1]['O_eval0'][(j1*end_ind)+1:(j1+1)*end_ind:2]).astype(float),y2=np.array(quantiles[q2]['O_eval0'][(j1*end_ind)+1:(j1+1)*end_ind:2]).astype(float),alpha=alpha, color = 'b')
-    plt.plot(t_range, df['MRO_eval0'][(j2*end_ind)+1:(j2+1)*end_ind:2], 'r-', linewidth=1, label = "reclustering")
-    plt.fill_between(np.array(t_range),y1=np.array(quantiles[q1]['MRO_eval0'][(j2*end_ind)+1:(j2+1)*end_ind:2]).astype(float),y2=np.array(quantiles[q2]['MRO_eval0'][(j2*end_ind)+1:(j2+1)*end_ind:2]).astype(float),alpha=alpha, color='r')
+    plt.fill_between(np.array(t_range),y1=np.array(quantiles[q1]['O_eval'][(j1*end_ind)+1:(j1+1)*end_ind:2]).astype(float),y2=np.array(quantiles[q2]['O_eval'][(j1*end_ind)+1:(j1+1)*end_ind:2]).astype(float),alpha=alpha, color = 'b')
+    plt.plot(t_range, df['MRO_eval'][(j2*end_ind)+1:(j2+1)*end_ind:2], 'r-', linewidth=1, label = "reclustering")
+    plt.fill_between(np.array(t_range),y1=np.array(quantiles[q1]['MRO_eval'][(j2*end_ind)+1:(j2+1)*end_ind:2]).astype(float),y2=np.array(quantiles[q2]['MRO_eval'][(j2*end_ind)+1:(j2+1)*end_ind:2]).astype(float),alpha=alpha, color='r')
 
     plt.legend()
     plt.xlabel(r'Time step $(t)$')
