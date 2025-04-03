@@ -266,10 +266,10 @@ def compute_cumulative_regret(history,dateval):
     SA_s = []
     T = len(history['t'])
     # Generate evaluation samples from true distribution for cost computation
-    for j in range(4):
+    for j in range(2):
         DRO_eval_values = np.zeros(T)
         SA_eval_values = np.zeros(T)
-        eval_samples = dateval[(j*600):(j+1)*600,:m]
+        eval_samples = dateval[(j*200):(j+1)*200,:m]
     # For each timestep t
         for t in range(T):            
             # Compute instantaneous regret at time t using true distribution
@@ -569,7 +569,7 @@ def port_experiments(r_input,T,N_init,synthetic_returns,r_start):
     for t in range(T):
         print(f"\nTimestep {t+1}/{T}")
         
-        radius = init_eps*(1/(num_dat**(1/(2*m))))
+        radius = init_eps*(3/(num_dat**(1/(3))))
         running_samples = dat[init_ind:(init_ind+num_dat)]
     
         if t % interval == 0 or ((t-1) % interval == 0)  :
@@ -629,20 +629,20 @@ def port_experiments(r_input,T,N_init,synthetic_returns,r_start):
             'DRO_time':  np.array(history['DRO_computation_times']['total_iteration']),
             'DRO_eval1': DRO_eval[0],
             'DRO_eval2': DRO_eval[1],
-            'DRO_eval3': DRO_eval[2],
-            'DRO_eval4': DRO_eval[3],
+            # 'DRO_eval3': DRO_eval[2],
+            # 'DRO_eval4': DRO_eval[3],
             "DRO_satisfy1": DRO_satisfy[0],
             "DRO_satisfy2": DRO_satisfy[1],
-            "DRO_satisfy3": DRO_satisfy[2],
-            "DRO_satisfy4": DRO_satisfy[3],
+            # "DRO_satisfy3": DRO_satisfy[2],
+            # "DRO_satisfy4": DRO_satisfy[3],
             'SA_eval1' : SA_eval[0],
             'SA_eval2' : SA_eval[1],
-            'SA_eval3' : SA_eval[2],
-            'SA_eval4' : SA_eval[3],
+            # 'SA_eval3' : SA_eval[2],
+            # 'SA_eval4' : SA_eval[3],
             'SA_satisfy1': SA_satisfy[0],
             'SA_satisfy2': SA_satisfy[1],
-            'SA_satisfy3': SA_satisfy[2],
-            'SA_satisfy4': SA_satisfy[3],
+            # 'SA_satisfy3': SA_satisfy[2],
+            # 'SA_satisfy4': SA_satisfy[3],
             'SA_obj_values': np.array(history['SA_obj_values']),
             'SA_time':np.array(history['SA_computation_times']),
             'SA_x': history['SA_x'],
@@ -664,20 +664,20 @@ def port_experiments(r_input,T,N_init,synthetic_returns,r_start):
             'DRO_time':  np.array(history['DRO_computation_times']['total_iteration']),
             'DRO_eval1': DRO_eval[0],
             'DRO_eval2': DRO_eval[1],
-            'DRO_eval3': DRO_eval[2],
-            'DRO_eval4': DRO_eval[3],
+            # 'DRO_eval3': DRO_eval[2],
+            # 'DRO_eval4': DRO_eval[3],
             "DRO_satisfy1": DRO_satisfy[0],
             "DRO_satisfy2": DRO_satisfy[1],
-            "DRO_satisfy3": DRO_satisfy[2],
-            "DRO_satisfy4": DRO_satisfy[3],
+            # "DRO_satisfy3": DRO_satisfy[2],
+            # "DRO_satisfy4": DRO_satisfy[3],
             'SA_eval1' : SA_eval[0],
             'SA_eval2' : SA_eval[1],
-            'SA_eval3' : SA_eval[2],
-            'SA_eval4' : SA_eval[3],
+            # 'SA_eval3' : SA_eval[2],
+            # 'SA_eval4' : SA_eval[3],
             'SA_satisfy1': SA_satisfy[0],
             'SA_satisfy2': SA_satisfy[1],
-            'SA_satisfy3': SA_satisfy[2],
-            'SA_satisfy4': SA_satisfy[3],
+            # 'SA_satisfy3': SA_satisfy[2],
+            # 'SA_satisfy4': SA_satisfy[3],
             'SA_obj_values': np.array(history['SA_obj_values']),
             'SA_time':np.array(history['SA_computation_times']),
             'SA_x': history['SA_x'],
@@ -740,7 +740,7 @@ if __name__ == '__main__':
     if T >= 10000:
         eps_init = [0.003]
     else:
-        eps_init = [0.003,0.002,0.0015,0.001,0.0005]
+        eps_init = [0.004,0.0035,0.003,0.0025,0.002,0.0015]
     M = len(eps_init)
     list_inds = list(itertools.product(np.arange(R),np.arange(M)))
     

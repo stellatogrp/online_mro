@@ -342,10 +342,10 @@ def compute_cumulative_regret(history,dateval):
 
     T = len(history['t'])
     # Generate evaluation samples from true distribution for cost computation
-    for j in range(4):
+    for j in range(2):
         eval_values = np.zeros(T)
         MRO_eval_values = np.zeros(T)
-        eval_samples = dateval[(j*500):(j+1)*500,:m]
+        eval_samples = dateval[(j*200):(j+1)*200,:m]
     # For each timestep t
         for t in range(T):            
             # Compute instantaneous regret at time t using true distribution
@@ -573,7 +573,7 @@ def plot_computation_times_iter(history):
     plt.yscale("log")
     plt.savefig(foldername+'time_iters.pdf', bbox_inches='tight', dpi=300)
 
-def calc_cluster_val(K,k_dict, num_dat,x):
+def calc_cluster_val(K,k_dict, num_dat,x,running_samples):
     mean_val = 0
     square_val = 0
     sig_val = 0
@@ -582,11 +582,13 @@ def calc_cluster_val(K,k_dict, num_dat,x):
         centroid = k_dict['d'][k]
         for dat in k_dict['data'][k]:
             cur_val = np.linalg.norm(dat-centroid,2)
-            mean_val += cur_val
+            # mean_val += cur_val
             square_val += cur_val**2
             #sig_val = np.maximum(sig_val,(dat-centroid)@x)
             sig_val += max(0,(dat-centroid)@x)
-    return mean_val/num_dat, square_val/num_dat, sig_val/num_dat
+    cost_matrix = ot.dist(running_samples, k_dict['d'][:cur_K], metric='euclidean')
+    w_distance = ot.emd2(np.ones(num_dat)/num_dat, k_dict['w'][:cur_K], cost_matrix)
+    return w_distance, square_val/num_dat, sig_val/num_dat
 
 def port_experiments(r_input,K,T,N_init,synthetic_returns,r_start):
     r,epsnum = list_inds[r_input]
@@ -609,7 +611,7 @@ def port_experiments(r_input,K,T,N_init,synthetic_returns,r_start):
     MRO_tau_prev = 0
     tau_prev = 0
     x_prev = np.zeros(m)
-    init_radius_val = init_eps*(1/(num_dat**(1/(2*m))))
+    init_radius_val = init_eps*(3/(num_dat**(1/(3))))
     online_problem, online_x, online_s, online_tau, online_lmbda, data_train, eps_train, w_train = createproblem_portMIP(np.minimum(num_dat,K), m)
 
     # History for analysis
@@ -664,7 +666,7 @@ def port_experiments(r_input,K,T,N_init,synthetic_returns,r_start):
     for t in range(T):
         print(f"\nTimestep {t+1}/{T}")
         
-        radius = init_eps*(1/(num_dat**(1/(2*m))))
+        radius = init_eps*(3/(num_dat**(1/(3))))
         running_samples = dat[init_ind:(init_ind+num_dat)]
 
         # solve online MRO problem
@@ -722,7 +724,7 @@ def port_experiments(r_input,K,T,N_init,synthetic_returns,r_start):
             MRO_tau_current = online_tau.value
             MRO_min_obj = online_problem.objective.value
             MRO_min_time = online_problem.solver_stats.solve_time
-            mean_val_mro, square_val_mro, sig_val_mro = calc_cluster_val(K, new_k_dict,num_dat,MRO_x_current)
+            mean_val_mro, square_val_mro, sig_val_mro = calc_cluster_val(K, new_k_dict,num_dat,MRO_x_current,running_samples)
         
             history['MRO_computation_times']['min_problem'].append(MRO_min_time)
             history['MRO_computation_times']['total_iteration'].append(MRO_min_time+cluster_time)
@@ -754,7 +756,7 @@ def port_experiments(r_input,K,T,N_init,synthetic_returns,r_start):
             new_worst_MRO = new_problem.objective.value
             MRO_worst_time = new_problem.solver_stats.solve_time
 
-            mean_val, square_val, sig_val = calc_cluster_val(K, k_dict,num_dat,x_current)
+            mean_val, square_val, sig_val = calc_cluster_val(K, k_dict,num_dat,x_current,running_samples)
             # q_lens = [len(q_dict['data'][i]) for i in range(q_dict['cur_Q'])]
             # k_lens = [len(k_dict['data'][i]) for i in range(k_dict['K'])]
             # print("Q nums", q_lens, np.sum(q_lens), num_dat)
@@ -881,7 +883,7 @@ def port_experiments(r_input,K,T,N_init,synthetic_returns,r_start):
             colnames = ['MRO_eval', "MRO_satisfy",'O_eval',"O_satisfy", "O_worst_satisfy", "MRO_worst_satisfy"]
             colvals = [MRO_e, MRO_s, online_e, online_s, online_ws, MRO_ws]
             for i in range(len(colnames)):
-                for j in range(4):
+                for j in range(2):
                     df[colnames[i]+str(j)] = np.array(colvals[i][j])
             df.to_csv(foldername+str(epsnum)+'_R'+str(r+r_start)+'_df.csv')
             # print(f"Weights: {q_dict['w'], np.sum(q_dict['w']) }")
@@ -923,7 +925,7 @@ def port_experiments(r_input,K,T,N_init,synthetic_returns,r_start):
     colnames = ['MRO_eval', "MRO_satisfy",'O_eval',"O_satisfy", "O_worst_satisfy", "MRO_worst_satisfy"]
     colvals = [MRO_e, MRO_s, online_e, online_s, online_ws, MRO_ws]
     for i in range(len(colnames)):
-        for j in range(4):
+        for j in range(2):
             df[colnames[i]+str(j)] = np.array(colvals[i][j])
     df.to_csv(foldername+str(epsnum)+'_R'+str(r+r_start)+'_df.csv')
     # df.to_csv('df.csv')
@@ -982,7 +984,7 @@ if __name__ == '__main__':
     init_ind = 0
     njobs = get_n_processes(100)
     #eps_init = [0.006,0.005,0.004,0.0035,0.003,0.0025,0.002,0.0015,0.001]
-    eps_init = [0.007,0.0065,0.006,0.005,0.0048,0.0045,0.004,0.003,0.002,0.0015,0.0012]
+    eps_init = [0.008,0.007,0.0065,0.006,0.0055,0.005,0.004,0.003,0.002,0.0015]
     # eps_init = [0.007,0.006,0.005,0.0015]
     M = len(eps_init)
     list_inds = list(itertools.product(np.arange(R),np.arange(M)))
