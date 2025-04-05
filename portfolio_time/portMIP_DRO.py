@@ -81,7 +81,7 @@ def createproblem_portMIP(N, m):
     constraints += [cp.sum(x) == 1]
     constraints += [x >= 0, x <= 1]
     constraints += [lam >= 0]
-    constraints += [x - z <= 0, cp.sum(z) <= 20]
+    constraints += [x - z <= 0, cp.sum(z) <= 5]
     # PROBLEM #
     problem = cp.Problem(cp.Minimize(objective), constraints)
     return problem, x, s, tau, lam, dat, eps, w
@@ -95,7 +95,7 @@ def create_scenario(dat,m,num_dat):
     constraints = []
     constraints += [cp.sum(x) == 1]
     constraints += [x >= 0, x <= 1]
-    constraints += [x - z <= 0, cp.sum(z) <= 20]
+    constraints += [x - z <= 0, cp.sum(z) <= 5]
     problem = cp.Problem(cp.Minimize(objective), constraints)
     return problem, x, tau
     
@@ -742,10 +742,11 @@ if __name__ == '__main__':
     if T >= 10000:
         eps_init = [0.003]
     else:
-        eps_init = [0.004,0.0035,0.003,0.0025,0.002]
+        eps_init = [0.004,0.0035,0.003,0.0025,0.002,0.0015]
     M = len(eps_init)
     list_inds = list(itertools.product(np.arange(R),np.arange(M)))
-    mults = np.concatenate((5*np.ones(51),4*np.ones(50),3*np.ones(100),2*np.ones(100),1*np.ones(1000)))
+    # mults = np.concatenate((5*np.ones(51),4*np.ones(50),3*np.ones(100),2*np.ones(100),1*np.ones(1000)))
+    mults = np.concatenate((8*np.ones(51),4*np.ones(50),2.5*np.ones(50),2*np.ones(50),1.7*np.ones(50),1.3*np.ones(50),1*np.ones(1000)))
     
     # dat, dateval = train_test_split(
     #     synthetic_returns[:, :m], train_size=48000, test_size=12000, random_state=50)
@@ -764,7 +765,7 @@ if __name__ == '__main__':
         findfs[r] = pd.concat([dfs[r][i] for i in range(len(eps_init))],ignore_index=True)
         findfs[r].to_csv(foldername + 'DRO_df_' + str(r+r_start) +'.csv')
 
-    newdatname = '/scratch/gpfs/iywang/mro_mpc/portfolio_exp/T'+str(T-1)+'R'+str(R)+'/'
+    newdatname = '/scratch/gpfs/iywang/mro_mpc/portfolio_exp_60/T'+str(T-1)+'R'+str(R)+'/'
     os.makedirs(newdatname, exist_ok=True)
     for r in range(R):
         # findfs[r] = findfs[r].drop(columns=["DRO_x","SA_x"])

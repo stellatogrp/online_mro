@@ -80,7 +80,7 @@ def createproblem_portMIP(N, m):
     constraints += [cp.sum(x) == 1]
     constraints += [x >= 0, x <= 1]
     constraints += [lam >= 0]
-    constraints += [x - z <= 0, cp.sum(z) <= 20]
+    constraints += [x - z <= 0, cp.sum(z) <= 5]
     # PROBLEM #
     problem = cp.Problem(cp.Minimize(objective), constraints)
     return problem, x, s, tau, lam, dat, eps, w
@@ -985,8 +985,8 @@ if __name__ == '__main__':
     init_ind = 0
     njobs = get_n_processes(100)
     #eps_init = [0.006,0.005,0.004,0.0035,0.003,0.0025,0.002,0.0015,0.001]
-    eps_init = [0.01,0.009,0.008,0.007,0.006,0.005,0.004,0.003]
-    mults = np.concatenate((5*np.ones(51),4*np.ones(50),3*np.ones(100),2*np.ones(100),1*np.ones(1000)))
+    eps_init = [0.008,0.007,0.006,0.005,0.004,0.003,0.002,0.001]
+    mults = np.concatenate((8*np.ones(51),4*np.ones(50),2.5*np.ones(50),2*np.ones(50),1.8*np.ones(50),1.5*np.ones(50),1*np.ones(1000)))
     # eps_init = [0.007,0.006,0.005,0.0015]
     M = len(eps_init)
     list_inds = list(itertools.product(np.arange(R),np.arange(M)))
@@ -1007,7 +1007,7 @@ if __name__ == '__main__':
         findfs[r] = pd.concat([dfs[r][i] for i in range(len(eps_init))],ignore_index=True)
         findfs[r].to_csv(foldername + 'df_' + str(r+r_start) +'.csv')
 
-    newdatname = '/scratch/gpfs/iywang/mro_mpc/portfolio_exp/T'+str(T-1)+'R'+str(R)+'/'
+    newdatname = '/scratch/gpfs/iywang/mro_mpc/portfolio_exp_60/T'+str(T-1)+'R'+str(R)+'/'
     os.makedirs(newdatname, exist_ok=True)
     for r in range(R):
         findfs[r] = findfs[r].drop(columns=['weights','MRO_weights'])
