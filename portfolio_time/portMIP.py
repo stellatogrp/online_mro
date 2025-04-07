@@ -356,8 +356,8 @@ def compute_cumulative_regret(history,dateval):
 
         MRO_satisfy = np.array(history['MRO_obj_values'] >= MRO_eval_values).astype(float)
         satisfy = np.array(history['obj_values'] >= eval_values).astype(float)
-        worst_satisfy = np.array(history['worst_values'] >= eval_values).astype(float)
-        MRO_worst_satisfy = np.array(history['MRO_worst_values'] >= MRO_eval_values).astype(float)
+        worst_satisfy = np.array( np.array(history['obj_values']) + 5*np.array(history["sig_val"])>= eval_values).astype(float)
+        MRO_worst_satisfy = np.array(np.array(history['MRO_obj_values']) + 5*np.array(history["MRO_sig_val"])>= MRO_eval_values).astype(float)
 
         MRO_e.append(MRO_eval_values)
         MRO_s.append(MRO_satisfy)
@@ -985,9 +985,8 @@ if __name__ == '__main__':
     init_ind = 0
     njobs = get_n_processes(100)
     #eps_init = [0.006,0.005,0.004,0.0035,0.003,0.0025,0.002,0.0015,0.001]
-    eps_init = [0.0085,0.008,0.007,0.006,0.005,0.0045,0.004,0.0035]
-    # mults = np.concatenate((3*np.ones(51),2*np.ones(50),1*np.ones(50),1*np.ones(50),1*np.ones(50),1*np.ones(50),1*np.ones(1000)))
-    # eps_init = [0.007,0.006,0.005,0.0015]
+    #eps_init = [0.0085,0.008,0.007,0.006,0.005,0.0045,0.004,0.0035]
+    eps_init = [0.006,0.005,0.004,0.003,0.002,0.0015]
     M = len(eps_init)
     list_inds = list(itertools.product(np.arange(R),np.arange(M)))
     # dat, dateval = train_test_split(
