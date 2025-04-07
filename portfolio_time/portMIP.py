@@ -201,7 +201,7 @@ def online_cluster_init(K,Q,data):
         q_dict['data'][q] = cluster_data
         rmse = np.sqrt(calc_rmse(cluster_data,np.reshape(q_dict['d'][q],(1,m))))
         if rmse <= 1e-6:
-            rmse = 0.02
+            rmse = 0.04
         q_dict['rmse'][q] = rmse
     k_dict = {}
     k_dict['a'] = np.zeros((K,m))
@@ -357,7 +357,7 @@ def compute_cumulative_regret(history,dateval):
         MRO_satisfy = np.array(history['MRO_obj_values'] >= MRO_eval_values).astype(float)
         satisfy = np.array(history['obj_values'] >= eval_values).astype(float)
         worst_satisfy = np.array( np.array(history['obj_values']) + 5*np.array(history["sig_val"])>= eval_values).astype(float)
-        MRO_worst_satisfy = np.array(np.array(history['MRO_obj_values']) + 5*np.array(history["MRO_sig_val"])>= MRO_eval_values).astype(float)
+        MRO_worst_satisfy = np.array(np.array(history['MRO_obj_values']) + 5*np.array(history["sig_val_MRO"])>= MRO_eval_values).astype(float)
 
         MRO_e.append(MRO_eval_values)
         MRO_s.append(MRO_satisfy)
@@ -973,7 +973,7 @@ if __name__ == '__main__':
     fixed_time = arguments.fixed_time
     interval = arguments.interval
     N_init = arguments.N_init
-    K_arr = [5,15]
+    K_arr = [5,15,25]
     K = K_arr[idx]
     foldername = foldername + 'K'+str(K)+'_R'+str(R)+'_T'+str(T-1)+'/'
     os.makedirs(foldername, exist_ok=True)
