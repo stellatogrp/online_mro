@@ -80,7 +80,7 @@ def createproblem_portMIP(N, m):
     constraints += [cp.sum(x) == 1]
     constraints += [x >= 0, x <= 1]
     constraints += [lam >= 0]
-    constraints += [x - z <= 0, cp.sum(z) <= 5]
+    constraints += [x - z <= 0, cp.sum(z) <= 8]
     # PROBLEM #
     problem = cp.Problem(cp.Minimize(objective), constraints)
     return problem, x, s, tau, lam, dat, eps, w
@@ -201,7 +201,7 @@ def online_cluster_init(K,Q,data):
         q_dict['data'][q] = cluster_data
         rmse = np.sqrt(calc_rmse(cluster_data,np.reshape(q_dict['d'][q],(1,m))))
         if rmse <= 1e-6:
-            rmse = 0.03
+            rmse = 0.02
         q_dict['rmse'][q] = rmse
     k_dict = {}
     k_dict['a'] = np.zeros((K,m))
@@ -611,7 +611,7 @@ def port_experiments(r_input,K,T,N_init,synthetic_returns,r_start):
     MRO_tau_prev = 0
     tau_prev = 0
     x_prev = np.zeros(m)
-    init_radius_val = mults[0]*init_eps*(1/(num_dat**(1/(10))))
+    init_radius_val = init_eps*(1/(num_dat**(1/(40))))
     online_problem, online_x, online_s, online_tau, online_lmbda, data_train, eps_train, w_train = createproblem_portMIP(np.minimum(num_dat,K), m)
 
     # History for analysis
@@ -666,11 +666,11 @@ def port_experiments(r_input,K,T,N_init,synthetic_returns,r_start):
     for t in range(T):
         print(f"\nTimestep {t+1}/{T}")
         
-        radius = mults[t]*init_eps*(1/(num_dat**(1/(10))))
+        radius = init_eps*(1/(num_dat**(1/(40))))
         running_samples = dat[init_ind:(init_ind+num_dat)]
 
         # solve online MRO problem
-        if t % interval == 0 or ((t-1) % interval == 0)  :
+        if t % interval == 0 or ((t-1) % interval == 0) or (t in t_list)  :
             if num_dat <= K or data_train.shape[0] < K:
                 cur_K = np.minimum(num_dat,K)
                 online_problem, online_x, online_s, online_tau, online_lmbda, data_train, eps_train, w_train = createproblem_portMIP(cur_K, m)
@@ -678,7 +678,7 @@ def port_experiments(r_input,K,T,N_init,synthetic_returns,r_start):
             eps_train.value = radius
             w_train.value = k_dict['w'][:num_dat]
             online_problem.solve(ignore_dpp=True, solver=cp.MOSEK, verbose=False, mosek_params={
-                mosek.dparam.optimizer_max_time:  2000.0})
+                mosek.dparam.optimizer_max_time:  1500.0})
             x_current = online_x.value
             tau_current = online_tau.value
             min_obj = online_problem.objective.value
@@ -691,7 +691,7 @@ def port_experiments(r_input,K,T,N_init,synthetic_returns,r_start):
             history['online_computation_times']['weight_update'].append(weight_update_time)
             history['t'].append(t)
 
-        if t % interval == 0 or ((t-1) % interval == 0)  :
+        if t % interval == 0 or ((t-1) % interval == 0)  or (t in t_list) :
             # solve MRO problem with new clusters
             if t <= fixed_time:
                 start_time = time.time()
@@ -719,7 +719,7 @@ def port_experiments(r_input,K,T,N_init,synthetic_returns,r_start):
             w_train.value = new_k_dict['w']
             # eps_train.value = new_radius
             online_problem.solve(ignore_dpp=True, solver=cp.MOSEK, verbose=False, mosek_params={
-                mosek.dparam.optimizer_max_time:  2000.0})
+                mosek.dparam.optimizer_max_time:  1500.0})
             MRO_x_current = online_x.value
             MRO_tau_current = online_tau.value
             MRO_min_obj = online_problem.objective.value
@@ -732,7 +732,7 @@ def port_experiments(r_input,K,T,N_init,synthetic_returns,r_start):
             history['MRO_weights'].append(new_k_dict['w'])
 
     
-        if t % interval == 0 or ((t-1) % interval == 0) :
+        if t % interval == 0 or ((t-1) % interval == 0) or (t in t_list) :
             # compute online MRO worst value (wrt non clustered data)
 
             new_problem, s_d, lam_d, x_d, tau_d, eps_d, w_d =  worst_case(num_dat,m,running_samples)
@@ -741,18 +741,18 @@ def port_experiments(r_input,K,T,N_init,synthetic_returns,r_start):
             x_d.value = x_current
             tau_d.value = tau_current
             new_problem.solve(ignore_dpp=True, solver=cp.MOSEK, verbose=False, mosek_params={
-                mosek.dparam.optimizer_max_time:  2000.0})
+                mosek.dparam.optimizer_max_time:  1500.0})
             new_worst = new_problem.objective.value
             worst_time = new_problem.solver_stats.solve_time
             
             history['worst_values'].append(new_worst)
             history['worst_times'].append(worst_time)
             
-        if t % interval == 0 or ((t-1) % interval == 0)  :
+        if t % interval == 0 or ((t-1) % interval == 0)  or (t in t_list) :
             x_d.value = MRO_x_current
             tau_d.value = MRO_tau_current
             new_problem.solve(ignore_dpp=True, solver=cp.MOSEK, verbose=False, mosek_params={
-                mosek.dparam.optimizer_max_time:  2000.0})
+                mosek.dparam.optimizer_max_time:  1500.0})
             new_worst_MRO = new_problem.objective.value
             MRO_worst_time = new_problem.solver_stats.solve_time
 
@@ -766,23 +766,23 @@ def port_experiments(r_input,K,T,N_init,synthetic_returns,r_start):
             history['MRO_worst_times'].append(MRO_worst_time)
 
 
-        if t % interval == 0 or ((t-1) % interval == 0) :
+        if t % interval == 0 or ((t-1) % interval == 0) or (t in t_list) :
             # compute online worst value (wrt prev stage sols
             x_d.value = x_prev
             tau_d.value = tau_prev
             new_problem.solve(ignore_dpp=True, solver=cp.MOSEK, verbose=False, mosek_params={
-                mosek.dparam.optimizer_max_time:  2000.0})
+                mosek.dparam.optimizer_max_time:  1500.0})
             new_worst = new_problem.objective.value
             worst_time = new_problem.solver_stats.solve_time
             
             history['worst_values_regret'].append(new_worst)
             history['worst_times_regret'].append(worst_time)
             
-        if t % interval == 0 or ((t-1) % interval == 0)  :
+        if t % interval == 0 or ((t-1) % interval == 0) or (t in t_list)  :
             x_d.value = MRO_x_prev
             tau_d.value = MRO_tau_prev
             new_problem.solve(ignore_dpp=True, solver=cp.MOSEK, verbose=False, mosek_params={
-                mosek.dparam.optimizer_max_time:  2000.0})
+                mosek.dparam.optimizer_max_time:  1500.0})
             new_worst_MRO = new_problem.objective.value
             MRO_worst_time = new_problem.solver_stats.solve_time
 
@@ -810,7 +810,7 @@ def port_experiments(r_input,K,T,N_init,synthetic_returns,r_start):
         # history['online_computation_times']['weight_update'].append(weight_update_time)
         # history['online_computation_times']['total_iteration'].append(weight_update_time + min_time)
 
-        if t % interval == 0 or ((t-1) % interval == 0) :
+        if t % interval == 0 or ((t-1) % interval == 0) or (t in t_list) :
             N_dist_cur = wasserstein(init_samples,running_samples)
             
             history['regret_K'].append(w2_dist(k_dict,k_dict_prev)+ 2*radius )
@@ -844,7 +844,7 @@ def port_experiments(r_input,K,T,N_init,synthetic_returns,r_start):
             print(f"Current epsilon: {radius}")
             # print(f"Weight sum: {np.sum(k_dict['w'])}")
 
-        if t % interval == 0 or ((t-1) % interval == 0) :
+        if t % interval == 0 or ((t-1) % interval == 0) or (t in t_list)  :
 
             MRO_e, MRO_s, online_e, online_s, online_ws, MRO_ws = compute_cumulative_regret(
             history,dateval)
@@ -859,7 +859,7 @@ def port_experiments(r_input,K,T,N_init,synthetic_returns,r_start):
             'epsilon': np.array(history['epsilon']),
             'weights':  history['weights'],
             'MRO_weights': history['MRO_weights'],
-            'weights_q': history['weights_q'],
+            # 'weights_q': history['weights_q'],
             'online_time':  np.array(history['online_computation_times']['total_iteration']),
             'MRO_time':  np.array(history['MRO_computation_times']['total_iteration']),
             'MRO_mean_val': np.array(history['mean_val_MRO']),
@@ -985,13 +985,14 @@ if __name__ == '__main__':
     init_ind = 0
     njobs = get_n_processes(100)
     #eps_init = [0.006,0.005,0.004,0.0035,0.003,0.0025,0.002,0.0015,0.001]
-    eps_init = [0.008,0.007,0.006,0.005,0.004,0.003,0.002,0.001]
-    mults = np.concatenate((8*np.ones(51),4*np.ones(50),2.5*np.ones(50),2*np.ones(50),1.8*np.ones(50),1.5*np.ones(50),1*np.ones(1000)))
+    eps_init = [0.0085,0.008,0.007,0.006,0.005,0.0045,0.004,0.0035]
+    # mults = np.concatenate((3*np.ones(51),2*np.ones(50),1*np.ones(50),1*np.ones(50),1*np.ones(50),1*np.ones(50),1*np.ones(1000)))
     # eps_init = [0.007,0.006,0.005,0.0015]
     M = len(eps_init)
     list_inds = list(itertools.product(np.arange(R),np.arange(M)))
     # dat, dateval = train_test_split(
     #     synthetic_returns[:, :m], train_size=48000, test_size=12000, random_state=50)
+    t_list = [4,5,9,10,14,15,19,20]
     results = Parallel(n_jobs=njobs)(delayed(port_experiments)(
         r_input,K,T,N_init,synthetic_returns,r_start) for r_input in range(len(list_inds)))
     
@@ -1007,7 +1008,7 @@ if __name__ == '__main__':
         findfs[r] = pd.concat([dfs[r][i] for i in range(len(eps_init))],ignore_index=True)
         findfs[r].to_csv(foldername + 'df_' + str(r+r_start) +'.csv')
 
-    newdatname = '/scratch/gpfs/iywang/mro_mpc/portfolio_exp_60/T'+str(T-1)+'R'+str(R)+'/'
+    newdatname = '/scratch/gpfs/iywang/mro_mpc/portfolio_exp_50/T'+str(T-1)+'R'+str(R)+'/'
     os.makedirs(newdatname, exist_ok=True)
     for r in range(R):
         findfs[r] = findfs[r].drop(columns=['weights','MRO_weights'])

@@ -63,12 +63,12 @@ if __name__ == '__main__':
     list_inds = list(itertools.product(np.arange(R),np.arange(M)))
 
     dfs = {}
-    newdatname = '/scratch/gpfs/iywang/mro_mpc/portfolio_exp/T'+str(T-1)+'R'+str(R)+'/'
+    newdatname = '/scratch/gpfs/iywang/mro_mpc/portfolio_exp_50/T'+str(T-1)+'R'+str(R)+'/'
     os.makedirs(newdatname, exist_ok=True)
     for r in range(R):
         datname = foldername + 'df_' + str(r) +'.csv'
         dfs[r] = pd.read_csv(datname)
-        dfs[r] = dfs[r].drop(columns=["DRO_x","MRO_x","x",'weights_q','weights'])
+        # dfs[r] = dfs[r].drop(columns=["DRO_x","MRO_x","x",'weights_q','weights'])
         dfs[r].to_csv(newdatname + 'df_' + 'K'+str(K)+'R'+ str(r) +'.csv')
 
     dfs_list = [dfs[i] for i in range(R)]

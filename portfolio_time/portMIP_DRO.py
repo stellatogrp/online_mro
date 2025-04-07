@@ -81,7 +81,7 @@ def createproblem_portMIP(N, m):
     constraints += [cp.sum(x) == 1]
     constraints += [x >= 0, x <= 1]
     constraints += [lam >= 0]
-    constraints += [x - z <= 0, cp.sum(z) <= 5]
+    constraints += [x - z <= 0, cp.sum(z) <= 8]
     # PROBLEM #
     problem = cp.Problem(cp.Minimize(objective), constraints)
     return problem, x, s, tau, lam, dat, eps, w
@@ -95,7 +95,7 @@ def create_scenario(dat,m,num_dat):
     constraints = []
     constraints += [cp.sum(x) == 1]
     constraints += [x >= 0, x <= 1]
-    constraints += [x - z <= 0, cp.sum(z) <= 5]
+    constraints += [x - z <= 0, cp.sum(z) <= 8]
     problem = cp.Problem(cp.Minimize(objective), constraints)
     return problem, x, tau
     
@@ -569,17 +569,17 @@ def port_experiments(r_input,T,N_init,synthetic_returns,r_start):
     for t in range(T):
         print(f"\nTimestep {t+1}/{T}")
         
-        radius = mults[t]*init_eps*(1/(num_dat**(1/(10))))
+        radius = init_eps*(1/(num_dat**(1/(40))))
         running_samples = dat[init_ind:(init_ind+num_dat)]
     
-        if t % interval == 0 or ((t-1) % interval == 0)  :
+        if t % interval == 0 or ((t-1) % interval == 0) or (t in t_list) :
         # solve DRO problem 
             DRO_problem, DRO_x, DRO_s, DRO_tau, DRO_lmbda, DRO_data, DRO_eps, DRO_w = createproblem_portMIP(num_dat,m)
             DRO_data.value = running_samples
             DRO_w.value = (1/num_dat)*np.ones(num_dat)
             DRO_eps.value = radius
             DRO_problem.solve(ignore_dpp=True, solver=cp.MOSEK, verbose=False, mosek_params={
-                mosek.dparam.optimizer_max_time:  2000.0})
+                mosek.dparam.optimizer_max_time:  1500.0})
             DRO_x_current = DRO_x.value
             DRO_tau_current = DRO_tau.value
             DRO_min_obj = DRO_problem.objective.value
@@ -587,10 +587,10 @@ def port_experiments(r_input,T,N_init,synthetic_returns,r_start):
 
 
 
-        if t % interval_SAA == 0 or ((t-1) % interval_SAA == 0)  :
+        if t % interval_SAA == 0 or ((t-1) % interval_SAA == 0) or (t in t_list)  :
             s_prob, s_x, s_tau = create_scenario(running_samples,m,num_dat)
             s_prob.solve(ignore_dpp=True, solver=cp.MOSEK, verbose=False, mosek_params={
-                    mosek.dparam.optimizer_max_time:  2000.0})
+                    mosek.dparam.optimizer_max_time:  1500.0})
             SA_x_current = s_x.value
             SA_tau_current = s_tau.value
             SA_obj_current = s_prob.objective.value
@@ -616,7 +616,7 @@ def port_experiments(r_input,T,N_init,synthetic_returns,r_start):
         # history['online_computation_times']['total_iteration'].append(weight_update_time + min_time)
     
 
-        if t % interval_SAA == 0 or ((t-1) % interval_SAA == 0) :
+        if t % interval_SAA == 0 or ((t-1) % interval_SAA == 0) or (t in t_list)  :
 
             DRO_eval, DRO_satisfy,SA_eval, SA_satisfy = compute_cumulative_regret(
             history,dateval)
@@ -742,14 +742,16 @@ if __name__ == '__main__':
     if T >= 10000:
         eps_init = [0.003]
     else:
-        eps_init = [0.004,0.0035,0.003,0.0025,0.002,0.0015]
+        eps_init = [0.004,0.0035,0.003,0.0025]
     M = len(eps_init)
     list_inds = list(itertools.product(np.arange(R),np.arange(M)))
     # mults = np.concatenate((5*np.ones(51),4*np.ones(50),3*np.ones(100),2*np.ones(100),1*np.ones(1000)))
-    mults = np.concatenate((8*np.ones(51),4*np.ones(50),2.5*np.ones(50),2*np.ones(50),1.7*np.ones(50),1.3*np.ones(50),1*np.ones(1000)))
+    # mults = np.concatenate((8*np.ones(51),4*np.ones(50),2.5*np.ones(50),2*np.ones(50),1.7*np.ones(50),1.3*np.ones(50),1*np.ones(1000)))
     
     # dat, dateval = train_test_split(
     #     synthetic_returns[:, :m], train_size=48000, test_size=12000, random_state=50)
+    t_list = [4,5,9,10,14,15,19,20]
+
     results = Parallel(n_jobs=njobs)(delayed(port_experiments)(
         r_input,T,N_init,synthetic_returns,r_start) for r_input in range(len(list_inds)))
     
@@ -765,7 +767,7 @@ if __name__ == '__main__':
         findfs[r] = pd.concat([dfs[r][i] for i in range(len(eps_init))],ignore_index=True)
         findfs[r].to_csv(foldername + 'DRO_df_' + str(r+r_start) +'.csv')
 
-    newdatname = '/scratch/gpfs/iywang/mro_mpc/portfolio_exp_60/T'+str(T-1)+'R'+str(R)+'/'
+    newdatname = '/scratch/gpfs/iywang/mro_mpc/portfolio_exp_50/T'+str(T-1)+'R'+str(R)+'/'
     os.makedirs(newdatname, exist_ok=True)
     for r in range(R):
         # findfs[r] = findfs[r].drop(columns=["DRO_x","SA_x"])
