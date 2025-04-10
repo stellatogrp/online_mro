@@ -7,9 +7,8 @@ import os
 
 output_stream = sys.stdout
 
-
-def plot_eval_all(df, quantiles, df1=None, quantiles1=None,end_ind=61,j=(0,0,0), q = (25,75),K=5, alpha=0.1,ylim = [0.008,0.022], legend = True,val2 = 3):
-    j1,j3,j4 = j
+def plot_certificates(df, quantiles, df1=None, quantiles1=None,end_ind=61,j=(0,0,0), q = (40,60),K=5, alpha=0.1,ylim = [0.008,0.022], legend = True,val2 = 3):
+    j1,j4,j3 = j
     # Set up LaTeX rendering
     df = df[K].copy()
     fontsize= 10
@@ -26,13 +25,12 @@ def plot_eval_all(df, quantiles, df1=None, quantiles1=None,end_ind=61,j=(0,0,0),
     })
     t_range = np.array(df['t'])[(0*end_ind):(1)*end_ind:2]
     fig, (ax2,ax3,ax1) = plt.subplots(1, 3, figsize=(9, val2), dpi=300)
-    
-    # online clustering
-    ax1.plot(t_range, df['online_time'][(j1*end_ind):(j1+1)*end_ind:2], 'b-', linewidth=1, label = "online clustering", marker="v",ms=1.5)
-    
-    ax1.fill_between(np.array(t_range),y1=np.array(quantiles[q1]['online_time'][(j1*end_ind):(j1+1)*end_ind:2]).astype(float),y2=np.array(quantiles[q2]['online_time'][(j1*end_ind):(j1+1)*end_ind:2]).astype(float),alpha=alpha, color = 'b')
 
-    # reclustering
+    ax1.plot(t_range, df['online_time'][(j1*end_ind):(j1+1)*end_ind:2], 'b-', linewidth=1, label = "online clustering", marker="v",ms=1.5)
+   
+    ax1.fill_between(np.array(t_range),y1=np.array(quantiles[q1]['online_time'][(j1*end_ind):(j1+1)*end_ind:2]).astype(float),y2=np.array(quantiles[q2]['online_time'][(j1*end_ind):(j1+1)*end_ind:2]).astype(float),alpha=alpha, color = 'b')
+    
+    # reclustering worst
     ax1.plot(t_range, df['MRO_time'][(j4*end_ind):(j4+1)*end_ind:2], 'r', linewidth=1, label = r"reclustering", marker="D",ms=1.5)
     
     ax1.fill_between(np.array(t_range),y1=np.array(quantiles[q1]['MRO_time'][(j4*end_ind):(j4+1)*end_ind:2]).astype(float),y2=np.array(quantiles[q2]['MRO_time'][(j4*end_ind):(j4+1)*end_ind:2]).astype(float),alpha=alpha, color = 'r')
@@ -44,17 +42,21 @@ def plot_eval_all(df, quantiles, df1=None, quantiles1=None,end_ind=61,j=(0,0,0),
     ax1.fill_between(np.array(t_range),y1=np.array(quantiles1[q1]['SA_time'][(j3*end_ind):(j3+1)*end_ind:2]).astype(float),y2=np.array(quantiles1[q2]['SA_time'][(j3*end_ind):(j3+1)*end_ind:2]).astype(float),alpha=alpha, color = 'g')
 
     ax1.set_xlabel(r'Time step $(t)$')
+    # ax1.set_xscale("log")
     ax1.set_title(r'Computation time per iteration (s)')
     ax1.grid(True, alpha=0.3)
+    # ax1.set_ylim([1e-4,1e3])
     ax1.set_yscale("log")
 
 
     # online and reclustering
-    lines1, = ax2.plot(t_range, df['obj_values'][(j1*end_ind):(j1+1)*end_ind:2], 'b-', linewidth=1, label = "online clustering", marker="v",ms=1.5)
-    ax2.fill_between(np.array(t_range),y1=np.array(quantiles[q1]['obj_values'][(j1*end_ind):(j1+1)*end_ind:2]).astype(float),y2=np.array(quantiles[q2]['obj_values'][(j1*end_ind):(j1+1)*end_ind:2]).astype(float),alpha=alpha, color = 'b')
+    lines1, = ax2.plot(t_range, np.array(df['obj_values'][(j1*end_ind):(j1+1)*end_ind:2])+5*np.array(df['sig_val'][(j1*end_ind):(j1+1)*end_ind:2]), 'b-', linewidth=1, label = "online clustering", marker="v",ms=1.5)
+    
+    ax2.fill_between(np.array(t_range),y1=np.array(quantiles[q1]['obj_values'][(j1*end_ind):(j1+1)*end_ind:2]).astype(float)+5*np.array(quantiles[q1]['sig_val'][(j1*end_ind):(j1+1)*end_ind:2]).astype(float),y2=np.array(quantiles[q2]['obj_values'][(j1*end_ind):(j1+1)*end_ind:2]).astype(float)+5*np.array(quantiles[q2]['sig_val'][(j1*end_ind):(j1+1)*end_ind:2]).astype(float),alpha=alpha, color = 'b')
 
-    lines2, = ax2.plot(t_range, np.array(df['MRO_obj_values'][(j4*end_ind):(j4+1)*end_ind:2]), 'r', linewidth=1, label = "reclustering", marker="D",ms=1.5)
-    ax2.fill_between(np.array(t_range),y1=np.array(quantiles[q1]['MRO_obj_values'][(j4*end_ind):(j4+1)*end_ind:2]).astype(float),y2=np.array(quantiles[q2]['MRO_obj_values'][(j4*end_ind):(j4+1)*end_ind:2]).astype(float),alpha=alpha, color='r')
+    lines2, = ax2.plot(t_range, np.array(df['MRO_obj_values'][(j4*end_ind):(j4+1)*end_ind:2])+5*np.array(df['MRO_sig_val'][(j4*end_ind):(j4+1)*end_ind:2]), 'r', linewidth=1, label = "reclustering", marker="D",ms=1.5)
+    
+    ax2.fill_between(np.array(t_range),y1=np.array(quantiles[q1]['MRO_obj_values'][(j4*end_ind):(j4+1)*end_ind:2]).astype(float)+5*np.array(quantiles[q1]['MRO_sig_val'][(j4*end_ind):(j4+1)*end_ind:2]).astype(float),y2=np.array(quantiles[q2]['MRO_obj_values'][(j4*end_ind):(j4+1)*end_ind:2]).astype(float)+5*np.array(quantiles[q2]['MRO_sig_val'][(j4*end_ind):(j4+1)*end_ind:2]).astype(float),alpha=alpha, color='r')
 
     # DRO and SAA
     lines3, = ax2.plot(t_range, df1['SA_obj_values'][(j3*end_ind):(j3+1)*end_ind:2], 'g-', linewidth=1, label = "SAA", marker="o",ms=1.5)
@@ -63,19 +65,22 @@ def plot_eval_all(df, quantiles, df1=None, quantiles1=None,end_ind=61,j=(0,0,0),
     ax2.fill_between(np.array(t_range),y1=np.array(quantiles1[q1]['SA_obj_values'][(j3*end_ind):(j3+1)*end_ind:2]).astype(float),y2=np.array(quantiles1[q2]['SA_obj_values'][(j3*end_ind):(j3+1)*end_ind:2]).astype(float),alpha=alpha, color = 'g')
 
     ax2.set_xlabel(r'Time step $(t)$')
-    ax2.set_title(r'In-sample objective value')
+    # ax2.set_xscale("log")
+    ax2.set_title(r'Certificate')
     ax2.set_ylim(ylim)
     ax2.grid(True, alpha=0.3)
 
     # online and reclustering
-    ax3.plot(t_range, df['O_satisfy'][(j1*end_ind):(j1+1)*end_ind:2], 'b-', linewidth=1, label = "online clustering", marker="v",ms=1.5)
+    ax3.plot(t_range, df['O_worst_satisfy0'][(j1*end_ind):(j1+1)*end_ind:2], 'b-', linewidth=1, label = "online clustering", marker="v",ms=1.5)
 
-    ax3.plot(t_range, df['MRO_satisfy'][(j4*end_ind):(j4+1)*end_ind:2], 'r',linestyle='-', linewidth=1, label = "reclustering",marker="D",ms=1.5)
+    ax3.plot(t_range, df['MRO_worst_satisfy0'][(j4*end_ind):(j4+1)*end_ind:2], 'r',linestyle='-', linewidth=1, label = "reclustering",marker="D",ms=1.5)
 
     # DRO and SAA
     ax3.plot(t_range, df1['SA_satisfy1'][(j3*end_ind):(j3+1)*end_ind:2], 'g-', linewidth=1, label = "SAA",marker="o",ms=1.5)
     ax3.plot(t_range, df1['DRO_satisfy1'][(j3*end_ind):(j3+1)*end_ind:2], color ='black', linewidth=1, label = "DRO",marker="s",ms=1.5)
     ax3.set_xlabel(r'Time step $(t)$')
+    # ax3.set_xscale("log")
+
     ax3.set_title(r'Confidence $1-\hat{\beta}_t$')
     ax3.grid(True, alpha=0.3)
     
@@ -86,6 +91,7 @@ def plot_eval_all(df, quantiles, df1=None, quantiles1=None,end_ind=61,j=(0,0,0),
         legend = fig.legend(lines, labels, loc='lower center', bbox_to_anchor=(0.5, -0.1), ncol=5)
     plt.tight_layout()
     plt.savefig('obj_analysis'+str(K)+'.pdf', bbox_inches='tight', dpi=300)
+
 
 
 def plot_regret(df, quantiles, df1=None, quantiles1=None,end_ind=61,j=(0,0,0), q = (40,60),K=5, alpha=0.1):
@@ -136,7 +142,7 @@ def plot_regret(df, quantiles, df1=None, quantiles1=None,end_ind=61,j=(0,0,0), q
 
     plt.legend(ncol = 2)
     plt.xlabel(r'Time $(T)$')
-    plt.title(r'Dynamic regret, $\varepsilon_t = 0.003t^{1/60}$')
+    plt.title(r'Dynamic regret, $\varepsilon_t = 0.0025(t+5)^{-1/40}$')
     # plt.ylim([0.008,0.022])
     plt.yscale('log')
     plt.grid(True, alpha=alpha)
@@ -178,7 +184,7 @@ def plot_bounds(df, quantiles, df1=None, quantiles1=None, end_ind=61,j=(0,0,0), 
     
     plt.legend( ncol = 2)
     plt.xlabel(r'Time step $(t)$')
-    plt.title(r'Certificates, $\varepsilon_t = 0.003t^{1/60}$')
+    plt.title(r'Certificates, $\varepsilon_t = 0.0025(t+5)^{-1/40}$')
     # plt.ylim([0.003,0.033])
     plt.grid(True, alpha=alpha)
     plt.savefig('bounds_analysis.pdf', bbox_inches='tight', dpi=300)
@@ -228,7 +234,7 @@ def plot_dists(df, quantiles, end_ind=61, j = (0,0), q = (25,75),K=5, alpha=0.1)
     plt.savefig('dist_conv.pdf', bbox_inches='tight', dpi=300)
 
 
-def plot_eval(df, quantiles, df1=None, quantiles1=None,end_ind=61,j=(0,0,0), q = (40,60),K=5, alpha=0.1):
+def plot_eval(df, quantiles, df1=None, quantiles1=None,end_ind=61,j=(0,0,0), q = (40,60),K=5, alpha=0.1,legend = True):
     j1,j2,j3 = j
     # Set up LaTeX rendering
     df = df[K]
@@ -241,58 +247,67 @@ def plot_eval(df, quantiles, df1=None, quantiles1=None,end_ind=61,j=(0,0,0), q =
         "font.serif": ["Computer Modern Roman"],
         "font.size": fontsize,
         "axes.labelsize": fontsize,
-        "axes.titlesize": 12,
+        "axes.titlesize": 11,
         "legend.fontsize": fontsize
     })
-    t_range = np.array(df['t'])[(0*end_ind)+1:(1)*end_ind:2]
-    plt.figure(figsize=(3, 2), dpi=300)
-    plt.plot(t_range, df['O_eval'][(j1*end_ind)+1:(j1+1)*end_ind:2], 'b-', linewidth=1, label = "online clustering")
+    t_range = np.array(df['t'])[(0*end_ind):(1)*end_ind:2] +1
+    plt.figure(figsize=(4.3, 2.1), dpi=300)
+    plt.plot(t_range, df['O_eval0'][(j1*end_ind):(j1+1)*end_ind:2], 'b-', linewidth=1, label = "online clustering" , marker="v",ms=1.5)
 
-    plt.fill_between(np.array(t_range),y1=np.array(quantiles[q1]['O_eval'][(j1*end_ind)+1:(j1+1)*end_ind:2]).astype(float),y2=np.array(quantiles[q2]['O_eval'][(j1*end_ind)+1:(j1+1)*end_ind:2]).astype(float),alpha=alpha, color = 'b')
-    plt.plot(t_range, df['MRO_eval'][(j2*end_ind)+1:(j2+1)*end_ind:2], 'r-', linewidth=1, label = "reclustering")
-    plt.fill_between(np.array(t_range),y1=np.array(quantiles[q1]['MRO_eval'][(j2*end_ind)+1:(j2+1)*end_ind:2]).astype(float),y2=np.array(quantiles[q2]['MRO_eval'][(j2*end_ind)+1:(j2+1)*end_ind:2]).astype(float),alpha=alpha, color='r')
+    plt.fill_between(np.array(t_range),y1=np.array(quantiles[q1]['O_eval0'][(j1*end_ind):(j1+1)*end_ind:2]).astype(float),y2=np.array(quantiles[q2]['O_eval0'][(j1*end_ind):(j1+1)*end_ind:2]).astype(float),alpha=alpha, color = 'b')
+    plt.plot(t_range, df['MRO_eval0'][(j2*end_ind):(j2+1)*end_ind:2], 'r-', linewidth=1, label = "reclustering", marker="D",ms=1.5)
+    plt.fill_between(np.array(t_range),y1=np.array(quantiles[q1]['MRO_eval0'][(j2*end_ind):(j2+1)*end_ind:2]).astype(float),y2=np.array(quantiles[q2]['MRO_eval0'][(j2*end_ind):(j2+1)*end_ind:2]).astype(float),alpha=alpha, color='r')
+
+    plt.plot(t_range, df1['DRO_eval1'][(j3*end_ind):(j3+1)*end_ind:2], 'black', linewidth=1, label = "DRO", marker="s",ms=1.5)
+    plt.fill_between(np.array(t_range),y1=np.array(quantiles1[q1]['DRO_eval1'][(j3*end_ind):(j3+1)*end_ind:2]).astype(float),y2=np.array(quantiles1[q2]['DRO_eval1'][(j3*end_ind):(j3+1)*end_ind:2]).astype(float),alpha=alpha, color='black')
+
+    plt.plot(t_range, df1['SA_eval1'][(j3*end_ind):(j3+1)*end_ind:2], 'g-', linewidth=1, label = "SAA", marker="o",ms=1.5)
+    plt.fill_between(np.array(t_range),y1=np.array(quantiles1[q1]['SA_eval1'][(j3*end_ind):(j3+1)*end_ind:2]).astype(float),y2=np.array(quantiles1[q2]['SA_eval1'][(j3*end_ind):(j3+1)*end_ind:2]).astype(float),alpha=alpha, color='g')
+    plt.xscale("log")
+    if legend:
+        plt.legend()
+    plt.xlabel(r'Time step $(t)$')
+    plt.title(f'Out-of-sample expected value, $K$ = {K}')
+    plt.grid(True, alpha=alpha)
+    plt.savefig('eval_analysis'+str(K)+'.pdf', bbox_inches='tight', dpi=300)
+
+
+def plot_eval_T(df, quantiles, end_ind=61,j=(0,0), q = (40,60),K=5, alpha=0.1):
+    j1,j2,j3 = j
+    # Set up LaTeX rendering
+    df = df[K]
+    fontsize= 10
+    quantiles = quantiles[K]
+    q1,q2 = q
+    plt.rcParams.update({
+        "text.usetex": True,
+        "font.family": "serif",
+        "font.serif": ["Computer Modern Roman"],
+        "font.size": fontsize,
+        "axes.labelsize": fontsize,
+        "axes.titlesize": 11,
+        "legend.fontsize": fontsize
+    })
+    t_range = np.array(df['t'])[(0*end_ind):(1)*end_ind:1]
+    plt.figure(figsize=(4.3, 2.1), dpi=300)
+    plt.plot(t_range, df['O_eval0'][(j1*end_ind):(j1+1)*end_ind:1], 'b-', linewidth=1, label = "online clustering")
+
+    plt.fill_between(np.array(t_range),y1=np.array(quantiles[q1]['O_eval0'][(j1*end_ind):(j1+1)*end_ind:1]).astype(float),y2=np.array(quantiles[q2]['O_eval0'][(j1*end_ind):(j1+1)*end_ind:1]).astype(float),alpha=alpha, color = 'b')
+    plt.plot(t_range, df['MRO_eval0'][(j2*end_ind):(j2+1)*end_ind:1], 'r-', linewidth=1, label = "reclustering")
+    plt.fill_between(np.array(t_range),y1=np.array(quantiles[q1]['MRO_eval0'][(j2*end_ind):(j2+1)*end_ind:1]).astype(float),y2=np.array(quantiles[q2]['MRO_eval0'][(j2*end_ind):(j2+1)*end_ind:1]).astype(float),alpha=alpha, color='r')
 
     plt.legend()
+    plt.xscale("log")
     plt.xlabel(r'Time step $(t)$')
     plt.title(r'Out-of-sample expected value')
     plt.grid(True, alpha=alpha)
-    plt.savefig('eval_analysis.pdf', bbox_inches='tight', dpi=300)
+    plt.savefig('eval_analysis_T.pdf', bbox_inches='tight',format='pdf',dpi = 300)
 
 
-def plot_obj(df, quantiles, df1=None, quantiles1=None,end_ind=61,j=(0,0,0), q = (40,60),K=5, alpha=0.1):
-    j1,j2,j3 = j
-    # Set up LaTeX rendering
+def plot_dists(df, quantiles, end_ind=61, j = (0,0), q = (40,60),K=5, alpha=0.1,ylim = None):
+    j1,j2 = j
     df = df[K]
-    fontsize= 10
-    quantiles = quantiles[K]
-    q1,q2 = q
-    plt.rcParams.update({
-        "text.usetex": True,
-        "font.family": "serif",
-        "font.serif": ["Computer Modern Roman"],
-        "font.size": fontsize,
-        "axes.labelsize": fontsize,
-        "axes.titlesize": 12,
-        "legend.fontsize": fontsize
-    })
-    t_range = np.array(df['t'])[(0*end_ind)+1:(1)*end_ind:2]
-    plt.figure(figsize=(3, 2), dpi=300)
-    plt.plot(t_range, df['obj_values'][(j1*end_ind)+1:(j1+1)*end_ind:2], 'b-', linewidth=1, label = "online clustering")
-
-    plt.fill_between(np.array(t_range),y1=np.array(quantiles[q1]['obj_values'][(j1*end_ind)+1:(j1+1)*end_ind:2]).astype(float),y2=np.array(quantiles[q2]['obj_values'][(j1*end_ind)+1:(j1+1)*end_ind:2]).astype(float),alpha=alpha, color = 'b')
-    plt.plot(t_range, df['MRO_obj_values'][(j2*end_ind)+1:(j2+1)*end_ind:2], 'r-', linewidth=1, label = "reclustering")
-    plt.fill_between(np.array(t_range),y1=np.array(quantiles[q1]['MRO_obj_values'][(j2*end_ind)+1:(j2+1)*end_ind:2]).astype(float),y2=np.array(quantiles[q2]['MRO_obj_values'][(j2*end_ind)+1:(j2+1)*end_ind:2]).astype(float),alpha=alpha, color='r')
-
-    plt.legend()
-    plt.xlabel(r'Time step $(t)$')
-    plt.title(r'In-sample objective value')
-    plt.grid(True, alpha=alpha)
-    plt.savefig('obj_analysis_T.pdf', bbox_inches='tight', dpi=300)
-
-def plot_computation_times_iter(df, quantiles, df1=None, quantiles1=None, end_ind=61,j=(0,0,0), q = (40,60),K=5, alpha=0.1):
-    j1,j2,j3 = j
-    df = df[K]
-    fontsize= 10
+    fontsize= 11
     quantiles = quantiles[K]
     q1,q2 = q
     # Set up LaTeX rendering
@@ -300,21 +315,42 @@ def plot_computation_times_iter(df, quantiles, df1=None, quantiles1=None, end_in
         "text.usetex": True,
         "font.family": "serif",
         "font.serif": ["Computer Modern Roman"],
-        "font.size": fontsize
+        "font.size": 10,
+        "axes.labelsize": 10,
+        "axes.titlesize": 11,
+        "legend.fontsize": 9
+        
     })
-    t_range = np.array(df['t'])[(0*end_ind)+1:(1)*end_ind:2]
-    plt.figure(figsize=(3, 2), dpi=300)
-    plt.plot(t_range, df['online_time'][(j1*end_ind)+1:(j1+1)*end_ind:2], 'b-', linewidth=1, label = "online clustering")
-    plt.plot(t_range, np.array(df['MRO_time'][(j2*end_ind)+1:(j2+1)*end_ind:2]), 'r-', linewidth=1, label = "reclustering")
-    plt.fill_between(np.array(t_range),y1=np.array(quantiles[q1]['online_time'][(j1*end_ind)+1:(j1+1)*end_ind:2]).astype(float),y2=np.array(quantiles[q2]['online_time'][(j1*end_ind)+1:(j1+1)*end_ind:2]).astype(float),alpha=alpha, color = 'b')
-    plt.fill_between(np.array(t_range),y1=np.array(quantiles[q1]['MRO_time'][(j2*end_ind)+1:(j2+1)*end_ind:2]).astype(float),y2=np.array(quantiles[q2]['MRO_time'][(j2*end_ind)+1:(j2+1)*end_ind:2]).astype(float),alpha=alpha, color = 'r')
+    t_range = np.array(df['t'])[(0*end_ind):(1)*end_ind:1]
+    plt.figure(figsize=(4.3, 2.1), dpi=300)
+    plt.plot(t_range, df['mean_val'][(j1*end_ind):(j1+1)*end_ind:1], 'b:', linewidth=1, label = r"$d^K_{t,1}$")
+    plt.plot(t_range, df['MRO_mean_val'][(j2*end_ind):(j2+1)*end_ind:1], 'r:', linewidth=1)
+
+    plt.plot(t_range, 5*np.array(df['sig_val'][(j1*end_ind):(j1+1)*end_ind:1]), 'b-.', linewidth=1, label = r"$\Phi^K_t$")
+    plt.plot(t_range, 5*np.array(df['MRO_sig_val'][(j2*end_ind):(j2+1)*end_ind:1]), 'r-.', linewidth=1)
+
+    plt.plot(t_range, df['square_val'][(j1*end_ind):(j1+1)*end_ind:1], 'b-', linewidth=0.5, label = r"$(D^K_{t,2})^2$")
+    plt.plot(t_range, df['MRO_square_val'][(j2*end_ind):(j2+1)*end_ind:1], 'r', linewidth=0.5)
+
+
+    plt.fill_between(np.array(t_range),y1=np.array(quantiles[q1]['mean_val'][(j1*end_ind):(j1+1)*end_ind:1]).astype(float),y2=np.array(quantiles[q2]['mean_val'][(j1*end_ind):(j1+1)*end_ind:1]).astype(float),alpha=alpha, color = 'b')
+    plt.fill_between(np.array(t_range),y1=np.array(quantiles[q1]['MRO_mean_val'][(j2*end_ind):(j2+1)*end_ind:1]).astype(float),y2=np.array(quantiles[q2]['MRO_mean_val'][(j2*end_ind):(j2+1)*end_ind:1]).astype(float),alpha=alpha, color = 'r')
+    plt.fill_between(np.array(t_range),y1=np.array(quantiles[q1]['square_val'][(j1*end_ind):(j1+1)*end_ind:1]).astype(float),y2=np.array(quantiles[q2]['square_val'][(j1*end_ind):(j1+1)*end_ind:1]).astype(float),alpha=alpha, color = 'b')
+    plt.fill_between(np.array(t_range),y1=np.array(quantiles[q1]['MRO_square_val'][(j2*end_ind):(j2+1)*end_ind:1]).astype(float),y2=np.array(quantiles[q2]['MRO_square_val'][(j2*end_ind):(j2+1)*end_ind:1]).astype(float),alpha=alpha, color = 'r')
+
+    plt.fill_between(np.array(t_range),y1=5*np.array(quantiles[q1]['sig_val'][(j1*end_ind):(j1+1)*end_ind:1]).astype(float),y2=5*np.array(quantiles[q2]['sig_val'][(j1*end_ind):(j1+1)*end_ind:1]).astype(float),alpha=alpha, color = 'b')
+    plt.fill_between(np.array(t_range),y1=5*np.array(quantiles[q1]['MRO_sig_val'][(j2*end_ind):(j2+1)*end_ind:1]).astype(float),y2=5*np.array(quantiles[q2]['MRO_sig_val'][(j2*end_ind):(j2+1)*end_ind:1]).astype(float),alpha=alpha, color = 'r')
 
     plt.legend()
     plt.xlabel(r'Time step $(t)$')
-    plt.title(r'Compuation time per iteration (s)')
+    plt.title(r'Clustering distances')
     plt.grid(True, alpha=0.3)
-    plt.yscale("log")
-    plt.savefig('time_iters_T.pdf', bbox_inches='tight', dpi=300)
+    plt.xscale("log")
+    # plt.yscale("log")
+    # plt.xlim([1e0,1e4])
+    plt.ylim(ylim)
+    plt.savefig('dist_conv.pdf', bbox_inches='tight', format='pdf',dpi = 300)
+
 
 # setup MRO dfs
 def setup_dfs(init, R, K_list, foldername, folderout):
@@ -362,8 +398,8 @@ if __name__ == '__main__':
     R = arguments.R
 
         
-    T=3001
-    K_list = [0,5,15]
+    T=2001
+    K_list = [0,15,25]
     quant_list = [25,75]
     foldername = foldername+str(T-1)+'/'
     folderout = foldername+str(T-1)+'/finalized_dfs/'
@@ -371,26 +407,26 @@ if __name__ == '__main__':
 
     df, quantiles = setup_dfs(init = True,R = R, K_list = K_list, foldername = foldername, folderout= folderout)
 
-    plot_eval_all(df,quantiles,df[0],quantiles[0],j=(0,4,1),K=5,q=(25,75),ylim=[0.008,0.024],legend = False,val2=2.3,end_ind=61)
+    plot_certificates(df,quantiles,df[0],quantiles[0],j=(4,4,3),K=15,q=(25,75),ylim=[0.004,0.03],legend = True,val2=2.3,end_ind = 58)
 
-    plot_eval_all(df,quantiles,df[0],quantiles[0],j=(3,4,6),K=15,q=(25,75),ylim=[0.008,0.022],legend = True,val2=2.3)
+    plot_eval(df,quantiles,df[0],quantiles[0],j=(4,4,3),K=15,q=(25,75),end_ind=58,legend = False)
 
-    plot_regret(df,quantiles,df[0],quantiles[0],j=(6,6,2),K=15,q=(25,75))
+    plot_eval(df,quantiles,df[0],quantiles[0],j=(4,4,3),K=25,q=(25,75),end_ind=58)
 
-    plot_bounds(df,quantiles,df[0],quantiles[0],j=(6,6,2),K=15,q=(25,75))
+    plot_regret(df,quantiles,df[0],quantiles[0],j=(4,4,3),K=25,q=(25,75),end_ind = 58,ylim=[0.0005,1])
+
+    plot_bounds(df,quantiles,df[0],quantiles[0],j=(4,4,3),K=25,q=(25,75),end_ind = 58)
 
     T=10001
-    K_list = [15]
+    K_list = [25]
     foldername = foldername+str(T-1)+'/'
     folderout = foldername+str(T-1)+'/finalized_dfs/'
     os.makedirs(folderout, exist_ok=True)
     df, quantiles = setup_dfs(init = True,R = R, K_list = K_list, foldername = foldername, folderout= folderout)
 
-    plot_obj(df,quantiles, j=(3,6,0),K=15,q=(25,75),end_ind = 201)
+    plot_eval_T(df,quantiles,j=(2,2),K=25,q=(25,75),end_ind = 30)
 
-    plot_dists(df,quantiles,q = (25,75),j = (3,6), end_ind=201,K=15)
-
-    plot_computation_times_iter(df,quantiles,j=(3,6,0),K=15,q=(25,75), end_ind = 201)
+    plot_dists(df,quantiles,q = (25,75),j = (2,2), end_ind=30,K=25,ylim = None)
 
     print("DONE")
     

@@ -44,10 +44,10 @@ If you wish to run experiments in separate batches, you can set r_start to the c
 E.g. r_start 0 with R = 10 is equivalent to running R = 5 twice, with r_start = 0 then r_start 5. 
 
 ```
-python portfolio/portMIP.py --R 10 --K 5  --T 3001 --fixed_time 2500 --interval 100 --Q 500 --N_init 50 --r_start 0
-python portfolio/portMIP.py  --R 10 --K 15 --T 3001 --fixed_time 2500 --interval 100 --Q 500 --N_init 50 --r_start 0
-python portfolio/portMIP_DRO.py --R 10 --T 3001 --interval 100 --interval_SAA 100 --N_init 50 --r_start 0
-python portfolio/portMIP.py --R 10 --K 15 --T 10001 --fixed_time 7000  --interval 100 --Q 500 --N_init 50 --r_start 0 
+python portfolio/portMIP.py --R 10 --K 15  --T 2001 --fixed_time 1500 --interval 50 --Q 500 --N_init 5 --r_start 0
+python portfolio/portMIP.py  --R 10 --K 25 --T 2001 --fixed_time 1500 --interval 50 --Q 500 --N_init 5 --r_start 0
+python portfolio/portMIP_DRO.py --R 10 --T 2001 --interval 50 --interval_SAA 50 --N_init 5 --r_start 0
+python portfolio/portMIP.py --R 10 --K 25 --T 10001 --fixed_time 8500  --interval 500 --Q 500 --N_init 5 --r_start 0 
 ```
 
 After running the above, plots can be generated using the following command.
