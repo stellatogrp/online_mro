@@ -16,6 +16,6 @@ module purge
 module load anaconda3/2024.2
 conda activate mroenv
 
-python portfolio_time/portMIP.py --foldername /scratch/gpfs/iywang/mro_results/portfolio_50/ --R 5 --T 2001 --fixed_time 1500 --interval 50 --Q 500 --K 15 --N_init 5 --r_start 25 --m 50
+# python portfolio_time/portMIP.py --foldername /scratch/gpfs/iywang/mro_results/portfolio_50/ --R 5 --T 2001 --fixed_time 1500 --interval 50 --Q 500 --K 15 --N_init 5 --r_start 25 --m 50
 
-# python portfolio_time/portMIP.py --foldername /scratch/gpfs/iywang/mro_results/portfolio/ --R 10 --T 10001 --fixed_time 7500  --interval 500 --Q 500 --K 5 --r_start 0 --m 50
+python portfolio_time/portMIP.py --foldername /scratch/gpfs/iywang/mro_results/portfolio/ --R 10 --T 10001 --fixed_time 8500  --interval 500 --Q 500 --K 5 --r_start 20 --m 50 --N_init 5
