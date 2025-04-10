@@ -3,7 +3,7 @@
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=35
-#SBATCH --mem-per-cpu=5G
+#SBATCH --mem-per-cpu=3G
 #SBATCH --time=20:00:00
 #SBATCH -o /scratch/gpfs/iywang/mro_results/portfolio_output/portfolio_test_%A_.txt
 #SBATCH --mail-type=BEGIN,END,FAIL,TIME_LIMIT
@@ -15,7 +15,7 @@ module purge
 module load anaconda3/2024.2
 conda activate mroenv
 
-python portfolio_time/portMIP_DRO.py --foldername /scratch/gpfs/iywang/mro_results/portfolio_50/ --R 5 --T 1001 --interval 50  --interval_SAA 50  --N_init 5 --r_start 15 --m 50
+python portfolio_time/portMIP_DRO.py --foldername /scratch/gpfs/iywang/mro_results/portfolio_50/ --R 5 --T 2001 --interval 50  --interval_SAA 50  --N_init 5 --r_start 25 --m 50
 
 # python portfolio_time/portMIP.py --foldername /scratch/gpfs/iywang/mro_results/portfolio/ --R 5 --T 10001 --fixed_time 7000 --interval 2500 --interval_online 100 --Q 2000 --K 5
 

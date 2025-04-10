@@ -573,40 +573,42 @@ def port_experiments(r_input,T,N_init,synthetic_returns,r_start):
         running_samples = dat[init_ind:(init_ind+num_dat)]
     
         if t % interval == 0 or ((t-1) % interval == 0) or (t in t_list) :
-        # solve DRO problem 
-            DRO_problem, DRO_x, DRO_s, DRO_tau, DRO_lmbda, DRO_data, DRO_eps, DRO_w = createproblem_portMIP(num_dat,m)
-            DRO_data.value = running_samples
-            DRO_w.value = (1/num_dat)*np.ones(num_dat)
-            DRO_eps.value = radius
-            DRO_problem.solve(ignore_dpp=True, solver=cp.MOSEK, verbose=False, mosek_params={
-                mosek.dparam.optimizer_max_time:  1500.0})
-            DRO_x_current = DRO_x.value
-            DRO_tau_current = DRO_tau.value
-            DRO_min_obj = DRO_problem.objective.value
-            DRO_min_time = DRO_problem.solver_stats.solve_time
+            if t <= 1001 or (t in t_list):
+            # solve DRO problem 
+                DRO_problem, DRO_x, DRO_s, DRO_tau, DRO_lmbda, DRO_data, DRO_eps, DRO_w = createproblem_portMIP(num_dat,m)
+                DRO_data.value = running_samples
+                DRO_w.value = (1/num_dat)*np.ones(num_dat)
+                DRO_eps.value = radius
+                DRO_problem.solve(ignore_dpp=True, solver=cp.MOSEK, verbose=False, mosek_params={
+                    mosek.dparam.optimizer_max_time:  1500.0})
+                DRO_x_current = DRO_x.value
+                DRO_tau_current = DRO_tau.value
+                DRO_min_obj = DRO_problem.objective.value
+                DRO_min_time = DRO_problem.solver_stats.solve_time
 
 
 
         if t % interval_SAA == 0 or ((t-1) % interval_SAA == 0) or (t in t_list)  :
-            s_prob, s_x, s_tau = create_scenario(running_samples,m,num_dat)
-            s_prob.solve(ignore_dpp=True, solver=cp.MOSEK, verbose=False, mosek_params={
-                    mosek.dparam.optimizer_max_time:  1500.0})
-            SA_x_current = s_x.value
-            SA_tau_current = s_tau.value
-            SA_obj_current = s_prob.objective.value
-            SA_time = s_prob.solver_stats.solve_time
+            if t <= 1001 or (t in t_list):
+                s_prob, s_x, s_tau = create_scenario(running_samples,m,num_dat)
+                s_prob.solve(ignore_dpp=True, solver=cp.MOSEK, verbose=False, mosek_params={
+                        mosek.dparam.optimizer_max_time:  1500.0})
+                SA_x_current = s_x.value
+                SA_tau_current = s_tau.value
+                SA_obj_current = s_prob.objective.value
+                SA_time = s_prob.solver_stats.solve_time
 
-            history['DRO_computation_times']['total_iteration'].append(DRO_min_time)
-            history['DRO_x'].append(DRO_x_current)
-            history['DRO_tau'].append(DRO_tau_current)
-            history['DRO_obj_values'].append(DRO_min_obj)
-            history['epsilon'].append(radius)
-            history['t'].append(t)
+                history['DRO_computation_times']['total_iteration'].append(DRO_min_time)
+                history['DRO_x'].append(DRO_x_current)
+                history['DRO_tau'].append(DRO_tau_current)
+                history['DRO_obj_values'].append(DRO_min_obj)
+                history['epsilon'].append(radius)
+                history['t'].append(t)
 
-            history['SA_computation_times'].append(SA_time)
-            history['SA_x'].append(SA_x_current)
-            history['SA_tau'].append(SA_tau_current)
-            history['SA_obj_values'].append(SA_obj_current)
+                history['SA_computation_times'].append(SA_time)
+                history['SA_x'].append(SA_x_current)
+                history['SA_tau'].append(SA_tau_current)
+                history['SA_obj_values'].append(SA_obj_current)
 
         # New sample
         new_sample = dat[init_ind+num_dat]
@@ -617,41 +619,42 @@ def port_experiments(r_input,T,N_init,synthetic_returns,r_start):
     
 
         if t % interval_SAA == 0 or ((t-1) % interval_SAA == 0) or (t in t_list)  :
+            if t <= 1001 or (t in t_list):
 
-            DRO_eval, DRO_satisfy,SA_eval, SA_satisfy = compute_cumulative_regret(
-            history,dateval)
+                DRO_eval, DRO_satisfy,SA_eval, SA_satisfy = compute_cumulative_regret(
+                history,dateval)
+                
+                df = pd.DataFrame({
+                # 'DRO_x': history['DRO_x'],
+                'DRO_tau': np.array(history['DRO_tau']),
+                'DRO_obj_values': np.array(history['DRO_obj_values']),
+                'epsilon': np.array(history['epsilon']),
+                'DRO_time':  np.array(history['DRO_computation_times']['total_iteration']),
+                'DRO_eval1': DRO_eval[0],
+                'DRO_eval2': DRO_eval[1],
+                # 'DRO_eval3': DRO_eval[2],
+                # 'DRO_eval4': DRO_eval[3],
+                "DRO_satisfy1": DRO_satisfy[0],
+                "DRO_satisfy2": DRO_satisfy[1],
+                # "DRO_satisfy3": DRO_satisfy[2],
+                # "DRO_satisfy4": DRO_satisfy[3],
+                'SA_eval1' : SA_eval[0],
+                'SA_eval2' : SA_eval[1],
+                # 'SA_eval3' : SA_eval[2],
+                # 'SA_eval4' : SA_eval[3],
+                'SA_satisfy1': SA_satisfy[0],
+                'SA_satisfy2': SA_satisfy[1],
+                # 'SA_satisfy3': SA_satisfy[2],
+                # 'SA_satisfy4': SA_satisfy[3],
+                'SA_obj_values': np.array(history['SA_obj_values']),
+                'SA_time':np.array(history['SA_computation_times']),
+                # 'SA_x': history['SA_x'],
+                'SA_tau': np.array(history['SA_tau']),
+                't':np.array(history['t'])
+                })
+                df.to_csv(foldername+'DRO'+str(epsnum)+'_R'+str(r+r_start)+'_df.csv')
+                # print(f"Weights: {q_dict['w'], np.sum(q_dict['w']) }")
             
-            df = pd.DataFrame({
-            # 'DRO_x': history['DRO_x'],
-            'DRO_tau': np.array(history['DRO_tau']),
-            'DRO_obj_values': np.array(history['DRO_obj_values']),
-            'epsilon': np.array(history['epsilon']),
-            'DRO_time':  np.array(history['DRO_computation_times']['total_iteration']),
-            'DRO_eval1': DRO_eval[0],
-            'DRO_eval2': DRO_eval[1],
-            # 'DRO_eval3': DRO_eval[2],
-            # 'DRO_eval4': DRO_eval[3],
-            "DRO_satisfy1": DRO_satisfy[0],
-            "DRO_satisfy2": DRO_satisfy[1],
-            # "DRO_satisfy3": DRO_satisfy[2],
-            # "DRO_satisfy4": DRO_satisfy[3],
-            'SA_eval1' : SA_eval[0],
-            'SA_eval2' : SA_eval[1],
-            # 'SA_eval3' : SA_eval[2],
-            # 'SA_eval4' : SA_eval[3],
-            'SA_satisfy1': SA_satisfy[0],
-            'SA_satisfy2': SA_satisfy[1],
-            # 'SA_satisfy3': SA_satisfy[2],
-            # 'SA_satisfy4': SA_satisfy[3],
-            'SA_obj_values': np.array(history['SA_obj_values']),
-            'SA_time':np.array(history['SA_computation_times']),
-            # 'SA_x': history['SA_x'],
-            'SA_tau': np.array(history['SA_tau']),
-            't':np.array(history['t'])
-            })
-            df.to_csv(foldername+'DRO'+str(epsnum)+'_R'+str(r+r_start)+'_df.csv')
-            # print(f"Weights: {q_dict['w'], np.sum(q_dict['w']) }")
-        
 
     DRO_eval, DRO_satisfy,SA_eval, SA_satisfy = compute_cumulative_regret(
             history,dateval)
@@ -742,7 +745,7 @@ if __name__ == '__main__':
     if T >= 10000:
         eps_init = [0.003]
     else:
-        eps_init = [0.004,0.0035,0.003,0.0025]
+        eps_init = [0.0035,0.00325,0.003,0.0025]
     M = len(eps_init)
     list_inds = list(itertools.product(np.arange(R),np.arange(M)))
     # mults = np.concatenate((5*np.ones(51),4*np.ones(50),3*np.ones(100),2*np.ones(100),1*np.ones(1000)))
@@ -750,7 +753,7 @@ if __name__ == '__main__':
     
     # dat, dateval = train_test_split(
     #     synthetic_returns[:, :m], train_size=48000, test_size=12000, random_state=50)
-    t_list = [4,5,9,10,14,15,19,20]
+    t_list = [4,5,9,10,14,15,19,20,1249,1250,1499,1500,1749,1750,1999,2000]
 
     results = Parallel(n_jobs=njobs)(delayed(port_experiments)(
         r_input,T,N_init,synthetic_returns,r_start) for r_input in range(len(list_inds)))
