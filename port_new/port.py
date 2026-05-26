@@ -752,7 +752,8 @@ def port_experiments(r_input,K,T,N_init,synthetic_returns,r_start, newfoldername
         D_x = np.sqrt(2)
         R = np.linalg.norm(dateval, axis=1).mean()
         L_x = abs(a_const) * R
-        eta_0 = D_x / L_x
+        # eta_0 = D_x / L_x
+        eta_0 = 0.001
 
         x_current = np.ones(m) / m
         tau_current = 0.0
