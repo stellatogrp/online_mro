@@ -80,7 +80,7 @@ def createproblem_portMIP(N, m):
     constraints += [cp.sum(x) == 1]
     constraints += [x >= 0, x <= 1]
     constraints += [lam >= 0]
-    constraints += [x - z <= 0, cp.sum(z) <= 5]
+    constraints += [x - z <= 0, cp.sum(z) <= 8]
     # PROBLEM #
     problem = cp.Problem(cp.Minimize(objective), constraints)
     return problem, x, s, tau, lam, dat, eps, w
@@ -331,7 +331,7 @@ def online_cluster_init(K,Q,data):
         q_dict['data'][q] = cluster_data
         rmse = np.sqrt(calc_rmse(cluster_data,np.reshape(q_dict['d'][q],(1,m))))
         if rmse <= 1e-6:
-            rmse = 0.03
+            rmse = 0.04
         q_dict['rmse'][q] = rmse
     k_dict = {}
     k_dict['a'] = np.zeros((K,m))
@@ -348,9 +348,9 @@ def cluster_k(K,q_dict, k_dict, init=False):
     cur_Q = q_dict['cur_Q']
     k_dict['K'] = cur_K
     if init or (cur_Q<=K):
-        kmeans = KMeans(n_clusters=cur_K, init='k-means++', n_init=1).fit(q_dict['a'][:cur_Q,:])
+        kmeans = KMeans(n_clusters=cur_K, init='k-means++', n_init=1).fit(q_dict['d'][:cur_Q,:])
     else:
-        kmeans = KMeans(n_clusters=cur_K, init=k_dict['a'], n_init=1).fit(q_dict['a'][:cur_Q,:])
+        kmeans = KMeans(n_clusters=cur_K, init=k_dict['a'], n_init=1).fit(q_dict['d'][:cur_Q,:])
     k_dict['a'] = kmeans.cluster_centers_
     # k_dict['w'] = np.zeros(cur_K)
     # k_dict['d'] = np.zeros((cur_K,m))
@@ -375,10 +375,10 @@ def online_cluster_update(K,new_dat, q_dict, k_dict,num_dat, t, fix_time):
         return q_dict, k_dict, total_time
     cur_Q = q_dict['cur_Q']
     start_time = time.time()
-    dists = cdist(new_dat,q_dict['a'][:cur_Q,:])
+    dists = cdist(new_dat,q_dict['d'][:cur_Q,:])
     min_dist = np.min(dists)
     min_ind = np.argmin(dists)
-    if min_dist <= 2*q_dict['rmse'][min_ind] and cur_K==K:
+    if min_dist <= 2*q_dict['rmse'][min_ind] and cur_K == K:
         q_dict['d'][min_ind] = (q_dict['d'][min_ind]*q_dict['w'][min_ind]*num_dat + new_dat)/(q_dict['w'][min_ind]*num_dat + 1)
         q_dict['rmse'][min_ind] = np.sqrt((q_dict['rmse'][min_ind]**2*q_dict['w'][min_ind]*num_dat + np.linalg.norm(new_dat - q_dict['d'][min_ind],2)**2)/(q_dict['w'][min_ind]*num_dat + 1))
         w_q_temp = q_dict['w'][:cur_Q]*num_dat/(num_dat+1)
@@ -412,7 +412,7 @@ def online_cluster_update(K,new_dat, q_dict, k_dict,num_dat, t, fix_time):
             q_dict['cur_Q'] = Q
             min_pair = find_min_pairwise_distance(q_dict['a'])
             merged_weight = np.sum(q_dict['w'][min_pair[0]]+q_dict['w'][min_pair[1]])
-            merged_center = (q_dict['rmse'][min_pair[0]]*q_dict['w'][min_pair[0]] + q_dict['rmse'][min_pair[1]]*q_dict['w'][min_pair[1]])/merged_weight
+            merged_center = (q_dict['a'][min_pair[0]]*q_dict['w'][min_pair[0]] + q_dict['a'][min_pair[1]]*q_dict['w'][min_pair[1]])/merged_weight
             merged_centroid = (q_dict['d'][min_pair[0]]*q_dict['w'][min_pair[0]] + q_dict['d'][min_pair[1]]*q_dict['w'][min_pair[1]])/merged_weight
             merged_rmse = np.sqrt((q_dict['rmse'][min_pair[0]]**2*q_dict['w'][min_pair[0]] + q_dict['rmse'][min_pair[1]]**2*q_dict['w'][min_pair[1]])/merged_weight + (q_dict['w'][min_pair[0]]*np.linalg.norm( q_dict['d'][min_pair[0]]- merged_centroid)**2 + q_dict['w'][min_pair[1]]*np.linalg.norm(q_dict['d'][min_pair[1]]- merged_centroid)**2)/(merged_weight ))
             q_dict['a'][min_pair[0]] = merged_center
@@ -472,10 +472,10 @@ def compute_cumulative_regret(history,dateval):
 
     T = len(history['t'])
     # Generate evaluation samples from true distribution for cost computation
-    for j in range(4):
+    for j in range(2):
         eval_values = np.zeros(T)
         MRO_eval_values = np.zeros(T)
-        eval_samples = dateval[(j*3000):(j+1)*3000,:m]
+        eval_samples = dateval[(j*200):(j+1)*200,:m]
     # For each timestep t
         for t in range(T):            
             # Compute instantaneous regret at time t using true distribution
@@ -486,8 +486,8 @@ def compute_cumulative_regret(history,dateval):
 
         MRO_satisfy = np.array(history['MRO_obj_values'] >= MRO_eval_values).astype(float)
         satisfy = np.array(history['obj_values'] >= eval_values).astype(float)
-        worst_satisfy = np.array(history['worst_values'] >= eval_values).astype(float)
-        MRO_worst_satisfy = np.array(history['MRO_worst_values'] >= MRO_eval_values).astype(float)
+        worst_satisfy = np.array( np.array(history['obj_values']) + 5*np.array(history["sig_val"])>= eval_values).astype(float)
+        MRO_worst_satisfy = np.array(np.array(history['MRO_obj_values']) + 5*np.array(history["sig_val_MRO"])>= MRO_eval_values).astype(float)
 
         MRO_e.append(MRO_eval_values)
         MRO_s.append(MRO_satisfy)
@@ -703,7 +703,7 @@ def plot_computation_times_iter(history):
     plt.yscale("log")
     plt.savefig(foldername+'time_iters.pdf', bbox_inches='tight', dpi=300)
 
-def calc_cluster_val(K,k_dict, num_dat,x):
+def calc_cluster_val(K,k_dict, num_dat,x,running_samples):
     mean_val = 0
     square_val = 0
     sig_val = 0
@@ -712,17 +712,21 @@ def calc_cluster_val(K,k_dict, num_dat,x):
         centroid = k_dict['d'][k]
         for dat in k_dict['data'][k]:
             cur_val = np.linalg.norm(dat-centroid,2)
-            mean_val += cur_val
+            # mean_val += cur_val
             square_val += cur_val**2
             #sig_val = np.maximum(sig_val,(dat-centroid)@x)
             sig_val += max(0,(dat-centroid)@x)
-    return mean_val/num_dat, square_val/num_dat, sig_val/num_dat
+    cost_matrix = ot.dist(running_samples, k_dict['d'][:cur_K], metric='euclidean')
+    w_distance = ot.emd2(np.ones(num_dat)/num_dat, k_dict['w'][:cur_K], cost_matrix)
+    return w_distance, square_val/num_dat, sig_val/num_dat
 
-def port_experiments(r_input,K,T,N_init,dat,dateval,r_start):
+def port_experiments(r_input,K,T,N_init,synthetic_returns,r_start):
     r,epsnum = list_inds[r_input]
     np.random.seed(r_start+r)
-    dat_indices = np.random.choice(48000,48000,replace=False) 
-    dat = dat[dat_indices]
+    dat, dateval = train_test_split(
+         synthetic_returns[:, :m], train_size=19000, test_size=1000, random_state=r_start+r)
+    # dat_indices = np.random.choice(48000,48000,replace=False)
+    # dat = dat[dat_indices]
     init_eps = eps_init[epsnum]
     num_dat = N_init
     q_dict, k_dict,weight_update_time= online_cluster_init(K,Q,dat[init_ind:(init_ind+num_dat)])
@@ -737,7 +741,7 @@ def port_experiments(r_input,K,T,N_init,dat,dateval,r_start):
     MRO_tau_prev = 0
     tau_prev = 0
     x_prev = np.zeros(m)
-    init_radius_val = init_eps*(1/(num_dat**(1/(2*m))))
+    init_radius_val = init_eps*(1/(num_dat**(1/40)))
 
     # Saddle-point scheme: maintain (x, tau) iterates updated by one
     # projected-subgradient step per interval using Danskin gradients from
@@ -756,7 +760,7 @@ def port_experiments(r_input,K,T,N_init,dat,dateval,r_start):
 
     # Online worst-case dual (size tracks min(num_dat, K)).
     wc_problem, p_var, z_var, x_star, tau_star, \
-        data_train, eps_train, w_train = createproblem_worstcase_p1(num_dat, m)
+        data_train, eps_train, w_train = createproblem_worstcase_p1(np.minimum(num_dat,K), m)
     # MRO worst-case dual (size fixed at K once new_k_dict is built).
     MRO_wc_problem, MRO_p_var, MRO_z_var, MRO_x_star, MRO_tau_star, \
         MRO_data_train, MRO_eps_train, MRO_w_train = createproblem_worstcase_p1(K, m)
@@ -815,11 +819,11 @@ def port_experiments(r_input,K,T,N_init,dat,dateval,r_start):
     for t in range(T):
         print(f"\nTimestep {t+1}/{T}")
         
-        radius = init_eps*(1/(num_dat**(1/(2*m))))
+        radius = init_eps*(1/(num_dat**(1/40)))
         running_samples = dat[init_ind:(init_ind+num_dat)]
 
         # solve online MRO problem
-        if t % interval == 0 or ((t-1) % interval == 0) :
+        if (t % interval == 0 or ((t-1) % interval == 0) or (t in t_list)) and (t <= 2001 or (t in t_list)):
             if num_dat <= K or data_train.shape[0] < K:
                 cur_K = np.minimum(num_dat,K)
                 wc_problem, p_var, z_var, x_star, tau_star, \
@@ -836,7 +840,7 @@ def port_experiments(r_input,K,T,N_init,dat,dateval,r_start):
                 lp_dat.value = k_dict['d'][:num_dat]
                 lp_eps.value = radius
                 lp_w.value = k_dict['w'][:num_dat]
-                lp_problem.solve( solver=cp.CLARABEL, verbose=False, time_limit=2000.0)
+                lp_problem.solve( solver=cp.CLARABEL, verbose=False, time_limit=1500.0)
                 x_current = lp_x.value
                 tau_current = lp_tau.value
                 min_obj = lp_problem.objective.value
@@ -845,7 +849,7 @@ def port_experiments(r_input,K,T,N_init,dat,dateval,r_start):
                 # Solve worst-case dual at current iterate, then one gradient step.
                 x_star.value = x_current
                 tau_star.value = tau_current
-                wc_problem.solve( solver=cp.CLARABEL, verbose=False, time_limit=2000.0)
+                wc_problem.solve( solver=cp.CLARABEL, verbose=False, time_limit=1500.0)
                 p_opt = p_var.value
                 z_opt = z_var.value
                 eta = eta_0 / np.sqrt(t + 1)
@@ -865,12 +869,12 @@ def port_experiments(r_input,K,T,N_init,dat,dateval,r_start):
             history['online_computation_times']['weight_update'].append(weight_update_time)
             history['t'].append(t)
 
-        if t % interval == 0 or ((t-1) % interval == 0):
+        if (t % interval == 0 or ((t-1) % interval == 0) or (t in t_list)) and (t <= 2001 or (t in t_list)):
             # solve MRO problem with new clusters
             if t <= fixed_time:
                 start_time = time.time()
                 cur_K = np.minimum(K,num_dat)
-                if new_k_dict is not None and (num_dat > (1+interval+N_init)):
+                if new_k_dict is not None and (num_dat > (interval+N_init)):
                     kmeans = KMeans(n_clusters=cur_K, init=new_k_dict['d'],n_init=1).fit(running_samples)
                 else:
                     kmeans = KMeans(n_clusters=cur_K,init="k-means++", n_init=1).fit(running_samples)
@@ -906,7 +910,7 @@ def port_experiments(r_input,K,T,N_init,dat,dateval,r_start):
                 lp_dat.value = new_k_dict['d']
                 lp_eps.value = radius
                 lp_w.value = new_k_dict['w']
-                lp_problem.solve( solver=cp.CLARABEL, verbose=False, time_limit=2000.0)
+                lp_problem.solve( solver=cp.CLARABEL, verbose=False, time_limit=1500.0)
                 MRO_x_current = lp_x.value
                 MRO_tau_current = lp_tau.value
                 MRO_min_obj = lp_problem.objective.value
@@ -914,7 +918,7 @@ def port_experiments(r_input,K,T,N_init,dat,dateval,r_start):
             else:
                 MRO_x_star.value = MRO_x_current
                 MRO_tau_star.value = MRO_tau_current
-                MRO_wc_problem.solve( solver=cp.CLARABEL, verbose=False, time_limit=2000.0)
+                MRO_wc_problem.solve( solver=cp.CLARABEL, verbose=False, time_limit=1500.0)
                 p_opt = MRO_p_var.value
                 z_opt = MRO_z_var.value
                 eta = eta_0 / np.sqrt(t + 1)
@@ -926,7 +930,7 @@ def port_experiments(r_input,K,T,N_init,dat,dateval,r_start):
                 MRO_min_obj = MRO_wc_problem.objective.value
                 MRO_min_time = MRO_wc_problem.solver_stats.solve_time + MRO_grad_time
 
-            mean_val_mro, square_val_mro, sig_val_mro = calc_cluster_val(K, new_k_dict,num_dat,MRO_x_current)
+            mean_val_mro, square_val_mro, sig_val_mro = calc_cluster_val(K, new_k_dict,num_dat,MRO_x_current,running_samples)
 
             history['MRO_computation_times']['min_problem'].append(MRO_min_time)
             history['MRO_computation_times']['gradient_step'].append(MRO_grad_time)
@@ -935,7 +939,7 @@ def port_experiments(r_input,K,T,N_init,dat,dateval,r_start):
             history['MRO_weights'].append(new_k_dict['w'])
 
     
-        if t % interval == 0 or ((t-1) % interval == 0)  :
+        if (t % interval == 0 or ((t-1) % interval == 0) or (t in t_list)) and (t <= 2001 or (t in t_list)):
             # compute online MRO worst value (wrt non clustered data)
 
             new_problem, s_d, lam_d, x_d, tau_d, eps_d, w_d =  worst_case(num_dat,m,running_samples)
@@ -943,21 +947,21 @@ def port_experiments(r_input,K,T,N_init,dat,dateval,r_start):
             eps_d.value = radius
             x_d.value = x_current
             tau_d.value = tau_current
-            new_problem.solve( solver=cp.CLARABEL, verbose=False, time_limit=2000.0)
+            new_problem.solve( solver=cp.CLARABEL, verbose=False, time_limit=1500.0)
             new_worst = new_problem.objective.value
             worst_time = new_problem.solver_stats.solve_time
             
             history['worst_values'].append(new_worst)
             history['worst_times'].append(worst_time)
             
-        if t % interval == 0 or ((t-1) % interval == 0)  :
+        if (t % interval == 0 or ((t-1) % interval == 0) or (t in t_list)) and (t <= 2001 or (t in t_list)):
             x_d.value = MRO_x_current
             tau_d.value = MRO_tau_current
-            new_problem.solve( solver=cp.CLARABEL, verbose=False, time_limit=2000.0)
+            new_problem.solve( solver=cp.CLARABEL, verbose=False, time_limit=1500.0)
             new_worst_MRO = new_problem.objective.value
             MRO_worst_time = new_problem.solver_stats.solve_time
 
-            mean_val, square_val, sig_val = calc_cluster_val(K, k_dict,num_dat,x_current)
+            mean_val, square_val, sig_val = calc_cluster_val(K, k_dict,num_dat,x_current,running_samples)
             # q_lens = [len(q_dict['data'][i]) for i in range(q_dict['cur_Q'])]
             # k_lens = [len(k_dict['data'][i]) for i in range(k_dict['K'])]
             # print("Q nums", q_lens, np.sum(q_lens), num_dat)
@@ -967,21 +971,21 @@ def port_experiments(r_input,K,T,N_init,dat,dateval,r_start):
             history['MRO_worst_times'].append(MRO_worst_time)
 
 
-        if t % interval == 0 or ((t-1) % interval == 0) :
+        if (t % interval == 0 or ((t-1) % interval == 0) or (t in t_list)) and (t <= 2001 or (t in t_list)):
             # compute online worst value (wrt prev stage sols
             x_d.value = x_prev
             tau_d.value = tau_prev
-            new_problem.solve( solver=cp.CLARABEL, verbose=False, time_limit=2000.0)
+            new_problem.solve( solver=cp.CLARABEL, verbose=False, time_limit=1500.0)
             new_worst = new_problem.objective.value
             worst_time = new_problem.solver_stats.solve_time
             
             history['worst_values_regret'].append(new_worst)
             history['worst_times_regret'].append(worst_time)
             
-        if t % interval == 0 or ((t-1) % interval == 0) :
+        if (t % interval == 0 or ((t-1) % interval == 0) or (t in t_list)) and (t <= 2001 or (t in t_list)):
             x_d.value = MRO_x_prev
             tau_d.value = MRO_tau_prev
-            new_problem.solve( solver=cp.CLARABEL, verbose=False, time_limit=2000.0)
+            new_problem.solve( solver=cp.CLARABEL, verbose=False, time_limit=1500.0)
             new_worst_MRO = new_problem.objective.value
             MRO_worst_time = new_problem.solver_stats.solve_time
 
@@ -1009,7 +1013,7 @@ def port_experiments(r_input,K,T,N_init,dat,dateval,r_start):
         # history['online_computation_times']['weight_update'].append(weight_update_time)
         # history['online_computation_times']['total_iteration'].append(weight_update_time + min_time)
 
-        if t % interval == 0 or ((t-1) % interval == 0) :
+        if (t % interval == 0 or ((t-1) % interval == 0) or (t in t_list)) and (t <= 2001 or (t in t_list)):
             N_dist_cur = wasserstein(init_samples,running_samples)
             
             history['regret_K'].append(w2_dist(k_dict,k_dict_prev)+ 2*radius )
@@ -1043,7 +1047,7 @@ def port_experiments(r_input,K,T,N_init,dat,dateval,r_start):
             print(f"Current epsilon: {radius}")
             # print(f"Weight sum: {np.sum(k_dict['w'])}")
 
-        if t % interval == 0 or ((t-1) % interval == 0) :
+        if (t % interval == 0 or ((t-1) % interval == 0) or (t in t_list)) and (t <= 2001 or (t in t_list)):
 
             MRO_e, MRO_s, online_e, online_s, online_ws, MRO_ws = compute_cumulative_regret(
             history,dateval)
@@ -1084,7 +1088,7 @@ def port_experiments(r_input,K,T,N_init,dat,dateval,r_start):
             colnames = ['MRO_eval', "MRO_satisfy",'O_eval',"O_satisfy", "O_worst_satisfy", "MRO_worst_satisfy"]
             colvals = [MRO_e, MRO_s, online_e, online_s, online_ws, MRO_ws]
             for i in range(len(colnames)):
-                for j in range(4):
+                for j in range(2):
                     df[colnames[i]+str(j)] = np.array(colvals[i][j])
             # print(f"Weights: {q_dict['w'], np.sum(q_dict['w']) }")
         
@@ -1127,7 +1131,7 @@ def port_experiments(r_input,K,T,N_init,dat,dateval,r_start):
     colnames = ['MRO_eval', "MRO_satisfy",'O_eval',"O_satisfy", "O_worst_satisfy", "MRO_worst_satisfy"]
     colvals = [MRO_e, MRO_s, online_e, online_s, online_ws, MRO_ws]
     for i in range(len(colnames)):
-        for j in range(4):
+        for j in range(2):
             df[colnames[i]+str(j)] = np.array(colvals[i][j])
     # df.to_csv('df.csv')
 
@@ -1149,17 +1153,18 @@ def port_experiments(r_input,K,T,N_init,dat,dateval,r_start):
         
 if __name__ == '__main__':
 
+    idx = int(os.environ["SLURM_ARRAY_TASK_ID"])
     parser = argparse.ArgumentParser()
     parser.add_argument('--foldername', type=str,
                         default="/scratch/gpfs/iywang/mro_results/", metavar='N')
     parser.add_argument('--K', type=int, default=5)
     parser.add_argument('--T', type=int, default=3001)
-    parser.add_argument('--R', type=int, default=1)
+    parser.add_argument('--R', type=int, default=5)
     parser.add_argument('--m', type=int, default=30)
     parser.add_argument('--Q', type=int, default=500)
     parser.add_argument('--fixed_time', type=int, default=1500)
     parser.add_argument('--interval', type=int, default=100)
-    parser.add_argument('--N_init', type=int, default=5)
+    parser.add_argument('--N_init', type=int, default=50)
     parser.add_argument('--r_start', type=int, default=0)
 
     arguments = parser.parse_args()
@@ -1173,22 +1178,46 @@ if __name__ == '__main__':
     fixed_time = arguments.fixed_time
     interval = arguments.interval
     N_init = arguments.N_init
-    K_arr = [15]
-    K = K_arr[0]
+    K_arr = [5,15,25]
+    K = K_arr[idx]
     foldername = foldername + 'K'+str(K)+'_R'+str(R)+'_T'+str(T-1)+'/'
-    # os.makedirs(foldername, exist_ok=True)
+    os.makedirs(foldername, exist_ok=True)
     print(foldername)
-    datname = '/Users/irina.wang/Desktop/Princeton/Project2/mro_mpc/portfolio_time/synthetic.csv'
+    # datname = '/scratch/gpfs/iywang/mro_mpc/portfolio_time/synthetic.csv'
+    datname = '/port_new/synthetic_200_1.csv'
     synthetic_returns = pd.read_csv(datname
-                                    ).to_numpy()[:, 1:]
+                                    ).to_numpy()[:, 1:][:,:m]
     init_ind = 0
     njobs = get_n_processes(100)
     #eps_init = [0.006,0.005,0.004,0.0035,0.003,0.0025,0.002,0.0015,0.001]
-    eps_init = [0.006,0.005,0.0048,0.0045,0.004,0.003,0.002,0.0015,0.0012,0.0003,0.0001,0.00001]
-    # eps_init = [0.007,0.006,0.005,0.0015]
+    #eps_init = [0.0085,0.008,0.007,0.006,0.005,0.0045,0.004,0.0035]
+    eps_init = [0.0045,0.004,0.0035,0.003,0.0025,0.002,0.0015,0.0005,0.0001,0.00001]
+    if T >= 5000:
+        eps_init = [0.0035,0.003,0.0025,0.002]
     M = len(eps_init)
     list_inds = list(itertools.product(np.arange(R),np.arange(M)))
-    dat, dateval = train_test_split(
-        synthetic_returns[:, :m], train_size=48000, test_size=12000, random_state=50)
+    # dat, dateval = train_test_split(
+    #     synthetic_returns[:, :m], train_size=48000, test_size=12000, random_state=50)
+    t_list = [4,5,9,10,14,15,19,20,1249,1250,1499,1500,1749,1750,1999,2000,3000,4000,5000,6000,7000,8000,9000,10000]
+    results = Parallel(n_jobs=njobs)(delayed(port_experiments)(
+        r_input,K,T,N_init,synthetic_returns,r_start) for r_input in range(len(list_inds)))
 
-    results = port_experiments(0,K,T,N_init,dat,dateval,r_start)
+    dfs = {}
+    for r in range(R):
+        dfs[r] = {}
+    for r_input in range(len(list_inds)):
+        r,epsnum = list_inds[r_input]
+        dfs[r][epsnum] = results[r_input]
+
+    findfs = {}
+    for r in range(R):
+        findfs[r] = pd.concat([dfs[r][i] for i in range(len(eps_init))],ignore_index=True)
+        findfs[r].to_csv(foldername + 'df_' + str(r+r_start) +'.csv')
+
+    newdatname = '/port_new/results/T'+str(T-1)+'R'+str(R)+'/'
+    os.makedirs(newdatname, exist_ok=True)
+    for r in range(R):
+        findfs[r] = findfs[r].drop(columns=['weights','MRO_weights'])
+        findfs[r].to_csv(newdatname + 'df_' + 'K'+str(K)+'R'+ str(r+r_start) +'.csv')
+
+    print("DONE")
