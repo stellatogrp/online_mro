@@ -156,6 +156,34 @@ def createproblem_portLP_p2(N, m):
     problem = cp.Problem(cp.Minimize(objective), constraints)
     return problem, x, s, tau, lam, dat, eps2, w
 
+def createproblem_worstcase_p2(N, m, a=-5):
+    dat      = cp.Parameter((N, m))
+    eps      = cp.Parameter(nonneg=True)
+    w        = cp.Parameter(N, nonneg=True)
+    x_star   = cp.Parameter(m)
+    tau_star = cp.Parameter()
+
+    p = cp.Variable(N, nonneg=True)
+    z = cp.Variable((N, m))
+
+    objective = (tau_star
+                 + a * tau_star * cp.sum(p)
+                 + a * cp.sum(z @ x_star))
+
+    diff = z - cp.multiply(cp.reshape(p, (N, 1)), dat)   # (N, m)
+
+    # rotated-SOC perspective: ||diff_i||^2 / p_i, summed
+    wass2 = cp.sum(
+        cp.hstack([cp.quad_over_lin(diff[i], p[i]) for i in range(N)])
+    )
+
+    constraints = [
+        wass2 <= eps,
+        p   <= w,
+    ]
+    problem = cp.Problem(cp.Maximize(objective), constraints)
+    return problem, p, z, x_star, tau_star, dat, eps, w
+
 def createproblem_portLP(N, m):
     """Continuous relaxation of createproblem_portMIP (no cardinality constraint).
 
@@ -225,33 +253,6 @@ def createproblem_worstcase_p1(N, m, a=-5):
     problem = cp.Problem(cp.Maximize(objective), constraints)
     return problem, p, z, x_star, tau_star, dat, eps, w
 
-def createproblem_worstcase_p2(N, m, a=-5):
-    dat      = cp.Parameter((N, m))
-    eps      = cp.Parameter(nonneg=True)
-    w        = cp.Parameter(N, nonneg=True)
-    x_star   = cp.Parameter(m)
-    tau_star = cp.Parameter()
-
-    p = cp.Variable(N, nonneg=True)
-    z = cp.Variable((N, m))
-
-    objective = (tau_star
-                 + a * tau_star * cp.sum(p)
-                 + a * cp.sum(z @ x_star))
-
-    diff = z - cp.multiply(cp.reshape(p, (N, 1)), dat)   # (N, m)
-
-    # rotated-SOC perspective: ||diff_i||^2 / p_i, summed
-    wass2 = cp.sum(
-        cp.hstack([cp.quad_over_lin(diff[i], p[i]) for i in range(N)])
-    )
-
-    constraints = [
-        wass2 <= eps,
-        p   <= w,
-    ]
-    problem = cp.Problem(cp.Maximize(objective), constraints)
-    return problem, p, z, x_star, tau_star, dat, eps, w
 
 def gradient_step(x_curr, tau_curr, p_opt, z_opt, eta, a=-5):
     """One projected (sub)gradient step on (x, tau) using Danskin."""
@@ -792,9 +793,9 @@ def port_experiments(r_input,T,N_init,synthetic_returns,r_start):
                 else:
                     # Solve worst-case dual at current iterate, then one gradient step.
                     DRO_wc_problem, DRO_p_var, DRO_z_var, DRO_x_star, DRO_tau_star, \
-                        DRO_wc_data, DRO_wc_eps, DRO_wc_w = createproblem_worstcase_p1(num_dat, m)
+                        DRO_wc_data, DRO_wc_eps, DRO_wc_w = createproblem_worstcase_p2(num_dat, m)
                     DRO_wc_data.value = running_samples
-                    DRO_wc_eps.value = radius
+                    DRO_wc_eps.value = radius**2
                     DRO_wc_w.value = (1/num_dat)*np.ones(num_dat)
                     DRO_x_star.value = DRO_x_current
                     DRO_tau_star.value = DRO_tau_current

@@ -240,6 +240,37 @@ def worst_case(N,m,dat):
     problem = cp.Problem(cp.Minimize(objective), constraints)
     return problem, s, lam, x, tau, eps, w
     
+def worst_case_p2(N, m, dat):
+    """Evaluate V(x, tau) under W_2-DRO by solving the (frozen-x,tau) dual.
+
+    Returns the same value as the (p, z) worst-case program, but parametrised
+    over the dual variables (lam, s) so that x and tau enter as parameters.
+    """
+    # PARAMETERS #
+    eps2 = cp.Parameter(nonneg=True)        # set eps2.value = eps_val ** 2
+    w    = cp.Parameter(N, nonneg=True)
+    tau  = cp.Parameter()
+    x    = cp.Parameter(m)
+    a    = -5
+
+    # VARIABLES #
+    s   = cp.Variable(N)
+    lam = cp.Variable(nonneg=True)
+
+    # OBJECTIVE #
+    objective = (tau
+                 + eps2 * lam
+                 + w @ s
+                 + cp.quad_over_lin(a * x, 4 * lam))
+
+    # CONSTRAINTS #
+    constraints = [
+        a * tau + a * dat @ x <= s,
+        s >= 0,
+    ]
+
+    problem = cp.Problem(cp.Minimize(objective), constraints)
+    return problem, s, lam, x, tau, eps2, w
 
 def wasserstein(samples_p, samples_q):
     """
