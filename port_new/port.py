@@ -753,7 +753,7 @@ def port_experiments(r_input,K,T,N_init,synthetic_returns,r_start, newfoldername
         R = np.linalg.norm(dateval, axis=1).mean()
         L_x = abs(a_const) * R
         # eta_0 = D_x / L_x
-        eta_0 = 0.001
+        eta_0 = 0.0001
 
         x_current = np.ones(m) / m
         tau_current = 0.0
@@ -1201,7 +1201,7 @@ if __name__ == '__main__':
     njobs = get_n_processes(100)
     #eps_init = [0.006,0.005,0.004,0.0035,0.003,0.0025,0.002,0.0015,0.001]
     #eps_init = [0.0085,0.008,0.007,0.006,0.005,0.0045,0.004,0.0035]
-    eps_init = [0.004,0.003,0.002,0.001,0.0005,0.0001,0.00001]
+    eps_init = [0.006,0.005,0.004,0.003,0.002,0.001,0.0005]
     if T >= 5000:
         eps_init = [0.0035,0.003,0.0025,0.002]
     M = len(eps_init)

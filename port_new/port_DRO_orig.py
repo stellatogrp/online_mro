@@ -118,6 +118,75 @@ def createproblem_portLP(N, m):
     problem = cp.Problem(cp.Minimize(objective), constraints)
     return problem, x, s, tau, lam, dat, eps, w
 
+def createproblem_portLP_p2(N, m):
+    """Continuous W_2-DRO relaxation (no cardinality constraint).
+
+    Differences vs. the W_1 version:
+      * objective gets a quadratic perspective term  ||a*x||_2^2 / (4*lam)
+      * Wasserstein budget enters as  eps^2 * lam   (not  eps * lam)
+      * the Lipschitz-type constraint  ||a*x||_2 <= lam  is dropped
+        (it is the W_1 dual; W_2's dual is the quad-over-lin penalty above)
+    """
+    # PARAMETERS #
+    dat  = cp.Parameter((N, m))
+    eps2 = cp.Parameter(nonneg=True)        # set eps2.value = eps_val ** 2
+    w    = cp.Parameter(N, nonneg=True)
+    a    = -5
+
+    # VARIABLES #
+    x   = cp.Variable(m)
+    s   = cp.Variable(N)
+    lam = cp.Variable(nonneg=True)
+    tau = cp.Variable()
+
+    # OBJECTIVE #
+    objective = (tau
+                 + eps2 * lam
+                 + w @ s
+                 + cp.quad_over_lin(a * x, 4 * lam))
+
+    # CONSTRAINTS #
+    constraints = [
+        a * tau + a * dat @ x <= s,
+        s >= 0,
+        cp.sum(x) == 1,
+        x >= 0, x <= 1,
+    ]
+
+    problem = cp.Problem(cp.Minimize(objective), constraints)
+    return problem, x, s, tau, lam, dat, eps2, w
+
+def createproblem_portLP(N, m):
+    """Continuous relaxation of createproblem_portMIP (no cardinality constraint).
+
+    Used as a one-shot warm-start to seed (x, tau) before switching to
+    worst-case + gradient-step iterates.
+    """
+    # PARAMETERS #
+    dat = cp.Parameter((N, m))
+    eps = cp.Parameter()
+    w = cp.Parameter(N)
+    a = -5
+
+    # VARIABLES #
+    x = cp.Variable(m)
+    s = cp.Variable(N)
+    lam = cp.Variable()
+    tau = cp.Variable()
+    # OBJECTIVE #
+    objective = tau + eps*lam + w@s
+    # CONSTRAINTS #
+    constraints = []
+    constraints += [a*tau + a*dat@x <= s]
+    constraints += [s >= 0]
+    constraints += [cp.norm(a*x, 2) <= lam]
+    constraints += [cp.sum(x) == 1]
+    constraints += [x >= 0, x <= 1]
+    constraints += [lam >= 0]
+    # PROBLEM #
+    problem = cp.Problem(cp.Minimize(objective), constraints)
+    return problem, x, s, tau, lam, dat, eps, w
+
 def create_scenario(dat,m,num_dat):
     tau = cp.Variable()
     x = cp.Variable(m)
