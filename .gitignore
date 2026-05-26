@@ -173,3 +173,5 @@ pyrightconfig.json
 .DS_Store
 *.pdf
 *.npy
+
+port_new/results/
