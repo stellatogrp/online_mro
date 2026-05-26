@@ -8,7 +8,7 @@
 #SBATCH -o /scratch/gpfs/BSTELLATO/iywang/low_rank/online_mro/portfolio_test_p2_%A_.txt
 #SBATCH --mail-type=BEGIN,END,FAIL,TIME_LIMIT
 #SBATCH --mail-user=iabirina@hotmail.com
-#SBATCH --array=0-2          # job array with index values 0, 1, 2, 3
+#SBATCH --array=0          # job array with index values 0, 1, 2, 3
 
 cd "$SLURM_SUBMIT_DIR"
 

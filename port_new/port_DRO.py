@@ -799,7 +799,7 @@ if __name__ == '__main__':
         findfs[r] = pd.concat([dfs[r][i] for i in range(len(eps_init))],ignore_index=True)
         findfs[r].to_csv(foldername + 'DRO_df_' + str(r+r_start) +'.csv')
 
-    newdatname = '/scratch/gpfs/iywang/mro_mpc/portfolio_exp_50/T'+str(T-1)+'R'+str(R)+'/'
+    newdatname = foldername +'T'+str(T-1)+'R'+str(R)+'/'
     os.makedirs(newdatname, exist_ok=True)
     for r in range(R):
         # findfs[r] = findfs[r].drop(columns=["DRO_x","SA_x"])
