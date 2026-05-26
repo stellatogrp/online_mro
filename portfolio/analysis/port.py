@@ -85,6 +85,136 @@ def createproblem_portMIP(N, m):
     problem = cp.Problem(cp.Minimize(objective), constraints)
     return problem, x, s, tau, lam, dat, eps, w
 
+
+def createproblem_portLP(N, m):
+    """Continuous relaxation of createproblem_portMIP (no cardinality constraint).
+
+    Used as a one-shot warm-start to seed (x, tau) before switching to
+    worst-case + gradient-step iterates.
+    """
+    # PARAMETERS #
+    dat = cp.Parameter((N, m))
+    eps = cp.Parameter()
+    w = cp.Parameter(N)
+    a = -5
+
+    # VARIABLES #
+    x = cp.Variable(m)
+    s = cp.Variable(N)
+    lam = cp.Variable()
+    tau = cp.Variable()
+    # OBJECTIVE #
+    objective = tau + eps*lam + w@s
+    # CONSTRAINTS #
+    constraints = []
+    constraints += [a*tau + a*dat@x <= s]
+    constraints += [s >= 0]
+    constraints += [cp.norm(a*x, 2) <= lam]
+    constraints += [cp.sum(x) == 1]
+    constraints += [x >= 0, x <= 1]
+    constraints += [lam >= 0]
+    # PROBLEM #
+    problem = cp.Problem(cp.Minimize(objective), constraints)
+    return problem, x, s, tau, lam, dat, eps, w
+
+def createproblem_worstcase_p2(N, m, a=-5):
+    dat      = cp.Parameter((N, m))
+    eps      = cp.Parameter(nonneg=True)
+    w        = cp.Parameter(N, nonneg=True)
+    x_star   = cp.Parameter(m)
+    tau_star = cp.Parameter()
+
+    p = cp.Variable(N, nonneg=True)
+    z = cp.Variable((N, m))
+
+    objective = (tau_star
+                 + a * tau_star * cp.sum(p)
+                 + a * cp.sum(z @ x_star))
+
+    diff = z - cp.multiply(cp.reshape(p, (N, 1)), dat)   # (N, m)
+
+    # rotated-SOC perspective: ||diff_i||^2 / p_i, summed
+    wass2 = cp.sum(
+        cp.hstack([cp.quad_over_lin(diff[i], p[i]) for i in range(N)])
+    )
+
+    constraints = [
+        wass2 <= eps,
+        p   <= w,
+    ]
+    problem = cp.Problem(cp.Maximize(objective), constraints)
+    return problem, p, z, x_star, tau_star, dat, eps, w
+
+def createproblem_worstcase_p1(N, m, a=-5):
+    """Worst-case distribution problem with parameters for warm re-solving.
+
+    Parameters
+    ----------
+    N : int     number of empirical samples
+    m : int     dimension of each sample
+    a : scalar  same coefficient as the primal (default -5)
+
+    Returns
+    -------
+    problem, p, z, x_star, tau_star, dat, eps, w
+        p, z          : decision variables
+        x_star, tau_star : cp.Parameter, set before each solve
+        dat, eps, w   : cp.Parameter, set once (or whenever data changes)
+    """
+    # PARAMETERS #
+    dat      = cp.Parameter((N, m))
+    eps      = cp.Parameter(nonneg=True)
+    w        = cp.Parameter(N, nonneg=True)
+    x_star   = cp.Parameter(m)
+    tau_star = cp.Parameter()
+
+    # VARIABLES #
+    p = cp.Variable(N, nonneg=True)
+    z = cp.Variable((N, m))
+
+    # OBJECTIVE #
+    objective = (tau_star
+                 + a * tau_star * cp.sum(p)
+                 + a * cp.sum(z @ x_star))
+
+    # CONSTRAINTS #
+    diff = z - cp.multiply(cp.reshape(p, (N, 1)), dat)   # (N, m)
+    wass = cp.sum(cp.norm(diff, 2, axis=1))
+
+    constraints = [
+        wass <= eps,
+        p   <= w,
+    ]
+
+    problem = cp.Problem(cp.Maximize(objective), constraints)
+    return problem, p, z, x_star, tau_star, dat, eps, w
+
+
+def gradient_step(x_curr, tau_curr, p_opt, z_opt, eta, a=-5):
+    """One projected (sub)gradient step on (x, tau) using Danskin."""
+    # Danskin gradients
+    grad_x   = a * z_opt.sum(axis=0)            # (m,)
+    grad_tau = 1.0 + a * p_opt.sum()            # scalar
+
+    # Unprojected step
+    x_tilde = x_curr   - eta * grad_x
+    tau_new = tau_curr - eta * grad_tau         # tau unconstrained
+
+    # Project x onto {x >= 0, sum x = 1}
+    x_new = project_simplex(x_tilde)
+    return x_new, tau_new
+
+
+def project_simplex(v):
+    """Euclidean projection onto {x >= 0, sum x = 1} (Duchi et al. 2008)."""
+    n = v.size
+    u = np.sort(v)[::-1]
+    cssv = np.cumsum(u) - 1.0
+    rho = np.nonzero(u - cssv / np.arange(1, n + 1) > 0)[0][-1]
+    theta = cssv[rho] / (rho + 1)
+    return np.maximum(v - theta, 0.0)
+
+
 def worst_case(N,m,dat):
     # PARAMETERS #
     eps = cp.Parameter()
@@ -608,7 +738,28 @@ def port_experiments(r_input,K,T,N_init,dat,dateval,r_start):
     tau_prev = 0
     x_prev = np.zeros(m)
     init_radius_val = init_eps*(1/(num_dat**(1/(2*m))))
-    online_problem, online_x, online_s, online_tau, online_lmbda, data_train, eps_train, w_train = createproblem_portMIP(num_dat, m)
+
+    # Saddle-point scheme: maintain (x, tau) iterates updated by one
+    # projected-subgradient step per interval using Danskin gradients from
+    # the inner worst-case dual.  Step size from the classical bound
+    # eta_t = (D_x / L_x) / sqrt(t+1).
+    a_const = -5
+    D_x = np.sqrt(2)
+    R = np.linalg.norm(dateval, axis=1).mean()
+    L_x = abs(a_const) * R
+    eta_0 = D_x / L_x
+
+    x_current = np.ones(m) / m
+    tau_current = 0.0
+    MRO_x_current = np.ones(m) / m
+    MRO_tau_current = 0.0
+
+    # Online worst-case dual (size tracks min(num_dat, K)).
+    wc_problem, p_var, z_var, x_star, tau_star, \
+        data_train, eps_train, w_train = createproblem_worstcase_p1(num_dat, m)
+    # MRO worst-case dual (size fixed at K once new_k_dict is built).
+    MRO_wc_problem, MRO_p_var, MRO_z_var, MRO_x_star, MRO_tau_star, \
+        MRO_data_train, MRO_eps_train, MRO_w_train = createproblem_worstcase_p1(K, m)
 
     # History for analysis
     history = {
@@ -626,11 +777,13 @@ def port_experiments(r_input,K,T,N_init,dat,dateval,r_start):
         'online_computation_times': {
             'weight_update': [],
             'min_problem': [],
+            'gradient_step': [],
             'total_iteration': []
         },
         'MRO_computation_times':{
         'clustering': [],
         'min_problem': [],
+        'gradient_step': [],
         'total_iteration':[]
         },
         'distances':[],
@@ -669,20 +822,45 @@ def port_experiments(r_input,K,T,N_init,dat,dateval,r_start):
         if t % interval == 0 or ((t-1) % interval == 0) :
             if num_dat <= K or data_train.shape[0] < K:
                 cur_K = np.minimum(num_dat,K)
-                online_problem, online_x, online_s, online_tau, online_lmbda, data_train, eps_train, w_train = createproblem_portMIP(cur_K, m)
+                wc_problem, p_var, z_var, x_star, tau_star, \
+                    data_train, eps_train, w_train = createproblem_worstcase_p1(cur_K, m)
             data_train.value = k_dict['d'][:num_dat]
             eps_train.value = radius
             w_train.value = k_dict['w'][:num_dat]
-            online_problem.solve(ignore_dpp=True, solver=cp.MOSEK, verbose=False, mosek_params={
-                mosek.dparam.optimizer_max_time:  2000.0})
-            x_current = online_x.value
-            tau_current = online_tau.value
-            min_obj = online_problem.objective.value
-            min_time = online_problem.solver_stats.solve_time
-            
+
+            grad_time = 0.0
+            if t == 0:
+                # One LP warm-start (cardinality dropped) to seed (x, tau).
+                lp_problem, lp_x, lp_s, lp_tau, lp_lam, lp_dat, lp_eps, lp_w = \
+                    createproblem_portLP(data_train.shape[0], m)
+                lp_dat.value = k_dict['d'][:num_dat]
+                lp_eps.value = radius
+                lp_w.value = k_dict['w'][:num_dat]
+                lp_problem.solve( solver=cp.CLARABEL, verbose=False, time_limit=2000.0)
+                x_current = lp_x.value
+                tau_current = lp_tau.value
+                min_obj = lp_problem.objective.value
+                min_time = lp_problem.solver_stats.solve_time
+            else:
+                # Solve worst-case dual at current iterate, then one gradient step.
+                x_star.value = x_current
+                tau_star.value = tau_current
+                wc_problem.solve( solver=cp.CLARABEL, verbose=False, time_limit=2000.0)
+                p_opt = p_var.value
+                z_opt = z_var.value
+                eta = eta_0 / np.sqrt(t + 1)
+                grad_start = time.time()
+                x_current, tau_current = gradient_step(
+                    x_current, tau_current, p_opt, z_opt, eta, a=a_const
+                )
+                grad_time = time.time() - grad_start
+                min_obj = wc_problem.objective.value
+                min_time = wc_problem.solver_stats.solve_time + grad_time
+
 
             # Store timing information
             history['online_computation_times']['min_problem'].append(min_time)
+            history['online_computation_times']['gradient_step'].append(grad_time)
             history['online_computation_times']['total_iteration'].append(min_time+weight_update_time)
             history['online_computation_times']['weight_update'].append(weight_update_time)
             history['t'].append(t)
@@ -710,18 +888,48 @@ def port_experiments(r_input,K,T,N_init,dat,dateval,r_start):
                 new_k_dict['d'] = new_centers
                 
 
-            data_train.value = new_k_dict['d']
-            w_train.value = new_k_dict['w']
-            # eps_train.value = new_radius
-            online_problem.solve(ignore_dpp=True, solver=cp.MOSEK, verbose=False, mosek_params={
-                mosek.dparam.optimizer_max_time:  2000.0})
-            MRO_x_current = online_x.value
-            MRO_tau_current = online_tau.value
-            MRO_min_obj = online_problem.objective.value
-            MRO_min_time = online_problem.solver_stats.solve_time
+            # (Re)build MRO worst-case dual to match new_k_dict size.
+            cur_K_mro = new_k_dict['d'].shape[0]
+            if MRO_data_train.shape[0] != cur_K_mro:
+                MRO_wc_problem, MRO_p_var, MRO_z_var, MRO_x_star, MRO_tau_star, \
+                    MRO_data_train, MRO_eps_train, MRO_w_train = createproblem_worstcase_p1(cur_K_mro, m)
+
+            MRO_data_train.value = new_k_dict['d']
+            MRO_eps_train.value = radius
+            MRO_w_train.value = new_k_dict['w']
+
+            MRO_grad_time = 0.0
+            if t == 0:
+                # One LP warm-start on clustered data to seed MRO (x, tau).
+                lp_problem, lp_x, lp_s, lp_tau, lp_lam, lp_dat, lp_eps, lp_w = \
+                    createproblem_portLP(cur_K_mro, m)
+                lp_dat.value = new_k_dict['d']
+                lp_eps.value = radius
+                lp_w.value = new_k_dict['w']
+                lp_problem.solve( solver=cp.CLARABEL, verbose=False, time_limit=2000.0)
+                MRO_x_current = lp_x.value
+                MRO_tau_current = lp_tau.value
+                MRO_min_obj = lp_problem.objective.value
+                MRO_min_time = lp_problem.solver_stats.solve_time
+            else:
+                MRO_x_star.value = MRO_x_current
+                MRO_tau_star.value = MRO_tau_current
+                MRO_wc_problem.solve( solver=cp.CLARABEL, verbose=False, time_limit=2000.0)
+                p_opt = MRO_p_var.value
+                z_opt = MRO_z_var.value
+                eta = eta_0 / np.sqrt(t + 1)
+                grad_start = time.time()
+                MRO_x_current, MRO_tau_current = gradient_step(
+                    MRO_x_current, MRO_tau_current, p_opt, z_opt, eta, a=a_const
+                )
+                MRO_grad_time = time.time() - grad_start
+                MRO_min_obj = MRO_wc_problem.objective.value
+                MRO_min_time = MRO_wc_problem.solver_stats.solve_time + MRO_grad_time
+
             mean_val_mro, square_val_mro, sig_val_mro = calc_cluster_val(K, new_k_dict,num_dat,MRO_x_current)
-        
+
             history['MRO_computation_times']['min_problem'].append(MRO_min_time)
+            history['MRO_computation_times']['gradient_step'].append(MRO_grad_time)
             history['MRO_computation_times']['total_iteration'].append(MRO_min_time+cluster_time)
             history['MRO_computation_times']['clustering'].append(cluster_time)
             history['MRO_weights'].append(new_k_dict['w'])
@@ -735,8 +943,7 @@ def port_experiments(r_input,K,T,N_init,dat,dateval,r_start):
             eps_d.value = radius
             x_d.value = x_current
             tau_d.value = tau_current
-            new_problem.solve(ignore_dpp=True, solver=cp.MOSEK, verbose=False, mosek_params={
-                mosek.dparam.optimizer_max_time:  2000.0})
+            new_problem.solve( solver=cp.CLARABEL, verbose=False, time_limit=2000.0)
             new_worst = new_problem.objective.value
             worst_time = new_problem.solver_stats.solve_time
             
@@ -746,8 +953,7 @@ def port_experiments(r_input,K,T,N_init,dat,dateval,r_start):
         if t % interval == 0 or ((t-1) % interval == 0)  :
             x_d.value = MRO_x_current
             tau_d.value = MRO_tau_current
-            new_problem.solve(ignore_dpp=True, solver=cp.MOSEK, verbose=False, mosek_params={
-                mosek.dparam.optimizer_max_time:  2000.0})
+            new_problem.solve( solver=cp.CLARABEL, verbose=False, time_limit=2000.0)
             new_worst_MRO = new_problem.objective.value
             MRO_worst_time = new_problem.solver_stats.solve_time
 
@@ -765,8 +971,7 @@ def port_experiments(r_input,K,T,N_init,dat,dateval,r_start):
             # compute online worst value (wrt prev stage sols
             x_d.value = x_prev
             tau_d.value = tau_prev
-            new_problem.solve(ignore_dpp=True, solver=cp.MOSEK, verbose=False, mosek_params={
-                mosek.dparam.optimizer_max_time:  2000.0})
+            new_problem.solve( solver=cp.CLARABEL, verbose=False, time_limit=2000.0)
             new_worst = new_problem.objective.value
             worst_time = new_problem.solver_stats.solve_time
             
@@ -776,8 +981,7 @@ def port_experiments(r_input,K,T,N_init,dat,dateval,r_start):
         if t % interval == 0 or ((t-1) % interval == 0) :
             x_d.value = MRO_x_prev
             tau_d.value = MRO_tau_prev
-            new_problem.solve(ignore_dpp=True, solver=cp.MOSEK, verbose=False, mosek_params={
-                mosek.dparam.optimizer_max_time:  2000.0})
+            new_problem.solve( solver=cp.CLARABEL, verbose=False, time_limit=2000.0)
             new_worst_MRO = new_problem.objective.value
             MRO_worst_time = new_problem.solver_stats.solve_time
 
@@ -857,6 +1061,8 @@ def port_experiments(r_input,K,T,N_init,dat,dateval,r_start):
             'weights_q': history['weights_q'],
             'online_time':  np.array(history['online_computation_times']['total_iteration']),
             'MRO_time':  np.array(history['MRO_computation_times']['total_iteration']),
+            'online_gradient_time': np.array(history['online_computation_times']['gradient_step']),
+            'MRO_gradient_time': np.array(history['MRO_computation_times']['gradient_step']),
             'MRO_mean_val': np.array(history['mean_val_MRO']),
             'MRO_square_val': np.array(history['square_val_MRO']),
             'MRO_sig_val': np.array(history['sig_val_MRO']),
@@ -898,6 +1104,8 @@ def port_experiments(r_input,K,T,N_init,dat,dateval,r_start):
     # 'weights_q': history['weights_q'],
     'online_time':  np.array(history['online_computation_times']['total_iteration']),
     'MRO_time':  np.array(history['MRO_computation_times']['total_iteration']),
+    'online_gradient_time': np.array(history['online_computation_times']['gradient_step']),
+    'MRO_gradient_time': np.array(history['MRO_computation_times']['gradient_step']),
     'MRO_mean_val': np.array(history['mean_val_MRO']),
     'MRO_square_val': np.array(history['square_val_MRO']),
     'MRO_sig_val': np.array(history['sig_val_MRO']),
@@ -976,7 +1184,7 @@ if __name__ == '__main__':
     init_ind = 0
     njobs = get_n_processes(100)
     #eps_init = [0.006,0.005,0.004,0.0035,0.003,0.0025,0.002,0.0015,0.001]
-    eps_init = [0.007,0.006,0.005,0.0048,0.0045,0.004,0.003,0.002,0.0015,0.0012]
+    eps_init = [0.006,0.005,0.0048,0.0045,0.004,0.003,0.002,0.0015,0.0012,0.0003,0.0001,0.00001]
     # eps_init = [0.007,0.006,0.005,0.0015]
     M = len(eps_init)
     list_inds = list(itertools.product(np.arange(R),np.arange(M)))
