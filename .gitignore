@@ -175,3 +175,4 @@ pyrightconfig.json
 *.npy
 
 port_new/results/
+*.txt
