@@ -187,6 +187,70 @@ def createproblem_portLP(N, m):
     problem = cp.Problem(cp.Minimize(objective), constraints)
     return problem, x, s, tau, lam, dat, eps, w
 
+def createproblem_worstcase_p1(N, m, a=-5):
+    """Worst-case distribution problem with parameters for warm re-solving.
+
+    Returns
+    -------
+    problem, p, z, x_star, tau_star, dat, eps, w
+        p, z          : decision variables
+        x_star, tau_star : cp.Parameter, set before each solve
+        dat, eps, w   : cp.Parameter, set once (or whenever data changes)
+    """
+    # PARAMETERS #
+    dat      = cp.Parameter((N, m))
+    eps      = cp.Parameter(nonneg=True)
+    w        = cp.Parameter(N, nonneg=True)
+    x_star   = cp.Parameter(m)
+    tau_star = cp.Parameter()
+
+    # VARIABLES #
+    p = cp.Variable(N, nonneg=True)
+    z = cp.Variable((N, m))
+
+    # OBJECTIVE #
+    objective = (tau_star
+                 + a * tau_star * cp.sum(p)
+                 + a * cp.sum(z @ x_star))
+
+    # CONSTRAINTS #
+    diff = z - cp.multiply(cp.reshape(p, (N, 1)), dat)   # (N, m)
+    wass = cp.sum(cp.norm(diff, 2, axis=1))
+
+    constraints = [
+        wass <= eps,
+        p   <= w,
+    ]
+
+    problem = cp.Problem(cp.Maximize(objective), constraints)
+    return problem, p, z, x_star, tau_star, dat, eps, w
+
+
+def gradient_step(x_curr, tau_curr, p_opt, z_opt, eta, a=-5):
+    """One projected (sub)gradient step on (x, tau) using Danskin."""
+    # Danskin gradients
+    grad_x   = a * z_opt.sum(axis=0)            # (m,)
+    grad_tau = 1.0 + a * p_opt.sum()            # scalar
+
+    # Unprojected step
+    x_tilde = x_curr   - eta * grad_x
+    tau_new = tau_curr - eta * grad_tau         # tau unconstrained
+
+    # Project x onto {x >= 0, sum x = 1}
+    x_new = project_simplex(x_tilde)
+    return x_new, tau_new
+
+
+def project_simplex(v):
+    """Euclidean projection onto {x >= 0, sum x = 1} (Duchi et al. 2008)."""
+    n = v.size
+    u = np.sort(v)[::-1]
+    cssv = np.cumsum(u) - 1.0
+    rho = np.nonzero(u - cssv / np.arange(1, n + 1) > 0)[0][-1]
+    theta = cssv[rho] / (rho + 1)
+    return np.maximum(v - theta, 0.0)
+
+
 def create_scenario(dat,m,num_dat):
     tau = cp.Variable()
     x = cp.Variable(m)
@@ -617,6 +681,18 @@ def port_experiments(r_input,T,N_init,synthetic_returns,r_start):
     init_eps = eps_init[epsnum]
     num_dat = N_init
 
+    # Saddle-point scheme for the DRO solve: maintain (x, tau) iterates updated
+    # by one projected-subgradient step per interval using Danskin gradients
+    # from the inner worst-case dual. Step size eta_t = eta_0 / sqrt(t+1).
+    a_const = -5
+    D_x = np.sqrt(2)
+    R = np.linalg.norm(dateval, axis=1).mean()
+    L_x = abs(a_const) * R
+    # eta_0 = D_x / L_x
+    eta_0 = 0.0001
+    DRO_x_current = np.ones(m) / m
+    DRO_tau_current = 0.0
+
     # History for analysis
     history = {
         'x': [],
@@ -673,22 +749,42 @@ def port_experiments(r_input,T,N_init,synthetic_returns,r_start):
         running_samples = dat[init_ind:(init_ind+num_dat)]
     
         if t % interval == 0 or ((t-1) % interval == 0) or (t in t_list) :
-            if t <= 1001 or (t in t_list):
-            # solve DRO problem 
-                DRO_problem, DRO_x, DRO_s, DRO_tau, DRO_lmbda, DRO_data, DRO_eps, DRO_w = createproblem_portLP(num_dat,m)
-                DRO_data.value = running_samples
-                DRO_w.value = (1/num_dat)*np.ones(num_dat)
-                DRO_eps.value = radius
-                DRO_problem.solve( solver=cp.CLARABEL, verbose=False, time_limit=1500.0)
-                DRO_x_current = DRO_x.value
-                DRO_tau_current = DRO_tau.value
-                DRO_min_obj = DRO_problem.objective.value
-                DRO_min_time = DRO_problem.solver_stats.solve_time
+            if t <= 2001 or (t in t_list):
+            # solve DRO problem
+                if t == 0:
+                    # One LP warm-start (cardinality dropped) to seed (x, tau).
+                    DRO_problem, DRO_x, DRO_s, DRO_tau, DRO_lmbda, DRO_data, DRO_eps, DRO_w = createproblem_portLP(num_dat,m)
+                    DRO_data.value = running_samples
+                    DRO_w.value = (1/num_dat)*np.ones(num_dat)
+                    DRO_eps.value = radius
+                    DRO_problem.solve( solver=cp.CLARABEL, verbose=False, time_limit=1500.0)
+                    DRO_x_current = DRO_x.value
+                    DRO_tau_current = DRO_tau.value
+                    DRO_min_obj = DRO_problem.objective.value
+                    DRO_min_time = DRO_problem.solver_stats.solve_time
+                else:
+                    # Solve worst-case dual at current iterate, then one gradient step.
+                    DRO_wc_problem, DRO_p_var, DRO_z_var, DRO_x_star, DRO_tau_star, \
+                        DRO_wc_data, DRO_wc_eps, DRO_wc_w = createproblem_worstcase_p1(num_dat, m)
+                    DRO_wc_data.value = running_samples
+                    DRO_wc_eps.value = radius
+                    DRO_wc_w.value = (1/num_dat)*np.ones(num_dat)
+                    DRO_x_star.value = DRO_x_current
+                    DRO_tau_star.value = DRO_tau_current
+                    DRO_wc_problem.solve( solver=cp.CLARABEL, verbose=False, time_limit=1500.0)
+                    p_opt = DRO_p_var.value
+                    z_opt = DRO_z_var.value
+                    eta = eta_0 / np.sqrt(t + 1)
+                    DRO_x_current, DRO_tau_current = gradient_step(
+                        DRO_x_current, DRO_tau_current, p_opt, z_opt, eta, a=a_const
+                    )
+                    DRO_min_obj = DRO_wc_problem.objective.value
+                    DRO_min_time = DRO_wc_problem.solver_stats.solve_time
 
 
 
         if t % interval_SAA == 0 or ((t-1) % interval_SAA == 0) or (t in t_list)  :
-            if t <= 1001 or (t in t_list):
+            if t <= 2001 or (t in t_list):
                 s_prob, s_x, s_tau = create_scenario(running_samples,m,num_dat)
                 s_prob.solve( solver=cp.CLARABEL, verbose=False, time_limit=1500.0)
                 SA_x_current = s_x.value
@@ -717,7 +813,7 @@ def port_experiments(r_input,T,N_init,synthetic_returns,r_start):
     
 
         if t % interval_SAA == 0 or ((t-1) % interval_SAA == 0) or (t in t_list)  :
-            if t <= 1001 or (t in t_list):
+            if t <= 2001 or (t in t_list):
 
                 DRO_eval, DRO_satisfy,SA_eval, SA_satisfy = compute_cumulative_regret(
                 history,dateval)
@@ -833,8 +929,8 @@ if __name__ == '__main__':
     foldername = foldername +'R'+str(R)+'_T'+str(T-1)+'/'
     os.makedirs(foldername, exist_ok=True)
     print(foldername)
-    datname = '/scratch/gpfs/iywang/mro_mpc/portfolio_time/synthetic.csv'
-    datname = '/scratch/gpfs/iywang/mro_mpc/synthetic/synthetic_200_1.csv'
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    datname = os.path.join(script_dir, 'synthetic_200_1.csv')
     synthetic_returns = pd.read_csv(datname
                                     ).to_numpy()[:, 1:][:,:m]
                                     
@@ -843,7 +939,7 @@ if __name__ == '__main__':
     if T >= 10000:
         eps_init = [0.003]
     else:
-        eps_init = [0.0035,0.00325,0.003,0.0025]
+        eps_init = [0.005,0.004,0.003,0.002,0.001]
     M = len(eps_init)
     list_inds = list(itertools.product(np.arange(R),np.arange(M)))
     # mults = np.concatenate((5*np.ones(51),4*np.ones(50),3*np.ones(100),2*np.ones(100),1*np.ones(1000)))

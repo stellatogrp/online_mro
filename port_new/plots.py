@@ -101,7 +101,7 @@ def plot_eval_all(df, quantiles, df1=None, quantiles1=None,end_ind=61,j=(0,0,0),
     ax2.set_xlabel(r'Time step $(t)$')
     # ax2.set_xscale("log")
     ax2.set_title(r'In-sample objective value')
-    ax2.set_ylim(ylim)
+    # ax2.set_ylim(ylim)
     ax2.grid(True, alpha=0.3)
 
     # online and reclustering
@@ -273,11 +273,11 @@ def plot_eval(df, quantiles, df1=None, quantiles1=None,end_ind=61,j=(0,0,0), q =
     plt.plot(t_range, df['MRO_eval1'][(j2*end_ind):(j2+1)*end_ind:2], 'r-', linewidth=1, label = "reclustering", marker="D",ms=1.5)
     plt.fill_between(np.array(t_range),y1=np.array(quantiles[q1]['MRO_eval1'][(j2*end_ind):(j2+1)*end_ind:2]).astype(float),y2=np.array(quantiles[q2]['MRO_eval1'][(j2*end_ind):(j2+1)*end_ind:2]).astype(float),alpha=alpha, color='r')
 
-    plt.plot(t_range, df1['DRO_eval2'][(j3*end_ind):(j3+1)*end_ind:2], 'black', linewidth=1, label = "DRO", marker="s",ms=1.5)
-    plt.fill_between(np.array(t_range),y1=np.array(quantiles1[q1]['DRO_eval2'][(j3*end_ind):(j3+1)*end_ind:2]).astype(float),y2=np.array(quantiles1[q2]['DRO_eval2'][(j3*end_ind):(j3+1)*end_ind:2]).astype(float),alpha=alpha, color='black')
+    # plt.plot(t_range, df1['DRO_eval2'][(j3*end_ind):(j3+1)*end_ind:2], 'black', linewidth=1, label = "DRO", marker="s",ms=1.5)
+    # plt.fill_between(np.array(t_range),y1=np.array(quantiles1[q1]['DRO_eval2'][(j3*end_ind):(j3+1)*end_ind:2]).astype(float),y2=np.array(quantiles1[q2]['DRO_eval2'][(j3*end_ind):(j3+1)*end_ind:2]).astype(float),alpha=alpha, color='black')
 
-    plt.plot(t_range, df1['SA_eval2'][(j3*end_ind):(j3+1)*end_ind:2], 'g-', linewidth=1, label = "SAA", marker="o",ms=1.5)
-    plt.fill_between(np.array(t_range),y1=np.array(quantiles1[q1]['SA_eval2'][(j3*end_ind):(j3+1)*end_ind:2]).astype(float),y2=np.array(quantiles1[q2]['SA_eval2'][(j3*end_ind):(j3+1)*end_ind:2]).astype(float),alpha=alpha, color='g')
+    # plt.plot(t_range, df1['SA_eval2'][(j3*end_ind):(j3+1)*end_ind:2], 'g-', linewidth=1, label = "SAA", marker="o",ms=1.5)
+    # plt.fill_between(np.array(t_range),y1=np.array(quantiles1[q1]['SA_eval2'][(j3*end_ind):(j3+1)*end_ind:2]).astype(float),y2=np.array(quantiles1[q2]['SA_eval2'][(j3*end_ind):(j3+1)*end_ind:2]).astype(float),alpha=alpha, color='g')
     plt.xscale("log")
     # plt.ylim([0.008,0.022])
     if legend:
@@ -485,4 +485,6 @@ def setup_dfs(init = False):
 
 df, quantiles = setup_dfs(init = False)
 
-plot_eval_all(df,quantiles,df,quantiles,j=(0,0,3),K=15,q=(25,75),ylim=[0.004,0.02],legend = True,val2=2.3, end_ind=2001)
+plot_eval_all(df,quantiles,df,quantiles,j=(3,3,3),K=15,q=(25,75),ylim=[0.004,0.02],legend = True,val2=2.3, end_ind=2001)
+
+plot_eval(df,quantiles,df,quantiles,j=(4,4,3),K=15,q=(25,75),end_ind=2001,legend = True)
