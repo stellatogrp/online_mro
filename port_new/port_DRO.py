@@ -156,37 +156,6 @@ def createproblem_portLP_p2(N, m):
     problem = cp.Problem(cp.Minimize(objective), constraints)
     return problem, x, s, tau, lam, dat, eps2, w
 
-def createproblem_portLP(N, m):
-    """Continuous relaxation of createproblem_portMIP (no cardinality constraint).
-
-    Used as a one-shot warm-start to seed (x, tau) before switching to
-    worst-case + gradient-step iterates.
-    """
-    # PARAMETERS #
-    dat = cp.Parameter((N, m))
-    eps = cp.Parameter()
-    w = cp.Parameter(N)
-    a = -5
-
-    # VARIABLES #
-    x = cp.Variable(m)
-    s = cp.Variable(N)
-    lam = cp.Variable()
-    tau = cp.Variable()
-    # OBJECTIVE #
-    objective = tau + eps*lam + w@s
-    # CONSTRAINTS #
-    constraints = []
-    constraints += [a*tau + a*dat@x <= s]
-    constraints += [s >= 0]
-    constraints += [cp.norm(a*x, 2) <= lam]
-    constraints += [cp.sum(x) == 1]
-    constraints += [x >= 0, x <= 1]
-    constraints += [lam >= 0]
-    # PROBLEM #
-    problem = cp.Problem(cp.Minimize(objective), constraints)
-    return problem, x, s, tau, lam, dat, eps, w
-
 def createproblem_worstcase_p1(N, m, a=-5):
     """Worst-case distribution problem with parameters for warm re-solving.
 
@@ -355,69 +324,6 @@ def cluster_k(K,q_dict, k_dict, init=False):
     for k in range(cur_K):
         k_dict['data'][k] = np.vstack([q_dict['data'][q] for q in k_dict[k]])
     return k_dict, total_time
-
-def online_cluster_update(K,new_dat, q_dict, k_dict,num_dat, t, fix_time):
-    new_dat = np.reshape(new_dat,(1,m))
-    if t >= fix_time:
-        k_dict, total_time = fixed_cluster(k_dict,new_dat,num_dat)
-        return q_dict, k_dict, total_time
-    cur_Q = q_dict['cur_Q']
-    start_time = time.time()
-    dists = cdist(new_dat,q_dict['a'][:cur_Q,:])
-    min_dist = np.min(dists)
-    min_ind = np.argmin(dists)
-    if min_dist <= 2*q_dict['rmse'][min_ind]:
-        q_dict['d'][min_ind] = (q_dict['d'][min_ind]*q_dict['w'][min_ind]*num_dat + new_dat)/(q_dict['w'][min_ind]*num_dat + 1)
-        q_dict['rmse'][min_ind] = np.sqrt((q_dict['rmse'][min_ind]**2*q_dict['w'][min_ind]*num_dat + np.linalg.norm(new_dat - q_dict['d'][min_ind],2)**2)/(q_dict['w'][min_ind]*num_dat + 1))
-        w_q_temp = q_dict['w'][:cur_Q]*num_dat/(num_dat+1)
-        increased_w = (q_dict['w'][min_ind]*num_dat + 1)/(num_dat+1)
-        q_dict['w'][:cur_Q] = w_q_temp
-        q_dict['w'][min_ind] = increased_w
-        for k in range(K):
-            if min_ind in k_dict[k]:
-                k_dict['d'][k] = (k_dict['d'][k]*k_dict['w'][k]*num_dat + new_dat)/(k_dict['w'][k]*num_dat + 1)
-                k_dict['w'][k] = (k_dict['w'][k]*num_dat + 1)/(num_dat + 1)
-            else:
-                k_dict['w'][k] = (k_dict['w'][k]*num_dat)/(num_dat + 1)
-        total_time = time.time() - start_time
-        q_dict['data'][min_ind] = np.vstack([q_dict['data'][min_ind],new_dat])
-        for k in range(K):
-            if min_ind in k_dict[k]:
-                k_dict['data'][k] = np.vstack([k_dict['data'][k],new_dat])
-    else:
-        start_time = time.time()
-        cur_Q = q_dict['cur_Q'] + 1
-        q_dict['cur_Q'] = cur_Q
-        q_dict['a'][cur_Q-1] = new_dat
-        q_dict['d'][cur_Q-1] = new_dat
-        q_dict['rmse'][cur_Q-1] = 2*np.min(q_dict['rmse'])
-        q_dict['w'][:cur_Q-1] = (q_dict['w'][:cur_Q-1]*num_dat)/(num_dat+1)
-        q_dict['w'][cur_Q-1] = 1/(num_dat+1)
-        total_time = time.time() - start_time
-        q_dict['data'][cur_Q-1] = new_dat
-        if cur_Q > Q:
-            start_time = time.time()
-            q_dict['cur_Q'] = Q
-            min_pair = find_min_pairwise_distance(q_dict['a'])
-            merged_weight = np.sum(q_dict['w'][min_pair[0]]+q_dict['w'][min_pair[1]])
-            merged_center = (q_dict['rmse'][min_pair[0]]*q_dict['w'][min_pair[0]] + q_dict['rmse'][min_pair[1]]*q_dict['w'][min_pair[1]])/merged_weight
-            merged_centroid = (q_dict['d'][min_pair[0]]*q_dict['w'][min_pair[0]] + q_dict['d'][min_pair[1]]*q_dict['w'][min_pair[1]])/merged_weight
-            merged_rmse = np.sqrt((q_dict['rmse'][min_pair[0]]**2*q_dict['w'][min_pair[0]] + q_dict['rmse'][min_pair[1]]**2*q_dict['w'][min_pair[1]])/merged_weight + (q_dict['w'][min_pair[0]]*np.linalg.norm( q_dict['d'][min_pair[0]]- merged_centroid)**2 + q_dict['w'][min_pair[1]]*np.linalg.norm(q_dict['d'][min_pair[1]]- merged_centroid)**2)/(merged_weight ))
-            q_dict['a'][min_pair[0]] = merged_center
-            q_dict['d'][min_pair[0]] = merged_centroid
-            q_dict['w'][min_pair[0]] = merged_weight
-            q_dict['rmse'][min_pair[0]] = merged_rmse
-            q_dict['a'][min_pair[1]] = q_dict['a'][Q]
-            q_dict['d'][min_pair[1]] = q_dict['d'][Q]
-            q_dict['w'][min_pair[1]] = q_dict['w'][Q]
-            q_dict['rmse'][min_pair[1]] = q_dict['rmse'][Q]
-            total_time += time.time() - start_time
-            merged_data = np.vstack([q_dict['data'][q] for q in min_pair])
-            q_dict['data'][min_pair[0]] = merged_data
-            q_dict['data'][min_pair[1]] = q_dict['data'][Q]
-        k_dict, time_temp = cluster_k(K,q_dict,k_dict)
-        total_time += time_temp
-    return q_dict, k_dict, total_time
 
             
 def fixed_cluster(k_dict, new_dat,num_dat):
