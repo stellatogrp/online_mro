@@ -15,11 +15,13 @@ def plot_eval_all(df, quantiles, df1=None, quantiles1=None,end_ind=61,j=(0,0,0),
     j1,j4,j3 = j
     # Set up LaTeX rendering
     df = df[K].copy()
+    df1 = df1[0].copy()
     fontsize= 10
     # df = df[K]
     # df = quantiles[K][50].copy()
     # df1 = quantiles[0][50].copy()
     quantiles = quantiles[K].copy()
+    quantiles1 = quantiles1[0].copy()
     q1,q2 = q
     # plt.rcParams.update({
     #     "text.usetex": True,
@@ -40,11 +42,11 @@ def plot_eval_all(df, quantiles, df1=None, quantiles1=None,end_ind=61,j=(0,0,0),
     # ax1.plot(t_range, df['MRO_eval0'][(j2*end_ind)+1:(j2+1)*end_ind:2], 'r-', linewidth=1, label = "reclustering", marker="D",ms=1.5)
     # ax1.fill_between(np.array(t_range),y1=np.array(quantiles[q1]['MRO_eval0'][(j2*end_ind)+1:(j2+1)*end_ind:2]).astype(float),y2=np.array(quantiles[q2]['MRO_eval0'][(j2*end_ind)+1:(j2+1)*end_ind:2]).astype(float),alpha=alpha, color='r')
 
-    # # DRO and SAA
-    # ax1.plot(t_range, df1['SA_eval1'][(j3*end_ind):(j3+1)*end_ind-1:2], 'g-', linewidth=1, label = "SAA", marker="o",ms=1.5)
-    # ax1.plot(t_range, df1['DRO_eval1'][(j3*end_ind):(j3+1)*end_ind-1:2], color ='black', linewidth=1, label = "DRO", marker="s",ms=1.5)
-    # ax1.fill_between(np.array(t_range),y1=np.array(quantiles1[q1]['SA_eval1'][(j3*end_ind)+1:(j3+1)*end_ind:2]).astype(float),y2=np.array(quantiles1[q2]['SA_eval1'][(j3*end_ind)+1:(j3+1)*end_ind:2]).astype(float),alpha=alpha, color='g')
-    # ax1.fill_between(np.array(t_range),y1=np.array(quantiles1[q1]['DRO_eval1'][(j3*end_ind)+1:(j3+1)*end_ind:2]).astype(float),y2=np.array(quantiles1[q2]['DRO_eval1'][(j3*end_ind)+1:(j3+1)*end_ind:2]).astype(float),alpha=alpha, color='black')
+    # DRO and SAA
+    # ax1.plot(t_range, df1['SA_eval1'][(j3*end_ind):(j3+1)*end_ind:2], 'g-', linewidth=1, label = "SAA", marker="o",ms=1.5)
+    # ax1.plot(t_range, df1['DRO_eval1'][(j3*end_ind):(j3+1)*end_ind:2], color ='black', linewidth=1, label = "DRO", marker="s",ms=1.5)
+    # ax1.fill_between(np.array(t_range),y1=np.array(quantiles1[q1]['SA_eval1'][(j3*end_ind)+0:(j3+1)*end_ind:2]).astype(float),y2=np.array(quantiles1[q2]['SA_eval1'][(j3*end_ind)+0:(j3+1)*end_ind:2]).astype(float),alpha=alpha, color='g')
+    # ax1.fill_between(np.array(t_range),y1=np.array(quantiles1[q1]['DRO_eval1'][(j3*end_ind)+0:(j3+1)*end_ind:2]).astype(float),y2=np.array(quantiles1[q2]['DRO_eval1'][(j3*end_ind)+0:(j3+1)*end_ind:2]).astype(float),alpha=alpha, color='black')
 
     # ax1.set_ylim(ylim)
     # # plt.legend()
@@ -63,22 +65,22 @@ def plot_eval_all(df, quantiles, df1=None, quantiles1=None,end_ind=61,j=(0,0,0),
     # reclustering worst
     ax1.plot(t_range, df['MRO_time'][(j4*end_ind):(j4+1)*end_ind:2], 'r', linewidth=1, label = r"reclustering", marker="D",ms=1.5)
     
-    # ax1.plot(t_range, quantiles[50]['MRO_time'][(j4*end_ind)+1:(j4+1)*end_ind:2], 'r:', linewidth=1, label = r"reclustering $\hat{H}^K_t$", marker="^",ms=1.5)
+    # ax1.plot(t_range, quantiles[50]['MRO_time'][(j4*end_ind)+0:(j4+1)*end_ind:2], 'r:', linewidth=1, label = r"reclustering $\hat{H}^K_t$", marker="^",ms=1.5)
     
     ax1.fill_between(np.array(t_range),y1=np.array(quantiles[q1]['MRO_time'][(j4*end_ind):(j4+1)*end_ind:2]).astype(float),y2=np.array(quantiles[q2]['MRO_time'][(j4*end_ind):(j4+1)*end_ind:2]).astype(float),alpha=alpha, color = 'r')
     
-    # # DRO and SAA
-    # ax1.plot(t_range, df1['DRO_time'][(j3*end_ind):(j3+1)*end_ind:2], color ='black', linewidth=1, label = "DRO",marker="s",ms=1.5)
-    # ax1.plot(t_range, df1['SA_time'][(j3*end_ind):(j3+1)*end_ind:2], color ='g', linewidth=1, label = "SAA",marker="o",ms=1.5)
-    # ax1.fill_between(np.array(t_range),y1=np.array(quantiles1[q1]['DRO_time'][(j3*end_ind):(j3+1)*end_ind:2]).astype(float),y2=np.array(quantiles1[q2]['DRO_time'][(j3*end_ind):(j3+1)*end_ind:2]).astype(float),alpha=alpha, color = 'black')
-    # ax1.fill_between(np.array(t_range),y1=np.array(quantiles1[q1]['SA_time'][(j3*end_ind):(j3+1)*end_ind:2]).astype(float),y2=np.array(quantiles1[q2]['SA_time'][(j3*end_ind):(j3+1)*end_ind:2]).astype(float),alpha=alpha, color = 'g')
+    # DRO and SAA
+    ax1.plot(t_range, df1['DRO_time'][(j3*end_ind):(j3+1)*end_ind:2], color ='black', linewidth=1, label = "DRO",marker="s",ms=1.5)
+    ax1.plot(t_range, df1['SA_time'][(j3*end_ind):(j3+1)*end_ind:2], color ='g', linewidth=1, label = "SAA",marker="o",ms=1.5)
+    ax1.fill_between(np.array(t_range),y1=np.array(quantiles1[q1]['DRO_time'][(j3*end_ind):(j3+1)*end_ind:2]).astype(float),y2=np.array(quantiles1[q2]['DRO_time'][(j3*end_ind):(j3+1)*end_ind:2]).astype(float),alpha=alpha, color = 'black')
+    ax1.fill_between(np.array(t_range),y1=np.array(quantiles1[q1]['SA_time'][(j3*end_ind):(j3+1)*end_ind:2]).astype(float),y2=np.array(quantiles1[q2]['SA_time'][(j3*end_ind):(j3+1)*end_ind:2]).astype(float),alpha=alpha, color = 'g')
 
     ax1.set_xlabel(r'Time step $(t)$')
     # ax1.set_xscale("log")
     ax1.set_title(r'Computation time per iteration (s)')
     ax1.grid(True, alpha=0.3)
     # ax1.set_ylim([1e-4,1e3])
-    # ax1.set_yscale("log")
+    ax1.set_yscale("log")
 
 
     # online and reclustering
@@ -92,14 +94,14 @@ def plot_eval_all(df, quantiles, df1=None, quantiles1=None,end_ind=61,j=(0,0,0),
     # ax2.fill_between(np.array(t_range),y1=np.array(quantiles[q1]['MRO_worst_values'][(j2*end_ind):(j2+1)*end_ind:2]).astype(float),y2=np.array(quantiles[q2]['MRO_worst_values'][(j2*end_ind):(j2+1)*end_ind:2]).astype(float),alpha=alpha, color='r')
     # lines5, = ax2.plot(t_range, df['MRO_worst_values'][(j2*end_ind):(j2+1)*end_ind:2], 'r-', linewidth=1, label = r"reclustering $\hat{H}^K_t$", marker="^",ms=1.5)
 
-    # # DRO and SAA
-    # lines3, = ax2.plot(t_range, df1['SA_obj_values'][(j3*end_ind):(j3+1)*end_ind:2], 'g-', linewidth=1, label = "SAA", marker="o",ms=1.5)
-    # lines4, = ax2.plot(t_range, df1['DRO_obj_values'][(j3*end_ind):(j3+1)*end_ind:2], color ='black', linewidth=1, label = "DRO", marker="s",ms=1.5)
-    # ax2.fill_between(np.array(t_range),y1=np.array(quantiles1[q1]['DRO_obj_values'][(j3*end_ind):(j3+1)*end_ind:2]).astype(float),y2=np.array(quantiles1[q2]['DRO_obj_values'][(j3*end_ind):(j3+1)*end_ind:2]).astype(float),alpha=alpha, color = 'black')
-    # ax2.fill_between(np.array(t_range),y1=np.array(quantiles1[q1]['SA_obj_values'][(j3*end_ind):(j3+1)*end_ind:2]).astype(float),y2=np.array(quantiles1[q2]['SA_obj_values'][(j3*end_ind):(j3+1)*end_ind:2]).astype(float),alpha=alpha, color = 'g')
+    # DRO and SAA
+    lines3, = ax2.plot(t_range, df1['SA_obj_values'][(j3*end_ind):(j3+1)*end_ind:2], 'g-', linewidth=1, label = "SAA", marker="o",ms=1.5)
+    lines4, = ax2.plot(t_range, df1['DRO_obj_values'][(j3*end_ind):(j3+1)*end_ind:2], color ='black', linewidth=1, label = "DRO", marker="s",ms=1.5)
+    ax2.fill_between(np.array(t_range),y1=np.array(quantiles1[q1]['DRO_obj_values'][(j3*end_ind):(j3+1)*end_ind:2]).astype(float),y2=np.array(quantiles1[q2]['DRO_obj_values'][(j3*end_ind):(j3+1)*end_ind:2]).astype(float),alpha=alpha, color = 'black')
+    ax2.fill_between(np.array(t_range),y1=np.array(quantiles1[q1]['SA_obj_values'][(j3*end_ind):(j3+1)*end_ind:2]).astype(float),y2=np.array(quantiles1[q2]['SA_obj_values'][(j3*end_ind):(j3+1)*end_ind:2]).astype(float),alpha=alpha, color = 'g')
 
     ax2.set_xlabel(r'Time step $(t)$')
-    # ax2.set_xscale("log")
+    ax2.set_xscale("log")
     ax2.set_title(r'In-sample objective value')
     # ax2.set_ylim(ylim)
     ax2.grid(True, alpha=0.3)
@@ -111,10 +113,10 @@ def plot_eval_all(df, quantiles, df1=None, quantiles1=None,end_ind=61,j=(0,0,0),
     # reclustering worst
     # ax3.plot(t_range, df['MRO_worst_satisfy1'][(j2*end_ind):(j2+1)*end_ind:2], 'r-', linewidth=1, label = r"reclustering $\hat{H}^K_t$",marker="^",ms=1.5)
     # DRO and SAA
-    # ax3.plot(t_range, df1['SA_satisfy1'][(j3*end_ind):(j3+1)*end_ind:2], 'g-', linewidth=1, label = "SAA",marker="o",ms=1.5)
-    # ax3.plot(t_range, df1['DRO_satisfy1'][(j3*end_ind):(j3+1)*end_ind:2], color ='black', linewidth=1, label = "DRO",marker="s",ms=1.5)
-    # ax3.set_xlabel(r'Time step $(t)$')
-    # # ax3.set_xscale("log")
+    ax3.plot(t_range, df1['SA_satisfy1'][(j3*end_ind):(j3+1)*end_ind:2], 'g-', linewidth=1, label = "SAA",marker="o",ms=1.5)
+    ax3.plot(t_range, df1['DRO_satisfy1'][(j3*end_ind):(j3+1)*end_ind:2], color ='black', linewidth=1, label = "DRO",marker="s",ms=1.5)
+    ax3.set_xlabel(r'Time step $(t)$')
+    # ax3.set_xscale("log")
 
     ax3.set_title(r'Confidence $1-\hat{\beta}_t$')
     ax3.grid(True, alpha=0.3)
@@ -153,17 +155,17 @@ def plot_certificates(df, quantiles, df1=None, quantiles1=None,end_ind=61,j=(0,0
     fig, (ax2,ax3,ax1) = plt.subplots(1, 3, figsize=(9, val2), dpi=300)
     
     # # online and reclustering
-    # ax1.plot(t_range, df['O_eval0'][(j1*end_ind)+1:(j1+1)*end_ind:2], 'b-', linewidth=1, label = "online clustering", marker="v",ms=1.5)
+    # ax1.plot(t_range, df['O_eval0'][(j1*end_ind)+0:(j1+1)*end_ind:2], 'b-', linewidth=1, label = "online clustering", marker="v",ms=1.5)
 
-    # ax1.fill_between(np.array(t_range),y1=np.array(quantiles[q1]['O_eval0'][(j1*end_ind)+1:(j1+1)*end_ind:2]).astype(float),y2=np.array(quantiles[q2]['O_eval0'][(j1*end_ind)+1:(j1+1)*end_ind:2]).astype(float),alpha=alpha, color = 'b')
-    # ax1.plot(t_range, df['MRO_eval0'][(j2*end_ind)+1:(j2+1)*end_ind:2], 'r-', linewidth=1, label = "reclustering", marker="D",ms=1.5)
-    # ax1.fill_between(np.array(t_range),y1=np.array(quantiles[q1]['MRO_eval0'][(j2*end_ind)+1:(j2+1)*end_ind:2]).astype(float),y2=np.array(quantiles[q2]['MRO_eval0'][(j2*end_ind)+1:(j2+1)*end_ind:2]).astype(float),alpha=alpha, color='r')
+    # ax1.fill_between(np.array(t_range),y1=np.array(quantiles[q1]['O_eval0'][(j1*end_ind)+0:(j1+1)*end_ind:2]).astype(float),y2=np.array(quantiles[q2]['O_eval0'][(j1*end_ind)+0:(j1+1)*end_ind:2]).astype(float),alpha=alpha, color = 'b')
+    # ax1.plot(t_range, df['MRO_eval0'][(j2*end_ind)+0:(j2+1)*end_ind:2], 'r-', linewidth=1, label = "reclustering", marker="D",ms=1.5)
+    # ax1.fill_between(np.array(t_range),y1=np.array(quantiles[q1]['MRO_eval0'][(j2*end_ind)+0:(j2+1)*end_ind:2]).astype(float),y2=np.array(quantiles[q2]['MRO_eval0'][(j2*end_ind)+0:(j2+1)*end_ind:2]).astype(float),alpha=alpha, color='r')
 
     # # DRO and SAA
-    # ax1.plot(t_range, df1['SA_eval1'][(j3*end_ind):(j3+1)*end_ind-1:2], 'g-', linewidth=1, label = "SAA", marker="o",ms=1.5)
-    # ax1.plot(t_range, df1['DRO_eval1'][(j3*end_ind):(j3+1)*end_ind-1:2], color ='black', linewidth=1, label = "DRO", marker="s",ms=1.5)
-    # ax1.fill_between(np.array(t_range),y1=np.array(quantiles1[q1]['SA_eval1'][(j3*end_ind)+1:(j3+1)*end_ind:2]).astype(float),y2=np.array(quantiles1[q2]['SA_eval1'][(j3*end_ind)+1:(j3+1)*end_ind:2]).astype(float),alpha=alpha, color='g')
-    # ax1.fill_between(np.array(t_range),y1=np.array(quantiles1[q1]['DRO_eval1'][(j3*end_ind)+1:(j3+1)*end_ind:2]).astype(float),y2=np.array(quantiles1[q2]['DRO_eval1'][(j3*end_ind)+1:(j3+1)*end_ind:2]).astype(float),alpha=alpha, color='black')
+    # ax1.plot(t_range, df1['SA_eval1'][(j3*end_ind):(j3+1)*end_ind:2], 'g-', linewidth=1, label = "SAA", marker="o",ms=1.5)
+    # ax1.plot(t_range, df1['DRO_eval1'][(j3*end_ind):(j3+1)*end_ind:2], color ='black', linewidth=1, label = "DRO", marker="s",ms=1.5)
+    # ax1.fill_between(np.array(t_range),y1=np.array(quantiles1[q1]['SA_eval1'][(j3*end_ind)+0:(j3+1)*end_ind:2]).astype(float),y2=np.array(quantiles1[q2]['SA_eval1'][(j3*end_ind)+0:(j3+1)*end_ind:2]).astype(float),alpha=alpha, color='g')
+    # ax1.fill_between(np.array(t_range),y1=np.array(quantiles1[q1]['DRO_eval1'][(j3*end_ind)+0:(j3+1)*end_ind:2]).astype(float),y2=np.array(quantiles1[q2]['DRO_eval1'][(j3*end_ind)+0:(j3+1)*end_ind:2]).astype(float),alpha=alpha, color='black')
 
     # ax1.set_ylim(ylim)
     # # plt.legend()
@@ -182,7 +184,7 @@ def plot_certificates(df, quantiles, df1=None, quantiles1=None,end_ind=61,j=(0,0
     # reclustering worst
     ax1.plot(t_range, df['MRO_time'][(j4*end_ind):(j4+1)*end_ind:2], 'r', linewidth=1, label = r"reclustering", marker="D",ms=1.5)
     
-    # ax1.plot(t_range, quantiles[50]['MRO_time'][(j4*end_ind)+1:(j4+1)*end_ind:2], 'r:', linewidth=1, label = r"reclustering $\hat{H}^K_t$", marker="^",ms=1.5)
+    # ax1.plot(t_range, quantiles[50]['MRO_time'][(j4*end_ind)+0:(j4+1)*end_ind:2], 'r:', linewidth=1, label = r"reclustering $\hat{H}^K_t$", marker="^",ms=1.5)
     
     ax1.fill_between(np.array(t_range),y1=np.array(quantiles[q1]['MRO_time'][(j4*end_ind):(j4+1)*end_ind:2]).astype(float),y2=np.array(quantiles[q2]['MRO_time'][(j4*end_ind):(j4+1)*end_ind:2]).astype(float),alpha=alpha, color = 'r')
     
@@ -253,8 +255,10 @@ def plot_eval(df, quantiles, df1=None, quantiles1=None,end_ind=61,j=(0,0,0), q =
     j1,j2,j3 = j
     # Set up LaTeX rendering
     df = df[K]
+    df1 = df1[0]
     fontsize= 10
     quantiles = quantiles[K]
+    quantiles1 = quantiles1[0]
     q1,q2 = q
     plt.rcParams.update({
         "text.usetex": True,
@@ -273,19 +277,19 @@ def plot_eval(df, quantiles, df1=None, quantiles1=None,end_ind=61,j=(0,0,0), q =
     plt.plot(t_range, df['MRO_eval1'][(j2*end_ind):(j2+1)*end_ind:2], 'r-', linewidth=1, label = "reclustering", marker="D",ms=1.5)
     plt.fill_between(np.array(t_range),y1=np.array(quantiles[q1]['MRO_eval1'][(j2*end_ind):(j2+1)*end_ind:2]).astype(float),y2=np.array(quantiles[q2]['MRO_eval1'][(j2*end_ind):(j2+1)*end_ind:2]).astype(float),alpha=alpha, color='r')
 
-    # plt.plot(t_range, df1['DRO_eval2'][(j3*end_ind):(j3+1)*end_ind:2], 'black', linewidth=1, label = "DRO", marker="s",ms=1.5)
-    # plt.fill_between(np.array(t_range),y1=np.array(quantiles1[q1]['DRO_eval2'][(j3*end_ind):(j3+1)*end_ind:2]).astype(float),y2=np.array(quantiles1[q2]['DRO_eval2'][(j3*end_ind):(j3+1)*end_ind:2]).astype(float),alpha=alpha, color='black')
+    plt.plot(t_range, df1['DRO_eval2'][(j3*end_ind):(j3+1)*end_ind:2], 'black', linewidth=1, label = "DRO", marker="s",ms=1.5)
+    plt.fill_between(np.array(t_range),y1=np.array(quantiles1[q1]['DRO_eval2'][(j3*end_ind):(j3+1)*end_ind:2]).astype(float),y2=np.array(quantiles1[q2]['DRO_eval2'][(j3*end_ind):(j3+1)*end_ind:2]).astype(float),alpha=alpha, color='black')
 
-    # plt.plot(t_range, df1['SA_eval2'][(j3*end_ind):(j3+1)*end_ind:2], 'g-', linewidth=1, label = "SAA", marker="o",ms=1.5)
-    # plt.fill_between(np.array(t_range),y1=np.array(quantiles1[q1]['SA_eval2'][(j3*end_ind):(j3+1)*end_ind:2]).astype(float),y2=np.array(quantiles1[q2]['SA_eval2'][(j3*end_ind):(j3+1)*end_ind:2]).astype(float),alpha=alpha, color='g')
+    plt.plot(t_range, df1['SA_eval2'][(j3*end_ind):(j3+1)*end_ind:2], 'g-', linewidth=1, label = "SAA", marker="o",ms=1.5)
+    plt.fill_between(np.array(t_range),y1=np.array(quantiles1[q1]['SA_eval2'][(j3*end_ind):(j3+1)*end_ind:2]).astype(float),y2=np.array(quantiles1[q2]['SA_eval2'][(j3*end_ind):(j3+1)*end_ind:2]).astype(float),alpha=alpha, color='g')
     plt.xscale("log")
-    # plt.ylim([0.008,0.022])
+    plt.ylim([0.008,0.04])
     if legend:
         plt.legend()
     plt.xlabel(r'Time step $(t)$')
     plt.title(f'Out-of-sample expected value, $K$ = {K}')
     plt.grid(True, alpha=alpha)
-    plt.savefig(folderout+'eval_analysis.pdf', bbox_inches='tight', dpi=300)
+    plt.savefig(folderout+f'eval_analysis{K}.pdf', bbox_inches='tight', dpi=300)
 
 def plot_satisfy(df, df1=None,end_ind=61,j=(0,0,0),K=5):
     # Set up LaTeX rendering
@@ -315,8 +319,8 @@ def plot_satisfy(df, df1=None,end_ind=61,j=(0,0,0),K=5):
     plt.plot(t_range, df['MRO_worst_satisfy1'][(j2*end_ind)+1:(j2+1)*end_ind:2], 'r:', linewidth=1, label = r"reclustering $\hat{H}^K_t$",marker="^",ms=1.5)
 
     # DRO and SAA
-    plt.plot(t_range, df1['SA_satisfy1'][(j3*end_ind):(j3+1)*end_ind-1:2], 'g-', linewidth=1, label = "SAA",marker="o",ms=1.5)
-    plt.plot(t_range, df1['DRO_satisfy1'][(j3*end_ind):(j3+1)*end_ind-1:2], color ='black', linewidth=1, label = "DRO",marker="s",ms=1.5)
+    plt.plot(t_range, df1['SA_satisfy1'][(j3*end_ind):(j3+1)*end_ind:2], 'g-', linewidth=1, label = "SAA",marker="o",ms=1.5)
+    plt.plot(t_range, df1['DRO_satisfy1'][(j3*end_ind):(j3+1)*end_ind:2], color ='black', linewidth=1, label = "DRO",marker="s",ms=1.5)
     plt.legend()
     plt.xlabel(r'Time step $(t)$')
     plt.title(r'Confidence $(1-\hat{\beta}_t)$')
@@ -441,17 +445,20 @@ def plot_bounds(df, quantiles, df1=None, quantiles1=None, end_ind=61,j=(0,0,0), 
 
 T=2001
 R = 10
-K_list = [5,15,25]
+K_list = [0,5,15,25]
 eps_init = [0.004,0.003,0.002,0.001,0.0005,0.0001,0.00001]
 eps_dro =  [0.0035,0.00325,0.003,0.0025]
 M = len(eps_init)
 quant_list = [25,75]
-foldername = '/Users/irina.wang/Desktop/Princeton/Project2/mro_mpc/port_new/results_new_p1/T'+str(T-1)+'R'+str(R)+'/'
-folderout = '/Users/irina.wang/Desktop/Princeton/Project2/mro_mpc/port_new/results_new_p1_plots/T'+str(T-1)+'R'+str(R)+'/'
+foldername = '/Users/irina.wang/Desktop/Princeton/Project2/mro_mpc/port_new/results_new_p2/2/T'+str(T-1)+'R'+str(R)+'/'
+folderout = '/Users/irina.wang/Desktop/Princeton/Project2/mro_mpc/port_new/results_new_p2_plots/2/T'+str(T-1)+'R'+str(R)+'/'
 os.makedirs(folderout, exist_ok=True)
 
+folderout2 = '/Users/irina.wang/Desktop/Princeton/Project2/mro_mpc/port_new/results_new_p1_plots/2/T'+str(T-1)+'R'+str(R)+'/'
+os.makedirs(folderout2, exist_ok=True)
+
 # setup MRO dfs
-def setup_dfs(init = False):
+def setup_dfs(folderout = folderout2, K_list = K_list, init = False):
     if init:
         quantiles = {}
         for K in K_list:
@@ -461,18 +468,20 @@ def setup_dfs(init = False):
                 dfs_list.append(newdf)
             df1 = dfs_list[0]
             quantiles[K] = {}
+            # Only aggregate numeric columns; non-numeric ones (serialized
+            # arrays like x / MRO_x / weights_q) are copied through unchanged.
+            numeric_cols = df1.select_dtypes(include=[np.number]).columns
             for quant in quant_list:
                 quantiles[K][quant] = pd.DataFrame(index=df1.index, columns=df1.columns)
-                # Calculate quantiles for each entry
-                for i in range(len(df1.index)):
-                    for j in range(len(df1.columns)):
-                        values = [dfs_list[k].iloc[i, j] for k in range(len(dfs_list))]
-                        quantiles[K][quant].iloc[i, j] = np.percentile(values, quant)
+                for col in df1.columns:
+                    if col in numeric_cols:
+                        stacked = np.vstack([d[col].to_numpy(dtype=float) for d in dfs_list])
+                        quantiles[K][quant][col] = np.percentile(stacked, quant, axis=0)
+                    else:
+                        quantiles[K][quant][col] = df1[col].values
                 quantiles[K][quant].to_csv(folderout+'quantiles_'+ str(quant)+'K'+str(K)+'.csv')
             sum_df = dfs_list[0].copy()
-            for dfs in dfs_list[1:]:
-                sum_df = sum_df.add(dfs, fill_value=0)
-            sum_df = sum_df/(R)
+            sum_df[numeric_cols] = sum(d[numeric_cols] for d in dfs_list) / R
             sum_df.to_csv(folderout+'df_'+ 'K'+str(K)+'.csv')
     df = {}
     quantiles = {}
@@ -483,8 +492,9 @@ def setup_dfs(init = False):
             quantiles[K][quant] = pd.read_csv(folderout+'quantiles_'+ str(quant)+'K'+str(K)+'.csv')
     return df, quantiles
 
-df, quantiles = setup_dfs(init = False)
+df, quantiles = setup_dfs(folderout = folderout, K_list = [5,15,25], init = True)
+df1,quantiles1 = setup_dfs(folderout = folderout2,init = False)
 
-plot_eval_all(df,quantiles,df,quantiles,j=(3,3,3),K=15,q=(25,75),ylim=[0.004,0.02],legend = True,val2=2.3, end_ind=2001)
+plot_eval_all(df,quantiles,df1,quantiles1,j=(3,3,3),K=15,q=(25,75),ylim=[0.004,0.02],legend = True,val2=2.3, end_ind=2001)
 
-plot_eval(df,quantiles,df,quantiles,j=(4,4,3),K=15,q=(25,75),end_ind=2001,legend = True)
+plot_eval(df,quantiles,df1,quantiles1,j=(3,3,3),K=15,q=(25,75),end_ind=2001,legend = True)

@@ -826,7 +826,7 @@ def port_experiments(r_input,K,T,N_init,synthetic_returns,r_start):
                 if t <= fixed_time:
                     start_time = time.time()
                     cur_K = np.minimum(K,num_dat)
-                    if new_k_dict is not None and (num_dat > (interval+N_init)):
+                    if new_k_dict is not None and (num_dat > (interval+N_init)) and new_k_dict['d'].shape[0] == cur_K:
                         kmeans = KMeans(n_clusters=cur_K, init=new_k_dict['d'],n_init=1).fit(running_samples)
                     else:
                         print("restart kmeans", cur_K, num_dat)
