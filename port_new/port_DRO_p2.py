@@ -699,154 +699,190 @@ def calc_cluster_val(K,k_dict, num_dat,x):
     return mean_val/num_dat, square_val/num_dat, sig_val
 
 def port_experiments(r_input,T,N_init,synthetic_returns,r_start):
-    r,epsnum = list_inds[r_input]
-    np.random.seed(r_start+r)
-    dat, dateval = train_test_split(
-         synthetic_returns[:, :m], train_size=19000, test_size=1000, random_state=r_start+r)
-    # dat_indices = np.random.choice(48000,48000,replace=False) 
-    # dat = dat[dat_indices]
+    try:
+        r,epsnum = list_inds[r_input]
+        np.random.seed(r_start+r)
+        dat, dateval = train_test_split(
+            synthetic_returns[:, :m], train_size=19000, test_size=1000, random_state=r_start+r)
+        # dat_indices = np.random.choice(48000,48000,replace=False) 
+        # dat = dat[dat_indices]
 
-    init_eps = eps_init[epsnum]
-    num_dat = N_init
+        init_eps = eps_init[epsnum]
+        num_dat = N_init
 
-    # Saddle-point scheme for the DRO solve: maintain (x, tau) iterates updated
-    # by one projected-subgradient step per interval using Danskin gradients
-    # from the inner worst-case dual. Step size eta_t = eta_0 / sqrt(t+1).
-    a_const = -5
-    D_x = np.sqrt(2)
-    R = np.linalg.norm(dateval, axis=1).mean()
-    L_x = abs(a_const) * R
-    # eta_0 = D_x / L_x
-    eta_0 = 0.0001
-    DRO_x_current = np.ones(m) / m
-    DRO_tau_current = 0.0
+        # Saddle-point scheme for the DRO solve: maintain (x, tau) iterates updated
+        # by one projected-subgradient step per interval using Danskin gradients
+        # from the inner worst-case dual. Step size eta_t = eta_0 / sqrt(t+1).
+        a_const = -5
+        D_x = np.sqrt(2)
+        R = np.linalg.norm(dateval, axis=1).mean()
+        L_x = abs(a_const) * R
+        # eta_0 = D_x / L_x
+        eta_0 = 0.0001
+        DRO_x_current = np.ones(m) / m
+        DRO_tau_current = 0.0
 
-    # History for analysis
-    history = {
-        'x': [],
-        'tau': [],
-        'obj_values': [],
-        'MRO_x': [],
-        'MRO_tau': [],
-        'MRO_obj_values': [],
-        'DRO_x': [],
-        'DRO_tau': [],
-        'DRO_obj_values': [],
-        'worst_values': [],
-        'worst_values_MRO':[],
-        'epsilon': [],
-        'weights': [],
-        'weights_q': [],
-        'online_computation_times': {
-            'weight_update': [],
+        # History for analysis
+        history = {
+            'x': [],
+            'tau': [],
+            'obj_values': [],
+            'MRO_x': [],
+            'MRO_tau': [],
+            'MRO_obj_values': [],
+            'DRO_x': [],
+            'DRO_tau': [],
+            'DRO_obj_values': [],
+            'worst_values': [],
+            'worst_values_MRO':[],
+            'epsilon': [],
+            'weights': [],
+            'weights_q': [],
+            'online_computation_times': {
+                'weight_update': [],
+                'min_problem': [],
+                'total_iteration': []
+            },
+            'MRO_computation_times':{
+            'clustering': [],
             'min_problem': [],
-            'total_iteration': []
-        },
-        'MRO_computation_times':{
-        'clustering': [],
-        'min_problem': [],
-        'total_iteration':[]
-        },
-        'DRO_computation_times':{
-        'total_iteration':[]
-        },
-        'distances':[],
-        'mean_val':[],
-        'square_val': [],
-        'sig_val': [],
-        'mean_val_MRO':[],
-        'square_val_MRO': [],
-        'sig_val_MRO': [],
-        'SA_computation_times':[],
-        'SA_obj_values':[],
-        'SA_x': [],
-        'SA_tau':[],
-        "satisfy":[],
-        "MRO_satisfy":[],
-        "DRO_satisfy":[],
-        "SA_eval":[],
-        "SA_satisfy":[], 
-        't':[]
-    }
+            'total_iteration':[]
+            },
+            'DRO_computation_times':{
+            'total_iteration':[]
+            },
+            'distances':[],
+            'mean_val':[],
+            'square_val': [],
+            'sig_val': [],
+            'mean_val_MRO':[],
+            'square_val_MRO': [],
+            'sig_val_MRO': [],
+            'SA_computation_times':[],
+            'SA_obj_values':[],
+            'SA_x': [],
+            'SA_tau':[],
+            "satisfy":[],
+            "MRO_satisfy":[],
+            "DRO_satisfy":[],
+            "SA_eval":[],
+            "SA_satisfy":[], 
+            't':[]
+        }
 
 
-    for t in range(T):
-        print(f"\nTimestep {t+1}/{T}")
+        for t in range(T):
+            print(f"\nTimestep {t+1}/{T}")
+            
+            radius = init_eps*(1/(num_dat**(1/(40))))
+            running_samples = dat[init_ind:(init_ind+num_dat)]
         
-        radius = init_eps*(1/(num_dat**(1/(40))))
-        running_samples = dat[init_ind:(init_ind+num_dat)]
-    
-        if t % interval == 0 or ((t-1) % interval == 0) or (t in t_list) :
-            if t <= 2001 or (t in t_list):
-            # solve DRO problem
-                if t == 0:
-                    # One LP warm-start (cardinality dropped) to seed (x, tau).
-                    DRO_problem, DRO_x, DRO_s, DRO_tau, DRO_lmbda, DRO_data, DRO_eps, DRO_w = createproblem_portLP(num_dat,m)
-                    DRO_data.value = running_samples
-                    DRO_w.value = (1/num_dat)*np.ones(num_dat)
-                    DRO_eps.value = radius
-                    DRO_problem.solve( solver=cp.CLARABEL, verbose=False, time_limit=1500.0)
-                    DRO_x_current = DRO_x.value
-                    DRO_tau_current = DRO_tau.value
-                    DRO_min_obj = DRO_problem.objective.value
-                    DRO_min_time = DRO_problem.solver_stats.solve_time
-                else:
-                    # Solve worst-case dual at current iterate, then one gradient step.
-                    DRO_wc_problem, DRO_p_var, DRO_z_var, DRO_x_star, DRO_tau_star, \
-                        DRO_wc_data, DRO_wc_eps, DRO_wc_w = createproblem_worstcase_p2(num_dat, m)
-                    DRO_wc_data.value = running_samples
-                    DRO_wc_eps.value = radius**2
-                    DRO_wc_w.value = (1/num_dat)*np.ones(num_dat)
-                    DRO_x_star.value = DRO_x_current
-                    DRO_tau_star.value = DRO_tau_current
-                    DRO_wc_problem.solve( solver=cp.CLARABEL, verbose=False, time_limit=1500.0)
-                    p_opt = DRO_p_var.value
-                    z_opt = DRO_z_var.value
-                    eta = eta_0 / np.sqrt(t + 1)
-                    DRO_x_current, DRO_tau_current = gradient_step(
-                        DRO_x_current, DRO_tau_current, p_opt, z_opt, eta, a=a_const
-                    )
-                    DRO_min_obj = DRO_wc_problem.objective.value
-                    DRO_min_time = DRO_wc_problem.solver_stats.solve_time
+            if t % interval == 0 or ((t-1) % interval == 0) or (t in t_list) :
+                if t <= 2001 or (t in t_list):
+                # solve DRO problem
+                    if t == 0:
+                        # One LP warm-start (cardinality dropped) to seed (x, tau).
+                        DRO_problem, DRO_x, DRO_s, DRO_tau, DRO_lmbda, DRO_data, DRO_eps, DRO_w = createproblem_portLP(num_dat,m)
+                        DRO_data.value = running_samples
+                        DRO_w.value = (1/num_dat)*np.ones(num_dat)
+                        DRO_eps.value = radius
+                        DRO_problem.solve( solver=cp.CLARABEL, verbose=False, time_limit=1500.0)
+                        DRO_x_current = DRO_x.value
+                        DRO_tau_current = DRO_tau.value
+                        DRO_min_obj = DRO_problem.objective.value
+                        DRO_min_time = DRO_problem.solver_stats.solve_time
+                    else:
+                        # Solve worst-case dual at current iterate, then one gradient step.
+                        DRO_wc_problem, DRO_p_var, DRO_z_var, DRO_x_star, DRO_tau_star, \
+                            DRO_wc_data, DRO_wc_eps, DRO_wc_w = createproblem_worstcase_p2(num_dat, m)
+                        DRO_wc_data.value = running_samples
+                        DRO_wc_eps.value = radius**2
+                        DRO_wc_w.value = (1/num_dat)*np.ones(num_dat)
+                        DRO_x_star.value = DRO_x_current
+                        DRO_tau_star.value = DRO_tau_current
+                        DRO_wc_problem.solve( solver=cp.CLARABEL, verbose=False, time_limit=1500.0)
+                        p_opt = DRO_p_var.value
+                        z_opt = DRO_z_var.value
+                        eta = eta_0 / np.sqrt(t + 1)
+                        DRO_x_current, DRO_tau_current = gradient_step(
+                            DRO_x_current, DRO_tau_current, p_opt, z_opt, eta, a=a_const
+                        )
+                        DRO_min_obj = DRO_wc_problem.objective.value
+                        DRO_min_time = DRO_wc_problem.solver_stats.solve_time
 
 
 
-        if t % interval_SAA == 0 or ((t-1) % interval_SAA == 0) or (t in t_list)  :
-            if t <= 2001 or (t in t_list):
-                s_prob, s_x, s_tau = create_scenario(running_samples,m,num_dat)
-                s_prob.solve( solver=cp.CLARABEL, verbose=False, time_limit=1500.0)
-                SA_x_current = s_x.value
-                SA_tau_current = s_tau.value
-                SA_obj_current = s_prob.objective.value
-                SA_time = s_prob.solver_stats.solve_time
+            if t % interval_SAA == 0 or ((t-1) % interval_SAA == 0) or (t in t_list)  :
+                if t <= 2001 or (t in t_list):
+                    s_prob, s_x, s_tau = create_scenario(running_samples,m,num_dat)
+                    s_prob.solve( solver=cp.CLARABEL, verbose=False, time_limit=1500.0)
+                    SA_x_current = s_x.value
+                    SA_tau_current = s_tau.value
+                    SA_obj_current = s_prob.objective.value
+                    SA_time = s_prob.solver_stats.solve_time
 
-                history['DRO_computation_times']['total_iteration'].append(DRO_min_time)
-                history['DRO_x'].append(DRO_x_current)
-                history['DRO_tau'].append(DRO_tau_current)
-                history['DRO_obj_values'].append(DRO_min_obj)
-                history['epsilon'].append(radius)
-                history['t'].append(t)
+                    history['DRO_computation_times']['total_iteration'].append(DRO_min_time)
+                    history['DRO_x'].append(DRO_x_current)
+                    history['DRO_tau'].append(DRO_tau_current)
+                    history['DRO_obj_values'].append(DRO_min_obj)
+                    history['epsilon'].append(radius)
+                    history['t'].append(t)
 
-                history['SA_computation_times'].append(SA_time)
-                history['SA_x'].append(SA_x_current)
-                history['SA_tau'].append(SA_tau_current)
-                history['SA_obj_values'].append(SA_obj_current)
+                    history['SA_computation_times'].append(SA_time)
+                    history['SA_x'].append(SA_x_current)
+                    history['SA_tau'].append(SA_tau_current)
+                    history['SA_obj_values'].append(SA_obj_current)
 
-        # New sample
-        new_sample = dat[init_ind+num_dat]
-        # q_dict, k_dict, weight_update_time = online_cluster_update(K,new_sample, q_dict, k_dict,num_dat, t, fixed_time)
-        num_dat += 1
-        # history['online_computation_times']['weight_update'].append(weight_update_time)
-        # history['online_computation_times']['total_iteration'].append(weight_update_time + min_time)
-    
+            # New sample
+            new_sample = dat[init_ind+num_dat]
+            # q_dict, k_dict, weight_update_time = online_cluster_update(K,new_sample, q_dict, k_dict,num_dat, t, fixed_time)
+            num_dat += 1
+            # history['online_computation_times']['weight_update'].append(weight_update_time)
+            # history['online_computation_times']['total_iteration'].append(weight_update_time + min_time)
+        
 
-        if t % interval_SAA == 0 or ((t-1) % interval_SAA == 0) or (t in t_list)  :
-            if t <= 2001 or (t in t_list):
+            if t % interval_SAA == 0 or ((t-1) % interval_SAA == 0) or (t in t_list)  :
+                if t <= 2001 or (t in t_list):
 
-                DRO_eval, DRO_satisfy,SA_eval, SA_satisfy = compute_cumulative_regret(
+                    DRO_eval, DRO_satisfy,SA_eval, SA_satisfy = compute_cumulative_regret(
+                    history,dateval)
+                    
+                    df = pd.DataFrame({
+                    # 'DRO_x': history['DRO_x'],
+                    'DRO_tau': np.array(history['DRO_tau']),
+                    'DRO_obj_values': np.array(history['DRO_obj_values']),
+                    'epsilon': np.array(history['epsilon']),
+                    'DRO_time':  np.array(history['DRO_computation_times']['total_iteration']),
+                    'DRO_eval1': DRO_eval[0],
+                    'DRO_eval2': DRO_eval[1],
+                    # 'DRO_eval3': DRO_eval[2],
+                    # 'DRO_eval4': DRO_eval[3],
+                    "DRO_satisfy1": DRO_satisfy[0],
+                    "DRO_satisfy2": DRO_satisfy[1],
+                    # "DRO_satisfy3": DRO_satisfy[2],
+                    # "DRO_satisfy4": DRO_satisfy[3],
+                    'SA_eval1' : SA_eval[0],
+                    'SA_eval2' : SA_eval[1],
+                    # 'SA_eval3' : SA_eval[2],
+                    # 'SA_eval4' : SA_eval[3],
+                    'SA_satisfy1': SA_satisfy[0],
+                    'SA_satisfy2': SA_satisfy[1],
+                    # 'SA_satisfy3': SA_satisfy[2],
+                    # 'SA_satisfy4': SA_satisfy[3],
+                    'SA_obj_values': np.array(history['SA_obj_values']),
+                    'SA_time':np.array(history['SA_computation_times']),
+                    # 'SA_x': history['SA_x'],
+                    'SA_tau': np.array(history['SA_tau']),
+                    't':np.array(history['t'])
+                    })
+                    df.to_csv(foldername+'DRO'+str(epsnum)+'_R'+str(r+r_start)+'_df.csv')
+                    # print(f"Weights: {q_dict['w'], np.sum(q_dict['w']) }")
+                
+
+        DRO_eval, DRO_satisfy,SA_eval, SA_satisfy = compute_cumulative_regret(
                 history,dateval)
                 
-                df = pd.DataFrame({
+        df = pd.DataFrame({
                 # 'DRO_x': history['DRO_x'],
                 'DRO_tau': np.array(history['DRO_tau']),
                 'DRO_obj_values': np.array(history['DRO_obj_values']),
@@ -874,59 +910,31 @@ def port_experiments(r_input,T,N_init,synthetic_returns,r_start):
                 'SA_tau': np.array(history['SA_tau']),
                 't':np.array(history['t'])
                 })
-                df.to_csv(foldername+'DRO'+str(epsnum)+'_R'+str(r+r_start)+'_df.csv')
-                # print(f"Weights: {q_dict['w'], np.sum(q_dict['w']) }")
-            
+        df.to_csv(foldername+'DRO_new'+str(epsnum)+'_R'+str(r+r_start)+'_df.csv')
+        # df.to_csv('df.csv')
 
-    DRO_eval, DRO_satisfy,SA_eval, SA_satisfy = compute_cumulative_regret(
-            history,dateval)
-            
-    df = pd.DataFrame({
-            # 'DRO_x': history['DRO_x'],
-            'DRO_tau': np.array(history['DRO_tau']),
-            'DRO_obj_values': np.array(history['DRO_obj_values']),
-            'epsilon': np.array(history['epsilon']),
-            'DRO_time':  np.array(history['DRO_computation_times']['total_iteration']),
-            'DRO_eval1': DRO_eval[0],
-            'DRO_eval2': DRO_eval[1],
-            # 'DRO_eval3': DRO_eval[2],
-            # 'DRO_eval4': DRO_eval[3],
-            "DRO_satisfy1": DRO_satisfy[0],
-            "DRO_satisfy2": DRO_satisfy[1],
-            # "DRO_satisfy3": DRO_satisfy[2],
-            # "DRO_satisfy4": DRO_satisfy[3],
-            'SA_eval1' : SA_eval[0],
-            'SA_eval2' : SA_eval[1],
-            # 'SA_eval3' : SA_eval[2],
-            # 'SA_eval4' : SA_eval[3],
-            'SA_satisfy1': SA_satisfy[0],
-            'SA_satisfy2': SA_satisfy[1],
-            # 'SA_satisfy3': SA_satisfy[2],
-            # 'SA_satisfy4': SA_satisfy[3],
-            'SA_obj_values': np.array(history['SA_obj_values']),
-            'SA_time':np.array(history['SA_computation_times']),
-            # 'SA_x': history['SA_x'],
-            'SA_tau': np.array(history['SA_tau']),
-            't':np.array(history['t'])
-            })
-    df.to_csv(foldername+'DRO_new'+str(epsnum)+'_R'+str(r+r_start)+'_df.csv')
-    # df.to_csv('df.csv')
+        # Plot regret analysis
+        # plot_regret_analysis(
+        #       cumulative_regret, 
+        #       instantaneous_regret,theo,MRO_cum_regret,MRO_regret
+        #   )
 
-     # Plot regret analysis
-    # plot_regret_analysis(
-    #       cumulative_regret, 
-    #       instantaneous_regret,theo,MRO_cum_regret,MRO_regret
-    #   )
+        #   # After all other plots
+        # plot_computation_times(history)
 
-    #   # After all other plots
-    # plot_computation_times(history)
+        # plot_eval(eval, MRO_eval, DRO_eval, SA_eval, history)
 
-    # plot_eval(eval, MRO_eval, DRO_eval, SA_eval, history)
-
-    # plot_computation_times_iter(history)
-  
-    return df
+        # plot_computation_times_iter(history)
     
+        return df
+    except Exception as e:
+        import traceback
+        print(f"Exception in port_experiments (r_input={locals().get('r_input', None)}): {e}", file=output_stream)
+        traceback.print_exc(file=output_stream)
+        try:
+            return df
+        except NameError:
+            return None
         
 if __name__ == '__main__':
 
