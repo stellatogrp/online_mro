@@ -6,7 +6,6 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import cvxpy as cp
-import mosek
 import numpy as np
 import pandas as pd
 from joblib import Parallel, delayed
@@ -122,14 +121,21 @@ def port_experiments(r_input,K,T,N_init,synthetic_returns,r_start):
         # solve online MRO problem
         if t % interval == 0 or ((t-1) % interval == 0) or (t in t_list):
             if t <= 8001 or (t in t_list):
-                if num_dat <= K or data_train.shape[0] < K:
-                    cur_K = np.minimum(num_dat,K)
-                    online_problem, online_x, online_s, online_tau, online_lmbda, data_train, eps_train, w_train = createproblem_portLP(cur_K, m)
+                # Rebuild the problem on every solve.  Reusing a cached
+                # CVXPY problem across many parameter updates can leave
+                # Clarabel's in-place `_solver.update(P, q, A, b)` path in a
+                # stale numerical state (first showing up as "Solution may
+                # be inaccurate" warnings, then hard-failing with
+                # `Exception: Data formatting error`).  Rebuilding each
+                # time costs one extra sub-millisecond CVXPY compile at
+                # K<=25 and gives Clarabel a fresh solver every iteration.
+                cur_K = np.minimum(num_dat,K)
+                online_problem, online_x, online_s, online_tau, online_lmbda, data_train, eps_train, w_train = createproblem_portLP(cur_K, m)
                 data_train.value = k_dict['d'][:num_dat]
                 eps_train.value = radius
                 w_train.value = k_dict['w'][:num_dat]
 
-                online_problem.solve(ignore_dpp=True, solver=cp.MOSEK, verbose=False, mosek_params={mosek.dparam.optimizer_max_time: 1500.0})
+                online_problem.solve(ignore_dpp=True, solver=cp.CLARABEL, verbose=False, time_limit=1500.0)
                 x_current = online_x.value
                 tau_current = online_tau.value
                 min_obj = online_problem.objective.value
@@ -167,14 +173,15 @@ def port_experiments(r_input,K,T,N_init,synthetic_returns,r_start):
                     new_k_dict['d'] = new_centers
 
 
-                # Rebuild the MRO problem if the cluster count changed during ramp-up.
+                # Rebuild the MRO problem on every solve -- same reason as
+                # the online branch above (avoid Clarabel's stale cached
+                # solver across many parameter updates).
                 cur_K_mro = new_k_dict['d'].shape[0]
-                if MRO_data_train.shape[0] != cur_K_mro:
-                    MRO_problem, MRO_x, MRO_s, MRO_tau, MRO_lmbda, MRO_data_train, MRO_eps_train, MRO_w_train = createproblem_portLP(cur_K_mro, m)
+                MRO_problem, MRO_x, MRO_s, MRO_tau, MRO_lmbda, MRO_data_train, MRO_eps_train, MRO_w_train = createproblem_portLP(cur_K_mro, m)
                 MRO_data_train.value = new_k_dict['d']
                 MRO_w_train.value = new_k_dict['w']
                 MRO_eps_train.value = radius
-                MRO_problem.solve(ignore_dpp=True,  solver=cp.MOSEK, verbose=False, mosek_params={mosek.dparam.optimizer_max_time: 1500.0})
+                MRO_problem.solve(ignore_dpp=True,  solver=cp.CLARABEL, verbose=False, time_limit=1500.0)
                 MRO_x_current = MRO_x.value
                 MRO_tau_current = MRO_tau.value
                 MRO_min_obj = MRO_problem.objective.value
@@ -196,7 +203,7 @@ def port_experiments(r_input,K,T,N_init,synthetic_returns,r_start):
                 eps_d.value = radius
                 x_d.value = x_current
                 tau_d.value = tau_current
-                new_problem.solve(ignore_dpp=True,  solver=cp.MOSEK, verbose=False, mosek_params={mosek.dparam.optimizer_max_time: 1500.0})
+                new_problem.solve(ignore_dpp=True,  solver=cp.CLARABEL, verbose=False, time_limit=1500.0)
                 new_worst = new_problem.objective.value
                 worst_time = new_problem.solver_stats.solve_time
 
@@ -207,7 +214,7 @@ def port_experiments(r_input,K,T,N_init,synthetic_returns,r_start):
                 if t <= 8001 or (t in t_list):
                     x_d.value = MRO_x_current
                     tau_d.value = MRO_tau_current
-                    new_problem.solve(ignore_dpp=True,  solver=cp.MOSEK, verbose=False, mosek_params={mosek.dparam.optimizer_max_time: 1500.0})
+                    new_problem.solve(ignore_dpp=True,  solver=cp.CLARABEL, verbose=False, time_limit=1500.0)
                     new_worst_MRO = new_problem.objective.value
                     MRO_worst_time = new_problem.solver_stats.solve_time
 
@@ -226,7 +233,7 @@ def port_experiments(r_input,K,T,N_init,synthetic_returns,r_start):
                 # compute online worst value (wrt prev stage sols
                 x_d.value = x_prev
                 tau_d.value = tau_prev
-                new_problem.solve(ignore_dpp=True,  solver=cp.MOSEK, verbose=False, mosek_params={mosek.dparam.optimizer_max_time: 1500.0})
+                new_problem.solve(ignore_dpp=True,  solver=cp.CLARABEL, verbose=False, time_limit=1500.0)
                 new_worst = new_problem.objective.value
                 worst_time = new_problem.solver_stats.solve_time
 
@@ -237,7 +244,7 @@ def port_experiments(r_input,K,T,N_init,synthetic_returns,r_start):
             if t <= 8001 or (t in t_list):
                 x_d.value = MRO_x_prev
                 tau_d.value = MRO_tau_prev
-                new_problem.solve(ignore_dpp=True,  solver=cp.MOSEK, verbose=False, mosek_params={mosek.dparam.optimizer_max_time: 1500.0})
+                new_problem.solve(ignore_dpp=True,  solver=cp.CLARABEL, verbose=False, time_limit=1500.0)
                 new_worst_MRO = new_problem.objective.value
                 MRO_worst_time = new_problem.solver_stats.solve_time
 

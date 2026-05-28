@@ -3,7 +3,6 @@ import os
 import sys
 
 import cvxpy as cp
-import mosek
 import numpy as np
 import pandas as pd
 from joblib import Parallel, delayed
@@ -155,7 +154,7 @@ def port_experiments(r_input,K,T,N_init,synthetic_returns,r_start, newfoldername
                     lp_dat.value = k_dict['d'][:num_dat]
                     lp_eps.value = radius
                     lp_w.value = k_dict['w'][:num_dat]
-                    lp_problem.solve( solver=cp.MOSEK, verbose=False, mosek_params={mosek.dparam.optimizer_max_time: 1500.0})
+                    lp_problem.solve( solver=cp.CLARABEL, verbose=False, time_limit=1500.0)
                     x_current = lp_x.value
                     tau_current = lp_tau.value
                     min_obj = lp_problem.objective.value
@@ -164,7 +163,7 @@ def port_experiments(r_input,K,T,N_init,synthetic_returns,r_start, newfoldername
                     # Solve worst-case dual at current iterate, then one gradient step.
                     x_star.value = x_current
                     tau_star.value = tau_current
-                    wc_problem.solve( solver=cp.MOSEK, verbose=False, mosek_params={mosek.dparam.optimizer_max_time: 1500.0})
+                    wc_problem.solve( solver=cp.CLARABEL, verbose=False, time_limit=1500.0)
                     p_opt = p_var.value
                     z_opt = z_var.value
                     eta = eta_0 / np.sqrt(t + 1)
@@ -175,7 +174,7 @@ def port_experiments(r_input,K,T,N_init,synthetic_returns,r_start, newfoldername
                         # by the Armijo backtracking line search.
                         x_star.value = x_val
                         tau_star.value = tau_val
-                        wc_problem.solve(solver=cp.MOSEK, verbose=False, mosek_params={mosek.dparam.optimizer_max_time: 1500.0})
+                        wc_problem.solve(solver=cp.CLARABEL, verbose=False, time_limit=1500.0)
                         return wc_problem.objective.value
 
                     grad_start = time.time()
@@ -238,7 +237,7 @@ def port_experiments(r_input,K,T,N_init,synthetic_returns,r_start, newfoldername
                     lp_dat.value = new_k_dict['d']
                     lp_eps.value = radius
                     lp_w.value = new_k_dict['w']
-                    lp_problem.solve( solver=cp.MOSEK, verbose=False, mosek_params={mosek.dparam.optimizer_max_time: 1500.0})
+                    lp_problem.solve( solver=cp.CLARABEL, verbose=False, time_limit=1500.0)
                     MRO_x_current = lp_x.value
                     MRO_tau_current = lp_tau.value
                     MRO_min_obj = lp_problem.objective.value
@@ -246,7 +245,7 @@ def port_experiments(r_input,K,T,N_init,synthetic_returns,r_start, newfoldername
                 else:
                     MRO_x_star.value = MRO_x_current
                     MRO_tau_star.value = MRO_tau_current
-                    MRO_wc_problem.solve( solver=cp.MOSEK, verbose=False, mosek_params={mosek.dparam.optimizer_max_time: 1500.0})
+                    MRO_wc_problem.solve( solver=cp.CLARABEL, verbose=False, time_limit=1500.0)
                     p_opt = MRO_p_var.value
                     z_opt = MRO_z_var.value
                     eta = eta_0 / np.sqrt(t + 1)
@@ -255,7 +254,7 @@ def port_experiments(r_input,K,T,N_init,synthetic_returns,r_start, newfoldername
                     def _inner_eval_mro(x_val, tau_val):
                         MRO_x_star.value = x_val
                         MRO_tau_star.value = tau_val
-                        MRO_wc_problem.solve(solver=cp.MOSEK, verbose=False, mosek_params={mosek.dparam.optimizer_max_time: 1500.0})
+                        MRO_wc_problem.solve(solver=cp.CLARABEL, verbose=False, time_limit=1500.0)
                         return MRO_wc_problem.objective.value
 
                     grad_start = time.time()
@@ -286,7 +285,7 @@ def port_experiments(r_input,K,T,N_init,synthetic_returns,r_start, newfoldername
                 eps_d.value = radius
                 x_d.value = x_current
                 tau_d.value = tau_current
-                new_problem.solve( solver=cp.MOSEK, verbose=False, mosek_params={mosek.dparam.optimizer_max_time: 1500.0})
+                new_problem.solve( solver=cp.CLARABEL, verbose=False, time_limit=1500.0)
                 new_worst = new_problem.objective.value
                 worst_time = new_problem.solver_stats.solve_time
 
@@ -296,7 +295,7 @@ def port_experiments(r_input,K,T,N_init,synthetic_returns,r_start, newfoldername
             if (t % interval == 0 or ((t-1) % interval == 0) or (t in t_list)) and (t <= 2001 or (t in t_list)):
                 x_d.value = MRO_x_current
                 tau_d.value = MRO_tau_current
-                new_problem.solve( solver=cp.MOSEK, verbose=False, mosek_params={mosek.dparam.optimizer_max_time: 1500.0})
+                new_problem.solve( solver=cp.CLARABEL, verbose=False, time_limit=1500.0)
                 new_worst_MRO = new_problem.objective.value
                 MRO_worst_time = new_problem.solver_stats.solve_time
 
@@ -314,7 +313,7 @@ def port_experiments(r_input,K,T,N_init,synthetic_returns,r_start, newfoldername
                 # compute online worst value (wrt prev stage sols
                 x_d.value = x_prev
                 tau_d.value = tau_prev
-                new_problem.solve( solver=cp.MOSEK, verbose=False, mosek_params={mosek.dparam.optimizer_max_time: 1500.0})
+                new_problem.solve( solver=cp.CLARABEL, verbose=False, time_limit=1500.0)
                 new_worst = new_problem.objective.value
                 worst_time = new_problem.solver_stats.solve_time
 
@@ -324,7 +323,7 @@ def port_experiments(r_input,K,T,N_init,synthetic_returns,r_start, newfoldername
             if (t % interval == 0 or ((t-1) % interval == 0) or (t in t_list)) and (t <= 2001 or (t in t_list)):
                 x_d.value = MRO_x_prev
                 tau_d.value = MRO_tau_prev
-                new_problem.solve( solver=cp.MOSEK, verbose=False, mosek_params={mosek.dparam.optimizer_max_time: 1500.0})
+                new_problem.solve( solver=cp.CLARABEL, verbose=False, time_limit=1500.0)
                 new_worst_MRO = new_problem.objective.value
                 MRO_worst_time = new_problem.solver_stats.solve_time
 

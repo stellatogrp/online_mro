@@ -6,7 +6,6 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import cvxpy as cp
-import mosek
 import numpy as np
 import pandas as pd
 from joblib import Parallel, delayed
@@ -110,7 +109,7 @@ def port_experiments(r_input,T,N_init,synthetic_returns,r_start):
                         DRO_data.value = running_samples
                         DRO_w.value = (1/num_dat)*np.ones(num_dat)
                         DRO_eps.value = radius
-                        DRO_problem.solve(ignore_dpp=True,  solver=cp.MOSEK, verbose=False, mosek_params={mosek.dparam.optimizer_max_time: 1500.0})
+                        DRO_problem.solve(ignore_dpp=True,  solver=cp.CLARABEL, verbose=False, time_limit=1500.0)
                         DRO_x_current = DRO_x.value
                         DRO_tau_current = DRO_tau.value
                         DRO_min_obj = DRO_problem.objective.value
@@ -124,7 +123,7 @@ def port_experiments(r_input,T,N_init,synthetic_returns,r_start):
                         DRO_wc_w.value = (1/num_dat)*np.ones(num_dat)
                         DRO_x_star.value = DRO_x_current
                         DRO_tau_star.value = DRO_tau_current
-                        DRO_wc_problem.solve( ignore_dpp=True, solver=cp.MOSEK, verbose=False, mosek_params={mosek.dparam.optimizer_max_time: 1500.0})
+                        DRO_wc_problem.solve( ignore_dpp=True, solver=cp.CLARABEL, verbose=False, time_limit=1500.0)
                         p_opt = DRO_p_var.value
                         z_opt = DRO_z_var.value
                         eta = eta_0 / np.sqrt(t + 1)
@@ -133,7 +132,7 @@ def port_experiments(r_input,T,N_init,synthetic_returns,r_start):
                         def _inner_eval_dro(x_val, tau_val):
                             DRO_x_star.value = x_val
                             DRO_tau_star.value = tau_val
-                            DRO_wc_problem.solve(ignore_dpp=True, solver=cp.MOSEK, verbose=False, mosek_params={mosek.dparam.optimizer_max_time: 1500.0})
+                            DRO_wc_problem.solve(ignore_dpp=True, solver=cp.CLARABEL, verbose=False, time_limit=1500.0)
                             return DRO_wc_problem.objective.value
 
                         DRO_x_current, DRO_tau_current = gradient_step(
@@ -149,7 +148,7 @@ def port_experiments(r_input,T,N_init,synthetic_returns,r_start):
             if t % interval_SAA == 0 or ((t-1) % interval_SAA == 0) or (t in t_list)  :
                 if t <= 2001 or (t in t_list):
                     s_prob, s_x, s_tau = create_scenario(running_samples,m,num_dat)
-                    s_prob.solve( ignore_dpp=True, solver=cp.MOSEK, verbose=False, mosek_params={mosek.dparam.optimizer_max_time: 1500.0})
+                    s_prob.solve( ignore_dpp=True, solver=cp.CLARABEL, verbose=False, time_limit=1500.0)
                     SA_x_current = s_x.value
                     SA_tau_current = s_tau.value
                     SA_obj_current = s_prob.objective.value

@@ -6,7 +6,6 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import cvxpy as cp
-import mosek
 import numpy as np
 import pandas as pd
 from joblib import Parallel, delayed
@@ -95,7 +94,7 @@ def port_experiments(r_input,T,N_init,synthetic_returns,r_start):
                     DRO_data.value = running_samples
                     DRO_w.value = (1/num_dat)*np.ones(num_dat)
                     DRO_eps.value = radius**2
-                    DRO_problem.solve( solver=cp.MOSEK, verbose=False, mosek_params={mosek.dparam.optimizer_max_time: 1500.0})
+                    DRO_problem.solve( solver=cp.CLARABEL, verbose=False, time_limit=1500.0)
                     DRO_x_current = DRO_x.value
                     DRO_tau_current = DRO_tau.value
                     DRO_min_obj = DRO_problem.objective.value
@@ -105,7 +104,7 @@ def port_experiments(r_input,T,N_init,synthetic_returns,r_start):
             if t % interval_SAA == 0 or ((t-1) % interval_SAA == 0) or (t in t_list)  :
                 if t <= 2001 or (t in t_list):
                     s_prob, s_x, s_tau = create_scenario(running_samples,m,num_dat)
-                    s_prob.solve( solver=cp.MOSEK, verbose=False, mosek_params={mosek.dparam.optimizer_max_time: 1500.0})
+                    s_prob.solve( solver=cp.CLARABEL, verbose=False, time_limit=1500.0)
                     SA_x_current = s_x.value
                     SA_tau_current = s_tau.value
                     SA_obj_current = s_prob.objective.value
