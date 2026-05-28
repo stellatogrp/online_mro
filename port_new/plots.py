@@ -471,17 +471,30 @@ def setup_dfs(folderout = folderout2, K_list = K_list, init = False):
             # Only aggregate numeric columns; non-numeric ones (serialized
             # arrays like x / MRO_x / weights_q) are copied through unchanged.
             numeric_cols = df1.select_dtypes(include=[np.number]).columns
+            # Replications have ragged lengths (incomplete runs). pd.concat
+            # aligns by row index and pads with NaN; quantile/mean(axis=1)
+            # then skip NaN, so each row is aggregated over whichever
+            # replications reached that row. Output length = max replication.
+            max_len = max(len(d) for d in dfs_list)
+            out_index = pd.RangeIndex(max_len)
+            combined_by_col = {
+                col: pd.concat([d[col] for d in dfs_list], axis=1)
+                for col in numeric_cols
+            }
             for quant in quant_list:
-                quantiles[K][quant] = pd.DataFrame(index=df1.index, columns=df1.columns)
+                quantiles[K][quant] = pd.DataFrame(index=out_index, columns=df1.columns)
                 for col in df1.columns:
                     if col in numeric_cols:
-                        stacked = np.vstack([d[col].to_numpy(dtype=float) for d in dfs_list])
-                        quantiles[K][quant][col] = np.percentile(stacked, quant, axis=0)
+                        quantiles[K][quant][col] = combined_by_col[col].quantile(quant/100.0, axis=1)
                     else:
-                        quantiles[K][quant][col] = df1[col].values
+                        quantiles[K][quant][col] = df1[col].reindex(out_index).values
                 quantiles[K][quant].to_csv(folderout+'quantiles_'+ str(quant)+'K'+str(K)+'.csv')
-            sum_df = dfs_list[0].copy()
-            sum_df[numeric_cols] = sum(d[numeric_cols] for d in dfs_list) / R
+            sum_df = pd.DataFrame(index=out_index, columns=df1.columns)
+            for col in df1.columns:
+                if col in numeric_cols:
+                    sum_df[col] = combined_by_col[col].mean(axis=1)
+                else:
+                    sum_df[col] = df1[col].reindex(out_index).values
             sum_df.to_csv(folderout+'df_'+ 'K'+str(K)+'.csv')
     df = {}
     quantiles = {}
@@ -492,9 +505,9 @@ def setup_dfs(folderout = folderout2, K_list = K_list, init = False):
             quantiles[K][quant] = pd.read_csv(folderout+'quantiles_'+ str(quant)+'K'+str(K)+'.csv')
     return df, quantiles
 
-df, quantiles = setup_dfs(folderout = folderout, K_list = [5,15,25], init = True)
+df, quantiles = setup_dfs(folderout = folderout, K_list = [0,5,15,25], init = False)
 df1,quantiles1 = setup_dfs(folderout = folderout2,init = False)
 
-plot_eval_all(df,quantiles,df1,quantiles1,j=(3,3,3),K=15,q=(25,75),ylim=[0.004,0.02],legend = True,val2=2.3, end_ind=2001)
+plot_eval_all(df,quantiles,df,quantiles,j=(3,3,3),K=15,q=(25,75),ylim=[0.004,0.02],legend = True,val2=2.3, end_ind=2001)
 
-plot_eval(df,quantiles,df1,quantiles1,j=(3,3,3),K=15,q=(25,75),end_ind=2001,legend = True)
+plot_eval(df,quantiles,df,quantiles,j=(3,3,3),K=15,q=(25,75),end_ind=2001,legend = True)
