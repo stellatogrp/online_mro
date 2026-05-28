@@ -17,6 +17,7 @@ from utils import (
     fixed_cluster,
     get_n_processes,
     gradient_step,
+    save_run_metadata,
     w2_dist,
     wasserstein,
     worst_case,
@@ -546,6 +547,25 @@ if __name__ == '__main__':
     # dat, dateval = train_test_split(
     #     synthetic_returns[:, :m], train_size=48000, test_size=12000, random_state=50)
     t_list = [4,5,9,10,14,15,19,20,1249,1250,1499,1500,1749,1750,1999,2000,3000,4000,5000,6000,7000,8000,9000,10000]
+    newdatname = foldername +'T'+str(T-1)+'R'+str(R)+'/'
+
+    # Persist run metadata before any computation so it is on disk even if
+    # the parallel sweep later crashes mid-experiment.
+    save_run_metadata(
+        {
+            'filename': os.path.basename(__file__),
+            'K': K, 'T': T, 'R': R, 'm': m, 'Q': Q,
+            'fixed_time': fixed_time, 'interval': interval, 'N_init': N_init,
+            'r_start': r_start, 'line_search': line_search,
+            'eta_0': 0.01,
+            'epsilon_values': [float(e) for e in eps_init],
+            'num_epsilon_values': len(eps_init),
+            'num_random_seeds': R,
+            'total_test_combinations': len(eps_init) * R,
+        },
+        [newfoldername, (newdatname, f'metadata_K{K}.json')],
+    )
+
     results = Parallel(n_jobs=njobs)(delayed(port_experiments)(
         r_input,K,T,N_init,synthetic_returns,r_start, newfoldername) for r_input in range(len(list_inds)))
 
@@ -561,73 +581,8 @@ if __name__ == '__main__':
         findfs[r] = pd.concat([dfs[r][i] for i in range(len(eps_init))],ignore_index=True)
         findfs[r].to_csv(newfoldername + 'df_' + str(r+r_start) +'.csv')
 
-    newdatname = foldername +'T'+str(T-1)+'R'+str(R)+'/'
-    os.makedirs(newdatname, exist_ok=True)
     for r in range(R):
         findfs[r] = findfs[r].drop(columns=['weights','MRO_weights'])
         findfs[r].to_csv(newdatname + 'df_' + 'K'+str(K)+'R'+ str(r+r_start) +'.csv')
 
     print("DONE")
-
-    # Save metadata to output folders
-    import json
-
-    eta_0 = 0.01
-    filename = os.path.basename(__file__)
-
-    metadata = {
-        'filename': filename,
-        'K': K,
-        'T': T,
-        'R': R,
-        'm': m,
-        'Q': Q,
-        'fixed_time': fixed_time,
-        'interval': interval,
-        'N_init': N_init,
-        'r_start': r_start,
-        'line_search': line_search,
-        'eta_0': eta_0,
-        'epsilon_values': [float(e) for e in eps_init],
-        'num_epsilon_values': len(eps_init),
-        'num_random_seeds': R,
-        'total_test_combinations': len(eps_init) * R,
-    }
-
-    # Create human-readable metadata file
-    metafile_content = f"""# Port Portfolio Optimization - Metadata
-## Input Parameters
-- filename: {metadata['filename']}
-- K (number of clusters): {metadata['K']}
-- T (number of time steps): {metadata['T']}
-- R (number of random seeds): {metadata['R']}
-- m (portfolio dimension): {metadata['m']}
-- Q (online update parameter): {metadata['Q']}
-- fixed_time (time to switch to fixed clustering): {metadata['fixed_time']}
-- interval (update interval): {metadata['interval']}
-- N_init (initial samples): {metadata['N_init']}
-- r_start (random seed offset): {metadata['r_start']}
-- line_search: {metadata['line_search']}
-
-## Optimization Parameters
-- eta_0 (initial step size): {metadata['eta_0']}
-
-## Epsilon Values (Uncertainty Set Radii)
-{', '.join([str(e) for e in metadata['epsilon_values']])}
-
-## Test Configuration
-- Number of epsilon values: {metadata['num_epsilon_values']}
-- Number of random seeds: {metadata['num_random_seeds']}
-- Total number of test combinations: {metadata['total_test_combinations']}
-"""
-
-    # Save to newfoldername
-    with open(newfoldername + 'metadata.txt', 'w') as f:
-        f.write(metafile_content)
-
-    # Save JSON version to both folders
-    with open(newfoldername + 'metadata.json', 'w') as f:
-        json.dump(metadata, f, indent=2)
-
-    with open(newdatname + 'metadata_K' + str(K) + '.json', 'w') as f:
-        json.dump(metadata, f, indent=2)

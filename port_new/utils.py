@@ -9,6 +9,7 @@ and the "DRO" family (port_DRO*.py) are exported in two variants with
 _online and _dro suffixes respectively. Each experiment file imports the
 variant it currently uses with an `as` alias so call sites stay unchanged.
 """
+import json
 import os
 import time
 
@@ -19,6 +20,46 @@ import ot
 from scipy.spatial import distance
 from scipy.spatial.distance import cdist
 from sklearn.cluster import KMeans
+
+
+def save_run_metadata(metadata, paths):
+    """Write a run-metadata JSON + human-readable .txt into one or more dirs.
+
+    Called as the *first* thing in each port_*.py ``__main__`` block so the
+    metadata is persisted even if the run later crashes mid-experiment.
+
+    Parameters
+    ----------
+    metadata : dict
+        Run parameters / config.  Non-JSON-serializable values are coerced
+        via ``default=str``.
+    paths : iterable
+        Each entry is either:
+          * a directory path (str) -- writes ``metadata.json`` + ``metadata.txt`` there, or
+          * a ``(dir, json_name)`` pair -- writes ``json_name`` (e.g.
+            ``metadata_K5.json``) plus ``metadata.txt`` there.
+
+        Directories are created with ``os.makedirs(..., exist_ok=True)``.
+    """
+    lines = ["# Run metadata", ""]
+    for k, v in metadata.items():
+        if isinstance(v, (list, tuple)):
+            lines.append(f"- {k}: {', '.join(str(x) for x in v)}")
+        else:
+            lines.append(f"- {k}: {v}")
+    txt = "\n".join(lines) + "\n"
+
+    for entry in paths:
+        if isinstance(entry, str):
+            d, jname = entry, 'metadata.json'
+        else:
+            d, jname = entry
+            jname = jname or 'metadata.json'
+        os.makedirs(d, exist_ok=True)
+        with open(os.path.join(d, jname), 'w') as f:
+            json.dump(metadata, f, indent=2, default=str)
+        with open(os.path.join(d, 'metadata.txt'), 'w') as f:
+            f.write(txt)
 
 def get_n_processes(max_n=np.inf):
     """Get number of processes from current cps number

@@ -12,7 +12,7 @@ from joblib import Parallel, delayed
 from sklearn.model_selection import train_test_split
 import itertools
 
-from utils import createproblem_portLP, createproblem_worstcase_p2, get_n_processes, gradient_step
+from utils import createproblem_portLP, createproblem_worstcase_p2, get_n_processes, gradient_step, save_run_metadata
 from utils import compute_cumulative_regret_dro as compute_cumulative_regret
 from utils import create_scenario_dro as create_scenario
 
@@ -320,6 +320,24 @@ if __name__ == '__main__':
     # dat, dateval = train_test_split(
     #     synthetic_returns[:, :m], train_size=48000, test_size=12000, random_state=50)
     t_list = [4,5,9,10,14,15,19,20,1249,1250,1499,1500,1749,1750,1999,2000]
+    newdatname = foldername +'T'+str(T-1)+'R'+str(R)+'/'
+
+    # Persist run metadata before any computation so it is on disk even if
+    # the parallel sweep later crashes mid-experiment.
+    save_run_metadata(
+        {
+            'filename': os.path.basename(__file__),
+            'T': T, 'R': R, 'm': m,
+            'interval': interval, 'interval_SAA': interval_SAA, 'N_init': N_init,
+            'r_start': r_start, 'line_search': line_search,
+            'eta_0': 0.01,
+            'epsilon_values': [float(e) for e in eps_init],
+            'num_epsilon_values': len(eps_init),
+            'num_random_seeds': R,
+            'total_test_combinations': len(eps_init) * R,
+        },
+        [foldername, newdatname],
+    )
 
     results = Parallel(n_jobs=njobs)(delayed(port_experiments)(
         r_input,T,N_init,synthetic_returns,r_start) for r_input in range(len(list_inds)))
@@ -336,10 +354,8 @@ if __name__ == '__main__':
         findfs[r] = pd.concat([dfs[r][i] for i in range(len(eps_init))],ignore_index=True)
         findfs[r].to_csv(foldername + 'DRO_new_df_' + str(r+r_start) +'.csv')
 
-    newdatname = foldername +'T'+str(T-1)+'R'+str(R)+'/'
-    os.makedirs(newdatname, exist_ok=True)
     for r in range(R):
         # findfs[r] = findfs[r].drop(columns=["DRO_x","SA_x"])
-        findfs[r].to_csv(newdatname + 'df_' + 'K'+str(2000)+'R'+ str(r+r_start) +'.csv')
+        findfs[r].to_csv(newdatname + 'df_' + 'K'+str(0)+'R'+ str(r+r_start) +'.csv')
 
     print("DONE")

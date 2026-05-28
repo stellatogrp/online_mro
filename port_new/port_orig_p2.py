@@ -19,6 +19,7 @@ from utils import (
     createproblem_portLP_p2,
     fixed_cluster,
     get_n_processes,
+    save_run_metadata,
     w2_dist,
     wasserstein,
     worst_case_p2,
@@ -447,6 +448,24 @@ if __name__ == '__main__':
     # dat, dateval = train_test_split(
     #     synthetic_returns[:, :m], train_size=48000, test_size=12000, random_state=50)
     t_list = [4,5,9,10,14,15,19,20,1249,1250,1499,1500,1749,1750,1999,2000,3000,4000,5000,6000,7000,8000,9000,10000]
+    newdatname = foldername +'T'+str(T-1)+'R'+str(R)+'/'
+
+    # Persist run metadata before any computation so it is on disk even if
+    # the parallel sweep later crashes mid-experiment.
+    save_run_metadata(
+        {
+            'filename': os.path.basename(__file__),
+            'K': K, 'T': T, 'R': R, 'm': m, 'Q': Q,
+            'fixed_time': fixed_time, 'interval': interval, 'N_init': N_init,
+            'r_start': r_start,
+            'epsilon_values': [float(e) for e in eps_init],
+            'num_epsilon_values': len(eps_init),
+            'num_random_seeds': R,
+            'total_test_combinations': len(eps_init) * R,
+        },
+        [foldername, (newdatname, f'metadata_K{K}.json')],
+    )
+
     results = Parallel(n_jobs=njobs)(delayed(port_experiments)(
         r_input,K,T,N_init,synthetic_returns,r_start) for r_input in range(len(list_inds)))
 
@@ -462,8 +481,6 @@ if __name__ == '__main__':
         findfs[r] = pd.concat([dfs[r][i] for i in range(len(eps_init))],ignore_index=True)
         findfs[r].to_csv(foldername + 'df_' + str(r+r_start) +'.csv')
 
-    newdatname = foldername +'T'+str(T-1)+'R'+str(R)+'/'
-    os.makedirs(newdatname, exist_ok=True)
     for r in range(R):
         findfs[r] = findfs[r].drop(columns=['weights','MRO_weights'])
         findfs[r].to_csv(newdatname + 'df_' + 'K'+str(K)+'R'+ str(r+r_start) +'.csv')
