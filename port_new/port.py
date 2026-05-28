@@ -524,7 +524,7 @@ if __name__ == '__main__':
     interval = arguments.interval
     N_init = arguments.N_init
     line_search = arguments.line_search
-    K_arr = [5,15,25]
+    K_arr = [15,25,50]
     K = K_arr[idx]
     newfoldername = foldername + 'K'+str(K)+'_R'+str(R)+'_T'+str(T-1)+'/'
     os.makedirs(newfoldername, exist_ok=True)
@@ -568,3 +568,66 @@ if __name__ == '__main__':
         findfs[r].to_csv(newdatname + 'df_' + 'K'+str(K)+'R'+ str(r+r_start) +'.csv')
 
     print("DONE")
+
+    # Save metadata to output folders
+    import json
+
+    eta_0 = 0.01
+    filename = os.path.basename(__file__)
+
+    metadata = {
+        'filename': filename,
+        'K': K,
+        'T': T,
+        'R': R,
+        'm': m,
+        'Q': Q,
+        'fixed_time': fixed_time,
+        'interval': interval,
+        'N_init': N_init,
+        'r_start': r_start,
+        'line_search': line_search,
+        'eta_0': eta_0,
+        'epsilon_values': [float(e) for e in eps_init],
+        'num_epsilon_values': len(eps_init),
+        'num_random_seeds': R,
+        'total_test_combinations': len(eps_init) * R,
+    }
+
+    # Create human-readable metadata file
+    metafile_content = f"""# Port Portfolio Optimization - Metadata
+## Input Parameters
+- filename: {metadata['filename']}
+- K (number of clusters): {metadata['K']}
+- T (number of time steps): {metadata['T']}
+- R (number of random seeds): {metadata['R']}
+- m (portfolio dimension): {metadata['m']}
+- Q (online update parameter): {metadata['Q']}
+- fixed_time (time to switch to fixed clustering): {metadata['fixed_time']}
+- interval (update interval): {metadata['interval']}
+- N_init (initial samples): {metadata['N_init']}
+- r_start (random seed offset): {metadata['r_start']}
+- line_search: {metadata['line_search']}
+
+## Optimization Parameters
+- eta_0 (initial step size): {metadata['eta_0']}
+
+## Epsilon Values (Uncertainty Set Radii)
+{', '.join([str(e) for e in metadata['epsilon_values']])}
+
+## Test Configuration
+- Number of epsilon values: {metadata['num_epsilon_values']}
+- Number of random seeds: {metadata['num_random_seeds']}
+- Total number of test combinations: {metadata['total_test_combinations']}
+"""
+
+    # Save to newfoldername
+    with open(newfoldername + 'metadata.txt', 'w') as f:
+        f.write(metafile_content)
+
+    # Save JSON version to both folders
+    with open(newfoldername + 'metadata.json', 'w') as f:
+        json.dump(metadata, f, indent=2)
+
+    with open(newdatname + 'metadata_K' + str(K) + '.json', 'w') as f:
+        json.dump(metadata, f, indent=2)

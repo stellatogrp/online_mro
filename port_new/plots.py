@@ -450,11 +450,20 @@ eps_init = [0.004,0.003,0.002,0.001,0.0005,0.0001,0.00001]
 eps_dro =  [0.0035,0.00325,0.003,0.0025]
 M = len(eps_init)
 quant_list = [25,75]
-foldername = '/Users/irina.wang/Desktop/Princeton/Project2/mro_mpc/port_new/results_new_p2/2/T'+str(T-1)+'R'+str(R)+'/'
-folderout = '/Users/irina.wang/Desktop/Princeton/Project2/mro_mpc/port_new/results_new_p2_plots/2/T'+str(T-1)+'R'+str(R)+'/'
+
+# foldername = '/Users/irina.wang/Desktop/Princeton/Project2/mro_mpc/port_new/results_new_p2/2/T'+str(T-1)+'R'+str(R)+'/'
+
+foldername = '/scratch/gpfs/BSTELLATO/iywang/low_rank/online_mro/port_new/results/p1/5/T'+str(T-1)+'R'+str(R)+'/'
+
+# folderout = '/Users/irina.wang/Desktop/Princeton/Project2/mro_mpc/port_new/results_new_p2_plots/2/T'+str(T-1)+'R'+str(R)+'/'
+
+folderout = '/scratch/gpfs/BSTELLATO/iywang/low_rank/online_mro/port_new/results_new_p1_plots/5/T'+str(T-1)+'R'+str(R)+'/'
+
 os.makedirs(folderout, exist_ok=True)
 
-folderout2 = '/Users/irina.wang/Desktop/Princeton/Project2/mro_mpc/port_new/results_new_p1_plots/2/T'+str(T-1)+'R'+str(R)+'/'
+# folderout2 = '/Users/irina.wang/Desktop/Princeton/Project2/mro_mpc/port_new/results_new_p1_plots/2/T'+str(T-1)+'R'+str(R)+'/'
+folderout2 = '/scratch/gpfs/BSTELLATO/iywang/low_rank/online_mro/port_new/results_new_p1_plots/2/T'+str(T-1)+'R'+str(R)+'/'
+
 os.makedirs(folderout2, exist_ok=True)
 
 # setup MRO dfs
@@ -505,9 +514,9 @@ def setup_dfs(folderout = folderout2, K_list = K_list, init = False):
             quantiles[K][quant] = pd.read_csv(folderout+'quantiles_'+ str(quant)+'K'+str(K)+'.csv')
     return df, quantiles
 
-df, quantiles = setup_dfs(folderout = folderout, K_list = [0,5,15,25], init = False)
+df, quantiles = setup_dfs(folderout = folderout, K_list = [0,5], init = True)
 df1,quantiles1 = setup_dfs(folderout = folderout2,init = False)
 
-plot_eval_all(df,quantiles,df,quantiles,j=(3,3,3),K=15,q=(25,75),ylim=[0.004,0.02],legend = True,val2=2.3, end_ind=2001)
+plot_eval_all(df,quantiles,df,quantiles,j=(0,0,3),K=5,q=(25,75),ylim=[0.004,0.02],legend = True,val2=2.3, end_ind=2001)
 
-plot_eval(df,quantiles,df,quantiles,j=(3,3,3),K=15,q=(25,75),end_ind=2001,legend = True)
+plot_eval(df,quantiles,df,quantiles,j=(0,0,3),K=5,q=(25,75),end_ind=2001,legend = True)
