@@ -740,7 +740,13 @@ def port_experiments(r_input,K,T,N_init,synthetic_returns,r_start):
     tau_prev = 0
     x_prev = np.zeros(m)
     init_radius_val = init_eps*(1/(num_dat**(1/(40))))
+    # Keep the online and MRO solves on *separate* problem instances so that
+    # Clarabel's in-place update path only ever sees one parameter trajectory
+    # per solver. Sharing one Problem between the two branches triggers
+    # "Data formatting error" inside Clarabel's update() when the centers
+    # switch between the online (k_dict) and MRO (new_k_dict) data sources.
     online_problem, online_x, online_s, online_tau, online_lmbda, data_train, eps_train, w_train = createproblem_portLP(np.minimum(num_dat,K), m)
+    MRO_problem, MRO_x, MRO_s, MRO_tau, MRO_lmbda, MRO_data_train, MRO_eps_train, MRO_w_train = createproblem_portLP(np.minimum(num_dat,K), m)
 
     # History for analysis
     history = {
@@ -845,14 +851,18 @@ def port_experiments(r_input,K,T,N_init,synthetic_returns,r_start):
                     new_k_dict['d'] = new_centers
                     
 
-                data_train.value = new_k_dict['d']
-                w_train.value = new_k_dict['w']
-                # eps_train.value = new_radius
-                online_problem.solve(ignore_dpp=True,  solver=cp.CLARABEL, verbose=False, time_limit=1500.0)
-                MRO_x_current = online_x.value
-                MRO_tau_current = online_tau.value
-                MRO_min_obj = online_problem.objective.value
-                MRO_min_time = online_problem.solver_stats.solve_time
+                # Rebuild the MRO problem if the cluster count changed during ramp-up.
+                cur_K_mro = new_k_dict['d'].shape[0]
+                if MRO_data_train.shape[0] != cur_K_mro:
+                    MRO_problem, MRO_x, MRO_s, MRO_tau, MRO_lmbda, MRO_data_train, MRO_eps_train, MRO_w_train = createproblem_portLP(cur_K_mro, m)
+                MRO_data_train.value = new_k_dict['d']
+                MRO_w_train.value = new_k_dict['w']
+                MRO_eps_train.value = radius
+                MRO_problem.solve(ignore_dpp=True,  solver=cp.CLARABEL, verbose=False, time_limit=1500.0)
+                MRO_x_current = MRO_x.value
+                MRO_tau_current = MRO_tau.value
+                MRO_min_obj = MRO_problem.objective.value
+                MRO_min_time = MRO_problem.solver_stats.solve_time
                 mean_val_mro, square_val_mro, sig_val_mro = calc_cluster_val(K, new_k_dict,num_dat,MRO_x_current,running_samples)
             
                 history['MRO_computation_times']['min_problem'].append(MRO_min_time)
