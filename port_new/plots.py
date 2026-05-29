@@ -467,6 +467,108 @@ def plot_eval(df, quantiles, df1=None, quantiles1=None,end_ind=61,j=(0,0,0), q =
     plt.grid(True, alpha=alpha)
     plt.savefig(folderout+f'eval_analysis{K}.pdf', bbox_inches='tight', dpi=300)
 
+
+def plot_eval_compare(
+    df,  quantiles,  df1, quantiles1,
+    df2, quantiles2, df3, quantiles3,
+    end_ind=61,
+    end_ind_grad=None,   # Grad epsilon-block length; falls back to end_ind if None
+    j=(0, 0, 0),         # Full epsilon-indices: (online, reclustering, DRO/SAA)
+    j_grad=(0, 0, 0),    # Grad epsilon-indices: (online, reclustering, DRO)
+    stride=2,            # subsample stride within an epsilon block (Full)
+    stride_grad=None,    # Grad stride; falls back to stride if None
+    q=(40, 60),
+    K=5,
+    alpha=0.1,
+    legend=True,
+):
+    """Out-of-sample expected value -- Full vs Grad overlay.
+
+    Mirrors ``plot_eval`` for the Full set (solid lines, suffix "Full") and
+    overlays a second Grad set (dashed lines + lighter colors, suffix "Grad").
+    SAA is not overlaid.
+
+    Method -> data source:
+      online clustering : df[K]   / df2[K]
+      reclustering      : df[K]   / df2[K]
+      DRO               : df1[0]  / df3[0]
+      SAA               : df1[0]  ONLY  (no Grad overlay)
+    """
+    if end_ind_grad is None:
+        end_ind_grad = end_ind
+    if stride_grad is None:
+        stride_grad = stride
+    j1, j2, j3 = j
+    j1g, j2g, j3g = j_grad
+    df  = df[K]
+    df1 = df1[0]
+    df2 = df2[K]
+    df3 = df3[0]
+    quantiles  = quantiles[K]
+    quantiles1 = quantiles1[0]
+    quantiles2 = quantiles2[K]
+    quantiles3 = quantiles3[0]
+    q1, q2 = q
+    fontsize = 10
+    plt.rcParams.update({
+        "text.usetex": True,
+        "font.family": "serif",
+        "font.serif": ["Computer Modern Roman"],
+        "font.size": fontsize,
+        "axes.labelsize": fontsize,
+        "axes.titlesize": 11,
+        "legend.fontsize": fontsize,
+    })
+
+    t_range      = np.array(df['t'])[(0*end_ind):(1)*end_ind:stride] + 1
+    t_range_grad = np.array(df2['t'])[(0*end_ind_grad):(1)*end_ind_grad:stride_grad] + 1
+    plt.figure(figsize=(4.3, 2.1), dpi=300)
+
+    def _band(qa, qb, col, ji, ei, color, tr, step):
+        plt.fill_between(
+            np.array(tr),
+            y1=np.array(qa[col][(ji*ei):(ji+1)*ei:step]).astype(float),
+            y2=np.array(qb[col][(ji*ei):(ji+1)*ei:step]).astype(float),
+            alpha=alpha, color=color,
+        )
+
+    # Full
+    plt.plot(t_range, df['O_eval1'][(j1*end_ind):(j1+1)*end_ind:stride], 'b-',
+             linewidth=1, label="online clustering Full", marker="v", ms=1.5)
+    _band(quantiles[q1], quantiles[q2], 'O_eval1', j1, end_ind, 'b', t_range, stride)
+    plt.plot(t_range, df['MRO_eval1'][(j2*end_ind):(j2+1)*end_ind:stride], 'r-',
+             linewidth=1, label="reclustering Full", marker="D", ms=1.5)
+    _band(quantiles[q1], quantiles[q2], 'MRO_eval1', j2, end_ind, 'r', t_range, stride)
+    plt.plot(t_range, df1['DRO_eval2'][(j3*end_ind):(j3+1)*end_ind:stride], color='black', linestyle='-',
+             linewidth=1, label="DRO Full", marker="s", ms=1.5)
+    _band(quantiles1[q1], quantiles1[q2], 'DRO_eval2', j3, end_ind, 'black', t_range, stride)
+    plt.plot(t_range, df1['SA_eval2'][(j3*end_ind):(j3+1)*end_ind:stride], 'g-',
+             linewidth=1, label="SAA", marker="o", ms=1.5)
+    _band(quantiles1[q1], quantiles1[q2], 'SA_eval2', j3, end_ind, 'g', t_range, stride)
+    # Grad overlay (no SAA) -- lighter shades, dashed.
+    plt.plot(t_range_grad, df2['O_eval1'][(j1g*end_ind_grad):(j1g+1)*end_ind_grad:stride_grad],
+             color='cornflowerblue', linestyle='--',
+             linewidth=1, label="online clustering Grad", marker="v", ms=1.5)
+    _band(quantiles2[q1], quantiles2[q2], 'O_eval1', j1g, end_ind_grad, 'cornflowerblue', t_range_grad, stride_grad)
+    plt.plot(t_range_grad, df2['MRO_eval1'][(j2g*end_ind_grad):(j2g+1)*end_ind_grad:stride_grad],
+             color='salmon', linestyle='--',
+             linewidth=1, label="reclustering Grad", marker="D", ms=1.5)
+    _band(quantiles2[q1], quantiles2[q2], 'MRO_eval1', j2g, end_ind_grad, 'salmon', t_range_grad, stride_grad)
+    plt.plot(t_range_grad, df3['DRO_eval2'][(j3g*end_ind_grad):(j3g+1)*end_ind_grad:stride_grad],
+             color='gray', linestyle='--',
+             linewidth=1, label="DRO Grad", marker="s", ms=1.5)
+    _band(quantiles3[q1], quantiles3[q2], 'DRO_eval2', j3g, end_ind_grad, 'gray', t_range_grad, stride_grad)
+
+    plt.xscale("log")
+    plt.ylim([0.008, 0.04])
+    if legend:
+        plt.legend(ncol=2, fontsize=fontsize - 2)
+    plt.xlabel(r'Time step $(t)$')
+    plt.title(f'Out-of-sample expected value, $K$ = {K}')
+    plt.grid(True, alpha=alpha)
+    plt.savefig(folderout + f'eval_analysis_compare{K}.pdf', bbox_inches='tight', dpi=300)
+
+
 def plot_satisfy(df, df1=None,end_ind=61,j=(0,0,0),K=5):
     # Set up LaTeX rendering
     j1,j2,j3 = j
@@ -758,6 +860,13 @@ end_ind_new = infer_end_ind(df_new, K = 25)
 
 
 plot_eval_all_compare(
+    df_orig, quantiles_orig, df_orig, quantiles_orig,
+    df_new, quantiles_new, df_new, quantiles_new,
+    j=(0,2,0), j_grad=(0,2,0), K=25, q=(25,75),
+    end_ind=end_ind_orig, end_ind_grad= end_ind_new,val2=2.3, legend=True,
+)
+
+plot_eval_compare(
     df_orig, quantiles_orig, df_orig, quantiles_orig,
     df_new, quantiles_new, df_new, quantiles_new,
     j=(0,2,0), j_grad=(0,2,0), K=25, q=(25,75),
