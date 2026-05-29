@@ -132,6 +132,157 @@ def plot_eval_all(df, quantiles, df1=None, quantiles1=None,end_ind=61,j=(0,0,0),
     plt.savefig(folderout + 'obj_analysis'+str(K)+'.pdf', bbox_inches='tight', dpi=300)
 
 
+def plot_eval_all_compare(
+    df,  quantiles,  df1, quantiles1,
+    df2, quantiles2, df3, quantiles3,
+    end_ind=61,
+    j=(0, 0, 0),         # Full epsilon-indices: (online, reclustering, DRO/SAA)
+    j_grad=(0, 0, 0),    # Grad epsilon-indices: (online, reclustering, DRO)
+    q=(40, 60),
+    K=5,
+    alpha=0.1,
+    ylim=[0.008, 0.022],
+    legend=True,
+    val2=3,
+):
+    """3-panel comparison plot overlaying two experiment sets.
+
+    Mirrors ``plot_eval_all`` for the *Full* set (df/df1, solid lines, suffix
+    "Full") and overlays a second *Grad* set (df2/df3, dashed lines, suffix
+    "Grad") on the same axes.  Same colors per method, same markers.
+
+    Method -> data source:
+      online clustering : df[K]   / df2[K]
+      reclustering      : df[K]   / df2[K]
+      DRO               : df1[0]  / df3[0]
+      SAA               : df1[0]  ONLY  (no Grad overlay)
+    """
+    j1, j4, j3 = j
+    j1g, j4g, j3g = j_grad
+    df  = df[K].copy()
+    df1 = df1[0].copy()
+    df2 = df2[K].copy()
+    df3 = df3[0].copy()
+    quantiles  = quantiles[K].copy()
+    quantiles1 = quantiles1[0].copy()
+    quantiles2 = quantiles2[K].copy()
+    quantiles3 = quantiles3[0].copy()
+    q1, q2 = q
+
+    t_range = np.array(df['t'])[(0*end_ind):(1)*end_ind:2]
+    fig, (ax2, ax3, ax1) = plt.subplots(1, 3, figsize=(9, val2), dpi=300)
+
+    # ---- helpers to keep the per-method block compact ----------------------
+    def _band(ax, qa, qb, col, ji, end_ind, color):
+        ax.fill_between(
+            np.array(t_range),
+            y1=np.array(qa[col][(ji*end_ind):(ji+1)*end_ind:2]).astype(float),
+            y2=np.array(qb[col][(ji*end_ind):(ji+1)*end_ind:2]).astype(float),
+            alpha=alpha, color=color,
+        )
+
+    # ============================================================
+    # ax1: computation time
+    # ============================================================
+    # Full
+    ax1.plot(t_range, df['online_time'][(j1*end_ind):(j1+1)*end_ind:2], 'b-',
+             linewidth=1, label="online clustering Full", marker="v", ms=1.5)
+    _band(ax1, quantiles[q1], quantiles[q2], 'online_time', j1, end_ind, 'b')
+    ax1.plot(t_range, df['MRO_time'][(j4*end_ind):(j4+1)*end_ind:2], 'r-',
+             linewidth=1, label="reclustering Full", marker="D", ms=1.5)
+    _band(ax1, quantiles[q1], quantiles[q2], 'MRO_time', j4, end_ind, 'r')
+    ax1.plot(t_range, df1['DRO_time'][(j3*end_ind):(j3+1)*end_ind:2], 'k-',
+             linewidth=1, label="DRO Full", marker="s", ms=1.5)
+    _band(ax1, quantiles1[q1], quantiles1[q2], 'DRO_time', j3, end_ind, 'black')
+    ax1.plot(t_range, df1['SA_time'][(j3*end_ind):(j3+1)*end_ind:2], 'g-',
+             linewidth=1, label="SAA", marker="o", ms=1.5)
+    _band(ax1, quantiles1[q1], quantiles1[q2], 'SA_time', j3, end_ind, 'g')
+    # Grad overlay (no SAA)
+    ax1.plot(t_range, df2['online_time'][(j1g*end_ind):(j1g+1)*end_ind:2], 'b--',
+             linewidth=1, label="online clustering Grad", marker="v", ms=1.5)
+    _band(ax1, quantiles2[q1], quantiles2[q2], 'online_time', j1g, end_ind, 'b')
+    ax1.plot(t_range, df2['MRO_time'][(j4g*end_ind):(j4g+1)*end_ind:2], 'r--',
+             linewidth=1, label="reclustering Grad", marker="D", ms=1.5)
+    _band(ax1, quantiles2[q1], quantiles2[q2], 'MRO_time', j4g, end_ind, 'r')
+    ax1.plot(t_range, df3['DRO_time'][(j3g*end_ind):(j3g+1)*end_ind:2], 'k--',
+             linewidth=1, label="DRO Grad", marker="s", ms=1.5)
+    _band(ax1, quantiles3[q1], quantiles3[q2], 'DRO_time', j3g, end_ind, 'black')
+
+    ax1.set_xlabel(r'Time step $(t)$')
+    ax1.set_title(r'Computation time per iteration (s)')
+    ax1.grid(True, alpha=0.3)
+    ax1.set_yscale("log")
+
+    # ============================================================
+    # ax2: in-sample objective value  (line handles captured for legend)
+    # ============================================================
+    # Full
+    line_online_full,    = ax2.plot(t_range, df['obj_values'][(j1*end_ind):(j1+1)*end_ind:2], 'b-',
+                                    linewidth=1, label="online clustering Full", marker="v", ms=1.5)
+    _band(ax2, quantiles[q1], quantiles[q2], 'obj_values', j1, end_ind, 'b')
+    line_recluster_full, = ax2.plot(t_range, np.array(df['MRO_obj_values'][(j4*end_ind):(j4+1)*end_ind:2]), 'r-',
+                                    linewidth=1, label="reclustering Full", marker="D", ms=1.5)
+    _band(ax2, quantiles[q1], quantiles[q2], 'MRO_obj_values', j4, end_ind, 'r')
+    line_DRO_full,       = ax2.plot(t_range, df1['DRO_obj_values'][(j3*end_ind):(j3+1)*end_ind:2], 'k-',
+                                    linewidth=1, label="DRO Full", marker="s", ms=1.5)
+    _band(ax2, quantiles1[q1], quantiles1[q2], 'DRO_obj_values', j3, end_ind, 'black')
+    line_SAA,            = ax2.plot(t_range, df1['SA_obj_values'][(j3*end_ind):(j3+1)*end_ind:2], 'g-',
+                                    linewidth=1, label="SAA", marker="o", ms=1.5)
+    _band(ax2, quantiles1[q1], quantiles1[q2], 'SA_obj_values', j3, end_ind, 'g')
+    # Grad overlay
+    line_online_grad,    = ax2.plot(t_range, df2['obj_values'][(j1g*end_ind):(j1g+1)*end_ind:2], 'b--',
+                                    linewidth=1, label="online clustering Grad", marker="v", ms=1.5)
+    _band(ax2, quantiles2[q1], quantiles2[q2], 'obj_values', j1g, end_ind, 'b')
+    line_recluster_grad, = ax2.plot(t_range, np.array(df2['MRO_obj_values'][(j4g*end_ind):(j4g+1)*end_ind:2]), 'r--',
+                                    linewidth=1, label="reclustering Grad", marker="D", ms=1.5)
+    _band(ax2, quantiles2[q1], quantiles2[q2], 'MRO_obj_values', j4g, end_ind, 'r')
+    line_DRO_grad,       = ax2.plot(t_range, df3['DRO_obj_values'][(j3g*end_ind):(j3g+1)*end_ind:2], 'k--',
+                                    linewidth=1, label="DRO Grad", marker="s", ms=1.5)
+    _band(ax2, quantiles3[q1], quantiles3[q2], 'DRO_obj_values', j3g, end_ind, 'black')
+
+    ax2.set_xlabel(r'Time step $(t)$')
+    ax2.set_xscale("log")
+    ax2.set_title(r'In-sample objective value')
+    ax2.grid(True, alpha=0.3)
+
+    # ============================================================
+    # ax3: confidence
+    # ============================================================
+    # Full
+    ax3.plot(t_range, df['O_satisfy0'][(j1*end_ind):(j1+1)*end_ind:2], 'b-',
+             linewidth=1, label="online clustering Full", marker="v", ms=1.5)
+    ax3.plot(t_range, df['MRO_satisfy0'][(j4*end_ind):(j4+1)*end_ind:2], 'r', linestyle='-',
+             linewidth=1, label="reclustering Full", marker="D", ms=1.5)
+    ax3.plot(t_range, df1['DRO_satisfy1'][(j3*end_ind):(j3+1)*end_ind:2], 'k-',
+             linewidth=1, label="DRO Full", marker="s", ms=1.5)
+    ax3.plot(t_range, df1['SA_satisfy1'][(j3*end_ind):(j3+1)*end_ind:2], 'g-',
+             linewidth=1, label="SAA", marker="o", ms=1.5)
+    # Grad
+    ax3.plot(t_range, df2['O_satisfy0'][(j1g*end_ind):(j1g+1)*end_ind:2], 'b--',
+             linewidth=1, label="online clustering Grad", marker="v", ms=1.5)
+    ax3.plot(t_range, df2['MRO_satisfy0'][(j4g*end_ind):(j4g+1)*end_ind:2], 'r', linestyle='--',
+             linewidth=1, label="reclustering Grad", marker="D", ms=1.5)
+    ax3.plot(t_range, df3['DRO_satisfy1'][(j3g*end_ind):(j3g+1)*end_ind:2], 'k--',
+             linewidth=1, label="DRO Grad", marker="s", ms=1.5)
+
+    ax3.set_xlabel(r'Time step $(t)$')
+    ax3.set_title(r'Confidence $1-\hat{\beta}_t$')
+    ax3.grid(True, alpha=0.3)
+
+    # ---- shared legend (7 handles, Full block + SAA + Grad block) ----------
+    lines = [
+        line_online_full, line_recluster_full, line_DRO_full,
+        line_SAA,
+        line_online_grad, line_recluster_grad, line_DRO_grad,
+    ]
+    labels = [ln.get_label() for ln in lines]
+    if legend:
+        fig.legend(lines, labels, loc='lower center', bbox_to_anchor=(0.5, -0.1), ncol=4)
+    plt.tight_layout()
+    plt.savefig(folderout + 'obj_analysis_compare' + str(K) + '.pdf',
+                bbox_inches='tight', dpi=300)
+
+
 def plot_certificates(df, quantiles, df1=None, quantiles1=None,end_ind=61,j=(0,0,0), q = (40,60),K=5, alpha=0.1,ylim = [0.008,0.022], legend = True,val2 = 3):
     j1,j4,j3 = j
     # Set up LaTeX rendering
