@@ -445,7 +445,7 @@ def plot_bounds(df, quantiles, df1=None, quantiles1=None, end_ind=61,j=(0,0,0), 
 
 T=2001
 R = 10
-K_list = [0,5,15,25]
+K_list = [0,15,25,50]
 eps_init = [0.004,0.003,0.002,0.001,0.0005,0.0001,0.00001]
 eps_dro =  [0.0035,0.00325,0.003,0.0025]
 M = len(eps_init)
@@ -453,28 +453,34 @@ quant_list = [25,75]
 
 # foldername = '/Users/irina.wang/Desktop/Princeton/Project2/mro_mpc/port_new/results_new_p2/2/T'+str(T-1)+'R'+str(R)+'/'
 
-foldername = '/scratch/gpfs/BSTELLATO/iywang/low_rank/online_mro/port_new/results/p1/5/T'+str(T-1)+'R'+str(R)+'/'
+foldername = '/scratch/gpfs/BSTELLATO/iywang/low_rank/online_mro/port_new/results/orig/p1/1/T'+str(T-1)+'R'+str(R)+'/'
 
 # folderout = '/Users/irina.wang/Desktop/Princeton/Project2/mro_mpc/port_new/results_new_p2_plots/2/T'+str(T-1)+'R'+str(R)+'/'
 
-folderout = '/scratch/gpfs/BSTELLATO/iywang/low_rank/online_mro/port_new/results_new_p1_plots/5/T'+str(T-1)+'R'+str(R)+'/'
+folderout = '/scratch/gpfs/BSTELLATO/iywang/low_rank/online_mro/port_new/plots_new/orig/1/T'+str(T-1)+'R'+str(R)+'/'
 
 os.makedirs(folderout, exist_ok=True)
 
 # folderout2 = '/Users/irina.wang/Desktop/Princeton/Project2/mro_mpc/port_new/results_new_p1_plots/2/T'+str(T-1)+'R'+str(R)+'/'
-folderout2 = '/scratch/gpfs/BSTELLATO/iywang/low_rank/online_mro/port_new/results_new_p1_plots/2/T'+str(T-1)+'R'+str(R)+'/'
+# folderout2 = '/scratch/gpfs/BSTELLATO/iywang/low_rank/online_mro/port_new/results_new_p1_plots/2/T'+str(T-1)+'R'+str(R)+'/'
 
-os.makedirs(folderout2, exist_ok=True)
+# os.makedirs(folderout2, exist_ok=True)
 
 # setup MRO dfs
-def setup_dfs(folderout = folderout2, K_list = K_list, init = False):
+def setup_dfs(folderout = folderout, K_list = K_list, init = False):
     if init:
         quantiles = {}
         for K in K_list:
             dfs_list = []
-            for r in range(R):                    
-                newdf = pd.read_csv(foldername + 'df_' + 'K'+str(K)+'R'+ str(r) +'.csv')
+            for r in range(R):
+                csv_path = foldername + 'df_' + 'K'+str(K)+'R'+ str(r) +'.csv'
+                if not os.path.exists(csv_path):
+                    continue
+                newdf = pd.read_csv(csv_path)
                 dfs_list.append(newdf)
+            if not dfs_list:
+                print(f"Skipping K={K}: no input CSV files found in {foldername}")
+                continue
             df1 = dfs_list[0]
             quantiles[K] = {}
             # Only aggregate numeric columns; non-numeric ones (serialized
@@ -508,15 +514,45 @@ def setup_dfs(folderout = folderout2, K_list = K_list, init = False):
     df = {}
     quantiles = {}
     for K in K_list:
-        df[K] = pd.read_csv(folderout+'df_' + 'K'+str(K)+'.csv')
+        df_path = folderout+'df_' + 'K'+str(K)+'.csv'
+        if not os.path.exists(df_path):
+            print(f"Skipping K={K}: missing aggregated CSV {df_path}")
+            continue
+        df[K] = pd.read_csv(df_path)
         quantiles[K] = {}
         for quant in quant_list:
-            quantiles[K][quant] = pd.read_csv(folderout+'quantiles_'+ str(quant)+'K'+str(K)+'.csv')
+            q_path = folderout+'quantiles_'+ str(quant)+'K'+str(K)+'.csv'
+            if not os.path.exists(q_path):
+                print(f"Missing quantile CSV for K={K}, quant={quant}: {q_path}")
+                continue
+            quantiles[K][quant] = pd.read_csv(q_path)
     return df, quantiles
 
-df, quantiles = setup_dfs(folderout = folderout, K_list = [0,5], init = True)
-df1,quantiles1 = setup_dfs(folderout = folderout2,init = False)
 
-plot_eval_all(df,quantiles,df,quantiles,j=(0,0,3),K=5,q=(25,75),ylim=[0.004,0.02],legend = True,val2=2.3, end_ind=2001)
+def infer_end_ind(df_dict, K=None, t_col='t'):
+    if not df_dict:
+        raise ValueError("No dataframes available to infer end_ind")
 
-plot_eval(df,quantiles,df,quantiles,j=(0,0,3),K=5,q=(25,75),end_ind=2001,legend = True)
+    if K is None or K not in df_dict:
+        K = next(iter(df_dict))
+
+    dfk = df_dict[K]
+    if t_col not in dfk.columns or dfk.empty:
+        return len(dfk)
+
+    t = pd.to_numeric(dfk[t_col], errors='coerce').to_numpy()
+    first_t = t[0]
+    repeated = np.where(t[1:] == first_t)[0]
+    if repeated.size > 0:
+        return int(repeated[0] + 1)
+
+    return int(len(dfk))
+
+df, quantiles = setup_dfs(folderout = folderout, K_list = [0,15,25], init = False)
+# df1,quantiles1 = setup_dfs(folderout = folderout,init = False)
+
+end_ind = infer_end_ind(df, K=25)
+
+plot_eval_all(df,quantiles,df,quantiles,j=(0,0,0),K=15,q=(25,75),ylim=[0.004,0.02],legend = True,val2=2.3, end_ind=end_ind)
+
+plot_eval(df,quantiles,df,quantiles,j=(0,0,0),K=15,q=(25,75),end_ind=end_ind,legend = True)

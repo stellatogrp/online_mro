@@ -566,7 +566,7 @@ if __name__ == '__main__':
     interval = arguments.interval
     N_init = arguments.N_init
     line_search = arguments.line_search
-    K_arr = [15,25,50]
+    K_arr = [25,35,]
     K = K_arr[idx]
     newfoldername = foldername + 'K'+str(K)+'_R'+str(R)+'_T'+str(T-1)+'/'
     os.makedirs(newfoldername, exist_ok=True)
@@ -580,7 +580,7 @@ if __name__ == '__main__':
     njobs = get_n_processes(100)
     #eps_init = [0.006,0.005,0.004,0.0035,0.003,0.0025,0.002,0.0015,0.001]
     #eps_init = [0.0085,0.008,0.007,0.006,0.005,0.0045,0.004,0.0035]
-    eps_init = [0.006,0.005,0.004,0.003,0.002,0.001,0.0005]
+    eps_init = [0.009,0.008,0.007,0.006,0.005,0.004,0.003]
     if T >= 5000:
         eps_init = [0.0035,0.003,0.0025,0.002]
     M = len(eps_init)
