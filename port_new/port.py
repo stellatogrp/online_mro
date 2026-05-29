@@ -17,6 +17,7 @@ from utils import (
     fixed_cluster,
     get_n_processes,
     gradient_step,
+    safe_solve,
     save_run_metadata,
     w2_dist,
     wasserstein,
@@ -154,39 +155,53 @@ def port_experiments(r_input,K,T,N_init,synthetic_returns,r_start, newfoldername
                     lp_dat.value = k_dict['d'][:num_dat]
                     lp_eps.value = radius
                     lp_w.value = k_dict['w'][:num_dat]
-                    lp_problem.solve( solver=cp.CLARABEL, verbose=False, time_limit=1500.0)
-                    x_current = lp_x.value
-                    tau_current = lp_tau.value
-                    min_obj = lp_problem.objective.value
-                    min_time = lp_problem.solver_stats.solve_time
+                    if safe_solve(lp_problem, name='lp_problem(online,t=0)', t=t,
+                                  solver=cp.CLARABEL, verbose=False, time_limit=1500.0):
+                        x_current = lp_x.value
+                        tau_current = lp_tau.value
+                        min_obj = lp_problem.objective.value
+                        min_time = lp_problem.solver_stats.solve_time
+                    else:
+                        # Warm-start failed; keep the default initial iterate.
+                        min_obj = np.nan
+                        min_time = np.nan
                 else:
                     # Solve worst-case dual at current iterate, then one gradient step.
                     x_star.value = x_current
                     tau_star.value = tau_current
-                    wc_problem.solve( solver=cp.CLARABEL, verbose=False, time_limit=1500.0)
-                    p_opt = p_var.value
-                    z_opt = z_var.value
-                    eta = eta_0 / np.sqrt(t + 1)
-                    F_curr_online = wc_problem.objective.value
+                    if safe_solve(wc_problem, name='wc_problem(online)', t=t,
+                                  solver=cp.CLARABEL, verbose=False, time_limit=1500.0):
+                        p_opt = p_var.value
+                        z_opt = z_var.value
+                        eta = eta_0 / np.sqrt(t + 1)
+                        F_curr_online = wc_problem.objective.value
 
-                    def _inner_eval_online(x_val, tau_val):
-                        # Re-solve the inner max with a trial (x, tau) -- used
-                        # by the Armijo backtracking line search.
-                        x_star.value = x_val
-                        tau_star.value = tau_val
-                        wc_problem.solve(solver=cp.CLARABEL, verbose=False, time_limit=1500.0)
-                        return wc_problem.objective.value
+                        def _inner_eval_online(x_val, tau_val):
+                            # Re-solve the inner max with a trial (x, tau) -- used
+                            # by the Armijo backtracking line search.  On solver
+                            # failure return +inf so Armijo rejects the trial
+                            # and shrinks eta.
+                            x_star.value = x_val
+                            tau_star.value = tau_val
+                            if not safe_solve(wc_problem, name='wc_problem(online,inner_eval)', t=t,
+                                              solver=cp.CLARABEL, verbose=False, time_limit=1500.0):
+                                return np.inf
+                            return wc_problem.objective.value
 
-                    grad_start = time.time()
-                    x_current, tau_current = gradient_step(
-                        x_current, tau_current, p_opt, z_opt, eta, a=a_const,
-                        line_search=line_search,
-                        inner_eval=_inner_eval_online,
-                        F_curr=F_curr_online,
-                    )
-                    grad_time = time.time() - grad_start
-                    min_obj = F_curr_online
-                    min_time = wc_problem.solver_stats.solve_time + grad_time
+                        grad_start = time.time()
+                        x_current, tau_current = gradient_step(
+                            x_current, tau_current, p_opt, z_opt, eta, a=a_const,
+                            line_search=line_search,
+                            inner_eval=_inner_eval_online,
+                            F_curr=F_curr_online,
+                        )
+                        grad_time = time.time() - grad_start
+                        min_obj = F_curr_online
+                        min_time = wc_problem.solver_stats.solve_time + grad_time
+                    else:
+                        # Worst-case solve failed; keep prior (x, tau) iterate.
+                        min_obj = np.nan
+                        min_time = np.nan
 
 
                 # Store timing information
@@ -237,36 +252,46 @@ def port_experiments(r_input,K,T,N_init,synthetic_returns,r_start, newfoldername
                     lp_dat.value = new_k_dict['d']
                     lp_eps.value = radius
                     lp_w.value = new_k_dict['w']
-                    lp_problem.solve( solver=cp.CLARABEL, verbose=False, time_limit=1500.0)
-                    MRO_x_current = lp_x.value
-                    MRO_tau_current = lp_tau.value
-                    MRO_min_obj = lp_problem.objective.value
-                    MRO_min_time = lp_problem.solver_stats.solve_time
+                    if safe_solve(lp_problem, name='lp_problem(MRO,t=0)', t=t,
+                                  solver=cp.CLARABEL, verbose=False, time_limit=1500.0):
+                        MRO_x_current = lp_x.value
+                        MRO_tau_current = lp_tau.value
+                        MRO_min_obj = lp_problem.objective.value
+                        MRO_min_time = lp_problem.solver_stats.solve_time
+                    else:
+                        MRO_min_obj = np.nan
+                        MRO_min_time = np.nan
                 else:
                     MRO_x_star.value = MRO_x_current
                     MRO_tau_star.value = MRO_tau_current
-                    MRO_wc_problem.solve( solver=cp.CLARABEL, verbose=False, time_limit=1500.0)
-                    p_opt = MRO_p_var.value
-                    z_opt = MRO_z_var.value
-                    eta = eta_0 / np.sqrt(t + 1)
-                    F_curr_mro = MRO_wc_problem.objective.value
+                    if safe_solve(MRO_wc_problem, name='MRO_wc_problem', t=t,
+                                  solver=cp.CLARABEL, verbose=False, time_limit=1500.0):
+                        p_opt = MRO_p_var.value
+                        z_opt = MRO_z_var.value
+                        eta = eta_0 / np.sqrt(t + 1)
+                        F_curr_mro = MRO_wc_problem.objective.value
 
-                    def _inner_eval_mro(x_val, tau_val):
-                        MRO_x_star.value = x_val
-                        MRO_tau_star.value = tau_val
-                        MRO_wc_problem.solve(solver=cp.CLARABEL, verbose=False, time_limit=1500.0)
-                        return MRO_wc_problem.objective.value
+                        def _inner_eval_mro(x_val, tau_val):
+                            MRO_x_star.value = x_val
+                            MRO_tau_star.value = tau_val
+                            if not safe_solve(MRO_wc_problem, name='MRO_wc_problem(inner_eval)', t=t,
+                                              solver=cp.CLARABEL, verbose=False, time_limit=1500.0):
+                                return np.inf
+                            return MRO_wc_problem.objective.value
 
-                    grad_start = time.time()
-                    MRO_x_current, MRO_tau_current = gradient_step(
-                        MRO_x_current, MRO_tau_current, p_opt, z_opt, eta, a=a_const,
-                        line_search=line_search,
-                        inner_eval=_inner_eval_mro,
-                        F_curr=F_curr_mro,
-                    )
-                    MRO_grad_time = time.time() - grad_start
-                    MRO_min_obj = F_curr_mro
-                    MRO_min_time = MRO_wc_problem.solver_stats.solve_time + MRO_grad_time
+                        grad_start = time.time()
+                        MRO_x_current, MRO_tau_current = gradient_step(
+                            MRO_x_current, MRO_tau_current, p_opt, z_opt, eta, a=a_const,
+                            line_search=line_search,
+                            inner_eval=_inner_eval_mro,
+                            F_curr=F_curr_mro,
+                        )
+                        MRO_grad_time = time.time() - grad_start
+                        MRO_min_obj = F_curr_mro
+                        MRO_min_time = MRO_wc_problem.solver_stats.solve_time + MRO_grad_time
+                    else:
+                        MRO_min_obj = np.nan
+                        MRO_min_time = np.nan
 
                 mean_val_mro, square_val_mro, sig_val_mro = calc_cluster_val(K, new_k_dict,num_dat,MRO_x_current,running_samples)
 
@@ -285,9 +310,13 @@ def port_experiments(r_input,K,T,N_init,synthetic_returns,r_start, newfoldername
                 eps_d.value = radius
                 x_d.value = x_current
                 tau_d.value = tau_current
-                new_problem.solve( solver=cp.CLARABEL, verbose=False, time_limit=1500.0)
-                new_worst = new_problem.objective.value
-                worst_time = new_problem.solver_stats.solve_time
+                if safe_solve(new_problem, name='worst_case(online)', t=t,
+                              solver=cp.CLARABEL, verbose=False, time_limit=1500.0):
+                    new_worst = new_problem.objective.value
+                    worst_time = new_problem.solver_stats.solve_time
+                else:
+                    new_worst = np.nan
+                    worst_time = np.nan
 
                 history['worst_values'].append(new_worst)
                 history['worst_times'].append(worst_time)
@@ -295,9 +324,13 @@ def port_experiments(r_input,K,T,N_init,synthetic_returns,r_start, newfoldername
             if (t % interval == 0 or ((t-1) % interval == 0) or (t in t_list)) and (t <= 2001 or (t in t_list)):
                 x_d.value = MRO_x_current
                 tau_d.value = MRO_tau_current
-                new_problem.solve( solver=cp.CLARABEL, verbose=False, time_limit=1500.0)
-                new_worst_MRO = new_problem.objective.value
-                MRO_worst_time = new_problem.solver_stats.solve_time
+                if safe_solve(new_problem, name='worst_case(MRO)', t=t,
+                              solver=cp.CLARABEL, verbose=False, time_limit=1500.0):
+                    new_worst_MRO = new_problem.objective.value
+                    MRO_worst_time = new_problem.solver_stats.solve_time
+                else:
+                    new_worst_MRO = np.nan
+                    MRO_worst_time = np.nan
 
                 mean_val, square_val, sig_val = calc_cluster_val(K, k_dict,num_dat,x_current,running_samples)
                 # q_lens = [len(q_dict['data'][i]) for i in range(q_dict['cur_Q'])]
@@ -313,9 +346,13 @@ def port_experiments(r_input,K,T,N_init,synthetic_returns,r_start, newfoldername
                 # compute online worst value (wrt prev stage sols
                 x_d.value = x_prev
                 tau_d.value = tau_prev
-                new_problem.solve( solver=cp.CLARABEL, verbose=False, time_limit=1500.0)
-                new_worst = new_problem.objective.value
-                worst_time = new_problem.solver_stats.solve_time
+                if safe_solve(new_problem, name='worst_case(online,regret)', t=t,
+                              solver=cp.CLARABEL, verbose=False, time_limit=1500.0):
+                    new_worst = new_problem.objective.value
+                    worst_time = new_problem.solver_stats.solve_time
+                else:
+                    new_worst = np.nan
+                    worst_time = np.nan
 
                 history['worst_values_regret'].append(new_worst)
                 history['worst_times_regret'].append(worst_time)
@@ -323,9 +360,13 @@ def port_experiments(r_input,K,T,N_init,synthetic_returns,r_start, newfoldername
             if (t % interval == 0 or ((t-1) % interval == 0) or (t in t_list)) and (t <= 2001 or (t in t_list)):
                 x_d.value = MRO_x_prev
                 tau_d.value = MRO_tau_prev
-                new_problem.solve( solver=cp.CLARABEL, verbose=False, time_limit=1500.0)
-                new_worst_MRO = new_problem.objective.value
-                MRO_worst_time = new_problem.solver_stats.solve_time
+                if safe_solve(new_problem, name='worst_case(MRO,regret)', t=t,
+                              solver=cp.CLARABEL, verbose=False, time_limit=1500.0):
+                    new_worst_MRO = new_problem.objective.value
+                    MRO_worst_time = new_problem.solver_stats.solve_time
+                else:
+                    new_worst_MRO = np.nan
+                    MRO_worst_time = np.nan
 
                 # q_lens = [len(q_dict['data'][i]) for i in range(q_dict['cur_Q'])]
                 # k_lens = [len(k_dict['data'][i]) for i in range(k_dict['K'])]

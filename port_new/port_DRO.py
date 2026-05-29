@@ -12,7 +12,7 @@ from joblib import Parallel, delayed
 from sklearn.model_selection import train_test_split
 import itertools
 
-from utils import createproblem_portLP, get_n_processes, gradient_step, save_run_metadata
+from utils import createproblem_portLP, get_n_processes, gradient_step, safe_solve, save_run_metadata
 from utils import compute_cumulative_regret_dro as compute_cumulative_regret
 from utils import create_scenario_dro as create_scenario
 from utils import createproblem_worstcase_p1_dro as createproblem_worstcase_p1
@@ -44,6 +44,9 @@ def port_experiments(r_input,T,N_init,synthetic_returns,r_start):
         eta_0 = 0.01
         DRO_x_current = np.ones(m) / m
         DRO_tau_current = 0.0
+        # Pre-seed SAA iterate so a solver failure doesn't leave it unbound.
+        SA_x_current = np.ones(m) / m
+        SA_tau_current = 0.0
 
         # History for analysis
         history = {
@@ -109,11 +112,15 @@ def port_experiments(r_input,T,N_init,synthetic_returns,r_start):
                         DRO_data.value = running_samples
                         DRO_w.value = (1/num_dat)*np.ones(num_dat)
                         DRO_eps.value = radius
-                        DRO_problem.solve(ignore_dpp=True,  solver=cp.CLARABEL, verbose=False, time_limit=1500.0)
-                        DRO_x_current = DRO_x.value
-                        DRO_tau_current = DRO_tau.value
-                        DRO_min_obj = DRO_problem.objective.value
-                        DRO_min_time = DRO_problem.solver_stats.solve_time
+                        if safe_solve(DRO_problem, name='DRO_problem(t=0)', t=t,
+                                      ignore_dpp=True, solver=cp.CLARABEL, verbose=False, time_limit=1500.0):
+                            DRO_x_current = DRO_x.value
+                            DRO_tau_current = DRO_tau.value
+                            DRO_min_obj = DRO_problem.objective.value
+                            DRO_min_time = DRO_problem.solver_stats.solve_time
+                        else:
+                            DRO_min_obj = np.nan
+                            DRO_min_time = np.nan
                     else:
                         # Solve worst-case dual at current iterate, then one gradient step.
                         DRO_wc_problem, DRO_p_var, DRO_z_var, DRO_x_star, DRO_tau_star, \
@@ -123,36 +130,46 @@ def port_experiments(r_input,T,N_init,synthetic_returns,r_start):
                         DRO_wc_w.value = (1/num_dat)*np.ones(num_dat)
                         DRO_x_star.value = DRO_x_current
                         DRO_tau_star.value = DRO_tau_current
-                        DRO_wc_problem.solve( ignore_dpp=True, solver=cp.CLARABEL, verbose=False, time_limit=1500.0)
-                        p_opt = DRO_p_var.value
-                        z_opt = DRO_z_var.value
-                        eta = eta_0 / np.sqrt(t + 1)
-                        F_curr_dro = DRO_wc_problem.objective.value
+                        if safe_solve(DRO_wc_problem, name='DRO_wc_problem', t=t,
+                                      ignore_dpp=True, solver=cp.CLARABEL, verbose=False, time_limit=1500.0):
+                            p_opt = DRO_p_var.value
+                            z_opt = DRO_z_var.value
+                            eta = eta_0 / np.sqrt(t + 1)
+                            F_curr_dro = DRO_wc_problem.objective.value
 
-                        def _inner_eval_dro(x_val, tau_val):
-                            DRO_x_star.value = x_val
-                            DRO_tau_star.value = tau_val
-                            DRO_wc_problem.solve(ignore_dpp=True, solver=cp.CLARABEL, verbose=False, time_limit=1500.0)
-                            return DRO_wc_problem.objective.value
+                            def _inner_eval_dro(x_val, tau_val):
+                                DRO_x_star.value = x_val
+                                DRO_tau_star.value = tau_val
+                                if not safe_solve(DRO_wc_problem, name='DRO_wc_problem(inner_eval)', t=t,
+                                                  ignore_dpp=True, solver=cp.CLARABEL, verbose=False, time_limit=1500.0):
+                                    return np.inf
+                                return DRO_wc_problem.objective.value
 
-                        DRO_x_current, DRO_tau_current = gradient_step(
-                            DRO_x_current, DRO_tau_current, p_opt, z_opt, eta, a=a_const,
-                            line_search=line_search,
-                            inner_eval=_inner_eval_dro,
-                            F_curr=F_curr_dro,
-                        )
-                        DRO_min_obj = F_curr_dro
-                        DRO_min_time = DRO_wc_problem.solver_stats.solve_time
+                            DRO_x_current, DRO_tau_current = gradient_step(
+                                DRO_x_current, DRO_tau_current, p_opt, z_opt, eta, a=a_const,
+                                line_search=line_search,
+                                inner_eval=_inner_eval_dro,
+                                F_curr=F_curr_dro,
+                            )
+                            DRO_min_obj = F_curr_dro
+                            DRO_min_time = DRO_wc_problem.solver_stats.solve_time
+                        else:
+                            DRO_min_obj = np.nan
+                            DRO_min_time = np.nan
 
 
             if t % interval_SAA == 0 or ((t-1) % interval_SAA == 0) or (t in t_list)  :
                 if t <= 2001 or (t in t_list):
                     s_prob, s_x, s_tau = create_scenario(running_samples,m,num_dat)
-                    s_prob.solve( ignore_dpp=True, solver=cp.CLARABEL, verbose=False, time_limit=1500.0)
-                    SA_x_current = s_x.value
-                    SA_tau_current = s_tau.value
-                    SA_obj_current = s_prob.objective.value
-                    SA_time = s_prob.solver_stats.solve_time
+                    if safe_solve(s_prob, name='SAA', t=t,
+                                  ignore_dpp=True, solver=cp.CLARABEL, verbose=False, time_limit=1500.0):
+                        SA_x_current = s_x.value
+                        SA_tau_current = s_tau.value
+                        SA_obj_current = s_prob.objective.value
+                        SA_time = s_prob.solver_stats.solve_time
+                    else:
+                        SA_obj_current = np.nan
+                        SA_time = np.nan
 
                     history['DRO_computation_times']['total_iteration'].append(DRO_min_time)
                     history['DRO_x'].append(DRO_x_current)

@@ -12,7 +12,7 @@ from joblib import Parallel, delayed
 from sklearn.model_selection import train_test_split
 import itertools
 
-from utils import createproblem_portLP, get_n_processes, save_run_metadata
+from utils import createproblem_portLP, get_n_processes, safe_solve, save_run_metadata
 from utils import compute_cumulative_regret_dro as compute_cumulative_regret
 from utils import create_scenario_dro as create_scenario
 
@@ -31,6 +31,13 @@ def port_experiments(r_input,T,N_init,synthetic_returns,r_start):
 
         init_eps = eps_init[epsnum]
         num_dat = N_init
+
+        # Pre-seed the DRO/SAA iterates so a solver failure at the first
+        # interval still leaves them defined for the history append.
+        DRO_x_current = np.ones(m) / m
+        DRO_tau_current = 0.0
+        SA_x_current = np.ones(m) / m
+        SA_tau_current = 0.0
 
         # History for analysis
         history = {
@@ -94,21 +101,29 @@ def port_experiments(r_input,T,N_init,synthetic_returns,r_start):
                     DRO_data.value = running_samples
                     DRO_w.value = (1/num_dat)*np.ones(num_dat)
                     DRO_eps.value = radius
-                    DRO_problem.solve( solver=cp.CLARABEL, verbose=False, time_limit=1500.0)
-                    DRO_x_current = DRO_x.value
-                    DRO_tau_current = DRO_tau.value
-                    DRO_min_obj = DRO_problem.objective.value
-                    DRO_min_time = DRO_problem.solver_stats.solve_time
+                    if safe_solve(DRO_problem, name='DRO_problem', t=t,
+                                  solver=cp.CLARABEL, verbose=False, time_limit=1500.0):
+                        DRO_x_current = DRO_x.value
+                        DRO_tau_current = DRO_tau.value
+                        DRO_min_obj = DRO_problem.objective.value
+                        DRO_min_time = DRO_problem.solver_stats.solve_time
+                    else:
+                        DRO_min_obj = np.nan
+                        DRO_min_time = np.nan
 
 
             if t % interval_SAA == 0 or ((t-1) % interval_SAA == 0) or (t in t_list)  :
                 if t <= 2001 or (t in t_list):
                     s_prob, s_x, s_tau = create_scenario(running_samples,m,num_dat)
-                    s_prob.solve( solver=cp.CLARABEL, verbose=False, time_limit=1500.0)
-                    SA_x_current = s_x.value
-                    SA_tau_current = s_tau.value
-                    SA_obj_current = s_prob.objective.value
-                    SA_time = s_prob.solver_stats.solve_time
+                    if safe_solve(s_prob, name='SAA', t=t,
+                                  solver=cp.CLARABEL, verbose=False, time_limit=1500.0):
+                        SA_x_current = s_x.value
+                        SA_tau_current = s_tau.value
+                        SA_obj_current = s_prob.objective.value
+                        SA_time = s_prob.solver_stats.solve_time
+                    else:
+                        SA_obj_current = np.nan
+                        SA_time = np.nan
 
                     history['DRO_computation_times']['total_iteration'].append(DRO_min_time)
                     history['DRO_x'].append(DRO_x_current)

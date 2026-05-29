@@ -61,6 +61,36 @@ def save_run_metadata(metadata, paths):
         with open(os.path.join(d, 'metadata.txt'), 'w') as f:
             f.write(txt)
 
+
+def safe_solve(problem, name='?', t=None, **solve_kwargs):
+    """Try ``problem.solve(**solve_kwargs)``.
+
+    Returns True iff a usable solution exists -- no exception, and the
+    solver's reported status is one of ``{'optimal', 'optimal_inaccurate'}``.
+    Any caught exception OR non-optimal status prints a single warning line
+    to stdout (with ``flush=True`` so it survives joblib workers) and
+    returns False.
+
+    Used by the port_new experiment scripts to tolerate individual solve
+    failures without aborting the whole epsilon block.  The caller is
+    responsible for falling back to a sentinel (np.nan / prior iterate)
+    when the return value is False.
+    """
+    try:
+        problem.solve(**solve_kwargs)
+    except Exception as e:
+        print(
+            f"[safe_solve] {name} t={t} raised: {type(e).__name__}: {e}",
+            flush=True,
+        )
+        return False
+    status = getattr(problem, 'status', None)
+    if status not in ('optimal', 'optimal_inaccurate'):
+        print(f"[safe_solve] {name} t={t} status={status}", flush=True)
+        return False
+    return True
+
+
 def get_n_processes(max_n=np.inf):
     """Get number of processes from current cps number
     Parameters
