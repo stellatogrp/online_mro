@@ -476,11 +476,11 @@ if __name__ == '__main__':
     fixed_time = arguments.fixed_time
     interval = arguments.interval
     N_init = arguments.N_init
-    K_arr = [5,15,25]
+    K_arr = [15,25,30]
     K = K_arr[idx]
-    foldername = foldername + 'K'+str(K)+'_R'+str(R)+'_T'+str(T-1)+'/'
-    os.makedirs(foldername, exist_ok=True)
-    print(foldername)
+    newfoldername = foldername + 'K'+str(K)+'_R'+str(R)+'_T'+str(T-1)+'/'
+    os.makedirs(newfoldername, exist_ok=True)
+    print(newfoldername)
     script_dir = os.path.dirname(os.path.abspath(__file__))
     datname = os.path.join(script_dir, 'synthetic_200_1.csv')
     synthetic_returns = pd.read_csv(datname
@@ -512,7 +512,7 @@ if __name__ == '__main__':
             'num_random_seeds': R,
             'total_test_combinations': len(eps_init) * R,
         },
-        [foldername, (newdatname, f'metadata_K{K}.json')],
+        [newfoldername, (newdatname, f'metadata_K{K}.json')],
     )
 
     results = Parallel(n_jobs=njobs)(delayed(port_experiments)(
@@ -528,7 +528,7 @@ if __name__ == '__main__':
     findfs = {}
     for r in range(R):
         findfs[r] = pd.concat([dfs[r][i] for i in range(len(eps_init))],ignore_index=True)
-        findfs[r].to_csv(foldername + 'df_' + str(r+r_start) +'.csv')
+        findfs[r].to_csv(newfoldername + 'df_' + str(r+r_start) +'.csv')
 
     for r in range(R):
         findfs[r] = findfs[r].drop(columns=['weights','MRO_weights'])

@@ -566,7 +566,7 @@ if __name__ == '__main__':
     interval = arguments.interval
     N_init = arguments.N_init
     line_search = arguments.line_search
-    K_arr = [25,35,]
+    K_arr = [15,25,30]
     K = K_arr[idx]
     newfoldername = foldername + 'K'+str(K)+'_R'+str(R)+'_T'+str(T-1)+'/'
     os.makedirs(newfoldername, exist_ok=True)
