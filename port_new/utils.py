@@ -145,6 +145,86 @@ def createproblem_portLP(N, m):
     problem = cp.Problem(cp.Minimize(objective), constraints)
     return problem, x, s, tau, lam, dat, eps, w
 
+
+def pca(data, k):
+    """PCA projection of ``data`` (shape (N, m)).
+
+    Parameters
+    ----------
+    data : array-like of shape (N, m)
+        Samples to fit PCA on.
+    k : int or float
+        * If ``int`` (>=1): keep the top-``k`` principal directions.
+        * If ``float`` in ``(0, 1]``: auto-pick the smallest number of
+          components whose cumulative explained-variance ratio is
+          ``>= k`` (e.g. ``k=0.8`` keeps enough components to cover
+          80% of the variance).
+
+    Returns
+    -------
+    A : ndarray of shape (k_eff, m)
+        Top-``k_eff`` right singular vectors (principal directions, as rows).
+        The low-dim image of a sample xi is  ``A @ (xi - b)``.
+    b : ndarray of shape (m,)
+        Sample mean of the input rows.
+    """
+    data = np.asarray(data, dtype=float)
+    b = data.mean(axis=0)
+    centered = data - b
+    # SVD: centered = U @ diag(S) @ Vt; rows of Vt are right singular
+    # vectors (principal directions).
+    _, S, Vt = np.linalg.svd(centered, full_matrices=False)
+
+    if isinstance(k, float) and 0 < k <= 1:
+        var = S ** 2
+        total = var.sum()
+        if total == 0:
+            k_eff = 1
+        else:
+            ratio = np.cumsum(var) / total
+            # smallest index whose cumulative ratio is >= k
+            k_eff = int(np.searchsorted(ratio, k) + 1)
+            k_eff = max(1, min(k_eff, len(S)))
+    else:
+        k_eff = int(k)
+
+    A = Vt[:k_eff]
+    return A, b
+
+
+def createproblem_portLP_lr(N, m,A,b):
+    """Continuous relaxation of createproblem_portMIP (no cardinality constraint).
+
+    Used as a one-shot warm-start to seed (x, tau) before switching to
+    worst-case + gradient-step iterates.
+    """
+    # PARAMETERS #
+    dat = cp.Parameter((N, m))
+    eps = cp.Parameter()
+    w = cp.Parameter(N)
+    a = -5
+
+    # VARIABLES #
+    x = cp.Variable(m)
+    s = cp.Variable(N)
+    lam = cp.Variable()
+    tau = cp.Variable()
+    # OBJECTIVE #
+    objective = tau + eps*lam + w@s
+    # CONSTRAINTS #
+    constraints = []
+    constraints += [a*tau + a*((dat - b) @ A.T @ A + b) @ x<= s]
+    constraints += [s >= 0]
+    constraints += [cp.norm(a*A@x, 2) <= lam]
+    constraints += [cp.sum(x) == 1]
+    constraints += [x >= 0, x <= 1]
+    constraints += [lam >= 0]
+    # PROBLEM #
+    problem = cp.Problem(cp.Minimize(objective), constraints)
+    return problem, x, s, tau, lam, dat, eps, w
+
+
+
 def find_min_pairwise_distance(data):
     distances = distance.cdist(data, data)
     np.fill_diagonal(distances, np.inf)  # set diagonal to infinity to ignore self-distances
