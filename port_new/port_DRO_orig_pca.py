@@ -68,6 +68,7 @@ def port_experiments(r_input,T,N_init,synthetic_returns,r_start):
             },
             'DRO_computation_times':{
             'pca': [],
+            'pca_k': [],
             'total_iteration':[]
             },
             'distances':[],
@@ -96,11 +97,13 @@ def port_experiments(r_input,T,N_init,synthetic_returns,r_start):
             radius = init_eps*(1/(num_dat**(1/(40))))
             running_samples = dat[init_ind:(init_ind+num_dat)]
 
-            # Refit PCA on the current running window every `pca_interval`
-            # timesteps; between refits the most recent (pca_A, pca_b) is
-            # reused (pca_time = 0 for accounting). Always refit at t=0 so
-            # the iterates have a fit available on the first solve.
-            if t % pca_interval == 0:
+            # Refit PCA. Inside the warm-up window (t < pca_init_timesteps)
+            # use `pca_init_interval`; outside it, use the steady-state
+            # `pca_interval`. Between refits the most recent (pca_A, pca_b)
+            # is reused (pca_time = 0 for accounting). Always refit at t=0
+            # so the iterates have a fit available on the first solve.
+            _eff_pca_interval = pca_init_interval if t < pca_init_timesteps else pca_interval
+            if t % _eff_pca_interval == 0:
                 _pca_start = time.time()
                 pca_A, pca_b = pca(running_samples, lr_k)
                 pca_time = time.time() - _pca_start
@@ -139,6 +142,7 @@ def port_experiments(r_input,T,N_init,synthetic_returns,r_start):
                         SA_time = np.nan
 
                     history['DRO_computation_times']['pca'].append(pca_time)
+                    history['DRO_computation_times']['pca_k'].append(int(pca_A.shape[0]))
                     history['DRO_computation_times']['total_iteration'].append(DRO_min_time + pca_time)
                     history['DRO_x'].append(DRO_x_current)
                     history['DRO_tau'].append(DRO_tau_current)
@@ -171,6 +175,8 @@ def port_experiments(r_input,T,N_init,synthetic_returns,r_start):
                     'DRO_obj_values': np.array(history['DRO_obj_values']),
                     'epsilon': np.array(history['epsilon']),
                     'DRO_time':  np.array(history['DRO_computation_times']['total_iteration']),
+                    'DRO_pca_time': np.array(history['DRO_computation_times']['pca']),
+                    'DRO_pca_k': np.array(history['DRO_computation_times']['pca_k']),
                     'DRO_eval1': DRO_eval[0],
                     'DRO_eval2': DRO_eval[1],
                     # 'DRO_eval3': DRO_eval[2],
@@ -206,6 +212,8 @@ def port_experiments(r_input,T,N_init,synthetic_returns,r_start):
                 'DRO_obj_values': np.array(history['DRO_obj_values']),
                 'epsilon': np.array(history['epsilon']),
                 'DRO_time':  np.array(history['DRO_computation_times']['total_iteration']),
+                'DRO_pca_time': np.array(history['DRO_computation_times']['pca']),
+                'DRO_pca_k': np.array(history['DRO_computation_times']['pca_k']),
                 'DRO_eval1': DRO_eval[0],
                 'DRO_eval2': DRO_eval[1],
                 # 'DRO_eval3': DRO_eval[2],
@@ -277,6 +285,11 @@ if __name__ == '__main__':
                         help='Refit PCA every this many timesteps (default 1 = every step). '
                              'Larger values amortize the SVD cost; the most recent fit is reused '
                              'between refits.')
+    parser.add_argument('--pca_init_timesteps', type=int, default=100,
+                        help='Length of the warm-up window (in timesteps).  For t < this value, '
+                             'use --pca_init_interval instead of --pca_interval (default 100).')
+    parser.add_argument('--pca_init_interval', type=int, default=1,
+                        help='Refit-PCA cadence used during the warm-up window (default 1 = every step).')
 
 
     arguments = parser.parse_args()
@@ -293,6 +306,8 @@ if __name__ == '__main__':
     # consumed by pca() to auto-pick the rank each fit.
     lr_k = arguments.lr_k if arguments.lr_k is not None else float(arguments.lr_var_frac)
     pca_interval = max(1, int(arguments.pca_interval))
+    pca_init_timesteps = max(0, int(arguments.pca_init_timesteps))
+    pca_init_interval = max(1, int(arguments.pca_init_interval))
     K_arr = [5,15]
     foldername = foldername +'R'+str(R)+'_T'+str(T-1)+'/'
     os.makedirs(foldername, exist_ok=True)
@@ -331,6 +346,8 @@ if __name__ == '__main__':
             'num_random_seeds': R,
             'total_test_combinations': len(eps_init) * R,
             'pca_interval':pca_interval,
+            'pca_init_timesteps': pca_init_timesteps,
+            'pca_init_interval': pca_init_interval,
             "lr_k": lr_k
         },
         [foldername, newdatname],
