@@ -136,13 +136,16 @@ def port_experiments(r_input,K,T,N_init,synthetic_returns,r_start):
             radius = init_eps*(1/(num_dat**(1/(40))))
             running_samples = dat[init_ind:(init_ind+num_dat)]
 
-            # Refit PCA on the current running window so the low-rank DRO
-            # projection tracks distribution drift across timesteps.  Time
-            # the refit and include it in both online and MRO `total_iteration`
-            # accountings (both branches consume the same fit).
-            _pca_start = time.time()
-            pca_A, pca_b = pca(running_samples, lr_k)
-            pca_time = time.time() - _pca_start
+            # Refit PCA on the current running window every `pca_interval`
+            # timesteps; between refits the most recent (pca_A, pca_b) is
+            # reused (pca_time = 0 for accounting). Always refit at t=0 so
+            # the iterates have a fit available on the first solve.
+            if t % pca_interval == 0:
+                _pca_start = time.time()
+                pca_A, pca_b = pca(running_samples, lr_k)
+                pca_time = time.time() - _pca_start
+            else:
+                pca_time = 0.0
 
             # solve online MRO problem
             if t % interval == 0 or ((t-1) % interval == 0) or (t in t_list):
@@ -490,6 +493,10 @@ if __name__ == '__main__':
     parser.add_argument('--lr_var_frac', type=float, default=0.8,
                         help='Auto-pick lr_k as the smallest #PCs whose cumulative explained '
                              'variance is >= this fraction (default 0.8).')
+    parser.add_argument('--pca_interval', type=int, default=1,
+                        help='Refit PCA every this many timesteps (default 1 = every step). '
+                             'Larger values amortize the SVD cost; the most recent fit is reused '
+                             'between refits.')
 
     arguments = parser.parse_args()
     foldername = arguments.foldername
@@ -505,6 +512,7 @@ if __name__ == '__main__':
     # Either a fixed int (explicit --lr_k) or a float variance fraction
     # consumed by pca() to auto-pick the rank each fit.
     lr_k = arguments.lr_k if arguments.lr_k is not None else float(arguments.lr_var_frac)
+    pca_interval = max(1, int(arguments.pca_interval))
     K_arr = [15,25,30]
     K = K_arr[idx]
     newfoldername = foldername + 'K'+str(K)+'_R'+str(R)+'_T'+str(T-1)+'/'
