@@ -33,7 +33,7 @@ from utils import online_cluster_update_online as online_cluster_update
 output_stream = sys.stdout
 
 
-def port_experiments(r_input,K,T,N_init,synthetic_returns,r_start, newfoldername):
+def port_experiments(r_input,K,T,N_init,synthetic_returns,eta_0, r_start, newfoldername):
     try:
         r,epsnum = list_inds[r_input]
         np.random.seed(r_start+r)
@@ -66,7 +66,6 @@ def port_experiments(r_input,K,T,N_init,synthetic_returns,r_start, newfoldername
         R = np.linalg.norm(dateval, axis=1).mean()
         L_x = abs(a_const) * R
         # eta_0 = D_x / L_x
-        eta_0 = 0.01
 
         x_current = np.ones(m) / m
         tau_current = 0.0
@@ -553,6 +552,8 @@ if __name__ == '__main__':
     parser.add_argument('--line_search', action=argparse.BooleanOptionalAction,
                         default=True,
                         help='Armijo backtracking line search inside gradient_step (default: on; pass --no-line_search to disable).')
+    parser.add_argument('--eta_0', type=float, default=0.01)
+
 
     arguments = parser.parse_args()
     foldername = arguments.foldername
@@ -561,6 +562,7 @@ if __name__ == '__main__':
     m = arguments.m
     Q = arguments.Q
     T = arguments.T
+    eta_0 = arguments.eta_0
     r_start = arguments.r_start
     fixed_time = arguments.fixed_time
     interval = arguments.interval
@@ -580,7 +582,7 @@ if __name__ == '__main__':
     njobs = get_n_processes(100)
     #eps_init = [0.006,0.005,0.004,0.0035,0.003,0.0025,0.002,0.0015,0.001]
     #eps_init = [0.0085,0.008,0.007,0.006,0.005,0.0045,0.004,0.0035]
-    eps_init = [0.009,0.008,0.007,0.006,0.005,0.004,0.003]
+    eps_init = [0.03,0.02,0.015,0.009,0.008,0.007,0.006,0.005]
     if T >= 5000:
         eps_init = [0.0035,0.003,0.0025,0.002]
     M = len(eps_init)
@@ -598,7 +600,7 @@ if __name__ == '__main__':
             'K': K, 'T': T, 'R': R, 'm': m, 'Q': Q,
             'fixed_time': fixed_time, 'interval': interval, 'N_init': N_init,
             'r_start': r_start, 'line_search': line_search,
-            'eta_0': 0.01,
+            'eta_0': eta_0,
             'epsilon_values': [float(e) for e in eps_init],
             'num_epsilon_values': len(eps_init),
             'num_random_seeds': R,
@@ -608,7 +610,7 @@ if __name__ == '__main__':
     )
 
     results = Parallel(n_jobs=njobs)(delayed(port_experiments)(
-        r_input,K,T,N_init,synthetic_returns,r_start, newfoldername) for r_input in range(len(list_inds)))
+        r_input,K,T,N_init,synthetic_returns, eta_0,r_start, newfoldername) for r_input in range(len(list_inds)))
 
     dfs = {}
     for r in range(R):
