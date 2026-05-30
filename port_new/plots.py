@@ -827,9 +827,9 @@ def infer_end_ind(df_dict, K=None, t_col='t'):
     return int(len(dfk))
 
 
-foldername_orig = '/scratch/gpfs/BSTELLATO/iywang/low_rank/online_mro/port_new/results/orig/p1/3/T'+str(T-1)+'R'+str(R)+'/'
+foldername_orig = '/scratch/gpfs/BSTELLATO/iywang/low_rank/online_mro/port_new/results/orig/p1/pca0/T'+str(T-1)+'R'+str(R)+'/'
 
-folderout_orig = '/scratch/gpfs/BSTELLATO/iywang/low_rank/online_mro/port_new/plots_new/orig/3/T'+str(T-1)+'R'+str(R)+'/'
+folderout_orig = '/scratch/gpfs/BSTELLATO/iywang/low_rank/online_mro/port_new/plots_new/orig/pca0/T'+str(T-1)+'R'+str(R)+'/'
 
 os.makedirs(folderout_orig, exist_ok=True)
 
@@ -839,7 +839,7 @@ folderout_new = '/scratch/gpfs/BSTELLATO/iywang/low_rank/online_mro/port_new/plo
 
 os.makedirs(folderout_new, exist_ok=True)
 
-folderout = '/scratch/gpfs/BSTELLATO/iywang/low_rank/online_mro/port_new/plots_new/comp/3/T'+str(T-1)+'R'+str(R)+'/'
+folderout = '/scratch/gpfs/BSTELLATO/iywang/low_rank/online_mro/port_new/plots_new/comp/pca0/T'+str(T-1)+'R'+str(R)+'/'
 
 os.makedirs(folderout, exist_ok=True)
 
@@ -870,5 +870,5 @@ plot_eval_compare(
     df_orig, quantiles_orig, df_orig, quantiles_orig,
     df_new, quantiles_new, df_new, quantiles_new,
     j=(0,2,0), j_grad=(0,2,0), K=25, q=(25,75),
-    end_ind=end_ind_orig, end_ind_grad= end_ind_new,val2=2.3, legend=True,
+    end_ind=end_ind_orig, end_ind_grad= end_ind_new, legend=True,
 )
