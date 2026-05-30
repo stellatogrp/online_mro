@@ -548,7 +548,8 @@ if __name__ == '__main__':
             'num_epsilon_values': len(eps_init),
             'num_random_seeds': R,
             'total_test_combinations': len(eps_init) * R,
-            'PCA': lr_k
+            'PCA': lr_k,
+            "pca_interval": pca_interval
         },
         [newfoldername, (newdatname, f'metadata_K{K}.json')],
     )
