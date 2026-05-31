@@ -203,7 +203,7 @@ def plot_eval_all_compare(
     #          linewidth=1, label="online clustering Full", marker="v", ms=1.5)
     # _band(ax1, quantiles[q1], quantiles[q2], 'online_time', j1, end_ind, 'b', t_range, stride)
     ax1.plot(t_range, df['MRO_time'][(j4*end_ind):(j4+1)*end_ind:stride], 'r-',
-             linewidth=1, label="reclustering Full", marker="D", ms=1.5)
+             linewidth=1, label="Reclustering Full", marker="D", ms=1.5)
     _band(ax1, quantiles[q1], quantiles[q2], 'MRO_time', j4, end_ind, 'r', t_range, stride)
     ax1.plot(t_range, df1['DRO_time'][(j3*end_ind):(j3+1)*end_ind:stride], 'k-',
              linewidth=1, label="DRO Full", marker="s", ms=1.5)
@@ -883,13 +883,13 @@ end_ind_new = infer_end_ind(df_new, K = 25)
 plot_eval_all_compare(
     df_orig, quantiles_orig, df_orig_dro, quantiles_orig_dro,
     df_new, quantiles_new, df_new_dro, quantiles_new_dro,
-    j=(0,3,0), j_grad=(0,3,0), K=25, q=(25,75),
+    j=(0,0,0), j_grad=(0,0,0), K=25, q=(25,75),
     end_ind=end_ind_orig, end_ind_grad= end_ind_new,val2=2.3, legend=True,
 )
 
 plot_eval_compare(
    df_orig, quantiles_orig, df_orig_dro, quantiles_orig_dro,
     df_new, quantiles_new, df_new_dro, quantiles_new_dro,
-    j=(0,3,0), j_grad=(0,3,0), K=25, q=(25,75),
+    j=(0,0,0), j_grad=(0,0,0), K=25, q=(25,75),
     end_ind=end_ind_orig, end_ind_grad= end_ind_new, legend=True,
 )
