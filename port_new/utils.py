@@ -750,7 +750,7 @@ def online_cluster_init_online(K, Q, data, m):
         q_dict['data'][q] = cluster_data
         rmse = np.sqrt(calc_rmse(cluster_data,np.reshape(q_dict['d'][q],(1,m))))
         if rmse <= 1e-6:
-            rmse = 0.04
+            rmse = 0.02
         q_dict['rmse'][q] = rmse
     k_dict = {}
     k_dict['a'] = np.zeros((K,m))
