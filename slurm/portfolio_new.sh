@@ -28,6 +28,6 @@ conda activate lropt_rev
 
 # python port_new/port_DRO_orig.py --foldername port_new/results/orig/p1/3/ --R 2 --T 2001 --interval 10 --interval_SAA 10 --N_init 5 --r_start 8 --m 50
 
-python port_new/port_DRO_orig_pca.py --foldername port_new/results/orig/p1/pca5/ --R 2 --T 2001 --interval 10 --interval_SAA 10 --N_init 5 --r_start 8 --m 150 --lr_var_frac 0.95 --pca_interval 100 --pca_init_interval 5 --pca_init_timesteps 200
+python port_new/port_DRO_orig_pca.py --foldername port_new/results/orig/p1/pca5/ --R 2 --T 2001 --interval 10 --interval_SAA 10 --N_init 5 --r_start 0 --m 150 --lr_var_frac 0.95 --pca_interval 100 --pca_init_interval 10 --pca_init_timesteps 200
 
 # python portfolio_new/port.py --foldername portfolio_new/results/ --R 10 --T 10000 --fixed_time 8500  --interval 500 --Q 500 --K 5 --r_start 20 --m 50 --N_init 5
