@@ -832,38 +832,38 @@ def infer_end_ind(df_dict, K=None, t_col='t'):
     return int(len(dfk))
 
 
-foldername_orig = '/scratch/gpfs/BSTELLATO/iywang/low_rank/online_mro/port_new/results/orig/p1/4/T'+str(T-1)+'R'+str(R)+'/'
+foldername_orig = '/scratch/gpfs/BSTELLATO/iywang/low_rank/online_mro/port_new/results/orig/p1/pca5/T'+str(T-1)+'R'+str(R)+'/'
 
-folderout_orig = '/scratch/gpfs/BSTELLATO/iywang/low_rank/online_mro/port_new/plots_new/orig/4/T'+str(T-1)+'R'+str(R)+'/'
-
-os.makedirs(folderout_orig, exist_ok=True)
-
-foldername_orig_dro = '/scratch/gpfs/BSTELLATO/iywang/low_rank/online_mro/port_new/results/orig/p1/4/T'+str(T-1)+'R'+str(R)+'/'
-
-folderout_orig_dro = '/scratch/gpfs/BSTELLATO/iywang/low_rank/online_mro/port_new/plots_new/orig/4/T'+str(T-1)+'R'+str(R)+'/'
+folderout_orig = '/scratch/gpfs/BSTELLATO/iywang/low_rank/online_mro/port_new/plots_new/orig/pca5/T'+str(T-1)+'R'+str(R)+'/'
 
 os.makedirs(folderout_orig, exist_ok=True)
 
-foldername_new = '/scratch/gpfs/BSTELLATO/iywang/low_rank/online_mro/port_new/results/new/p1/4/T'+str(T-1)+'R'+str(R)+'/'
+foldername_orig_dro = '/scratch/gpfs/BSTELLATO/iywang/low_rank/online_mro/port_new/results/orig/p1/pca5/T'+str(T-1)+'R'+str(R)+'/'
 
-folderout_new = '/scratch/gpfs/BSTELLATO/iywang/low_rank/online_mro/port_new/plots_new/new/4/T'+str(T-1)+'R'+str(R)+'/'
+folderout_orig_dro = '/scratch/gpfs/BSTELLATO/iywang/low_rank/online_mro/port_new/plots_new/orig/pca5/T'+str(T-1)+'R'+str(R)+'/'
+
+os.makedirs(folderout_orig, exist_ok=True)
+
+foldername_new = '/scratch/gpfs/BSTELLATO/iywang/low_rank/online_mro/port_new/results/new/p1/pca5/T'+str(T-1)+'R'+str(R)+'/'
+
+folderout_new = '/scratch/gpfs/BSTELLATO/iywang/low_rank/online_mro/port_new/plots_new/new/pca5/T'+str(T-1)+'R'+str(R)+'/'
 
 os.makedirs(folderout_new, exist_ok=True)
 
-foldername_new_dro = '/scratch/gpfs/BSTELLATO/iywang/low_rank/online_mro/port_new/results/new/p1/8/T'+str(T-1)+'R'+str(R)+'/'
+foldername_new_dro = '/scratch/gpfs/BSTELLATO/iywang/low_rank/online_mro/port_new/results/new/p1/pca5/T'+str(T-1)+'R'+str(R)+'/'
 
-folderout_new_dro = '/scratch/gpfs/BSTELLATO/iywang/low_rank/online_mro/port_new/plots_new/new/8/T'+str(T-1)+'R'+str(R)+'/'
+folderout_new_dro = '/scratch/gpfs/BSTELLATO/iywang/low_rank/online_mro/port_new/plots_new/new/pca5/T'+str(T-1)+'R'+str(R)+'/'
 
-os.makedirs(folderout_new, exist_ok=True)
+os.makedirs(folderout_new_dro, exist_ok=True)
 
-folderout = '/scratch/gpfs/BSTELLATO/iywang/low_rank/online_mro/port_new/plots_new/comp/4_new/T'+str(T-1)+'R'+str(R)+'/'
+folderout = '/scratch/gpfs/BSTELLATO/iywang/low_rank/online_mro/port_new/plots_new/comp/pca5/T'+str(T-1)+'R'+str(R)+'/'
 
 os.makedirs(folderout, exist_ok=True)
 
 
-df_orig, quantiles_orig = setup_dfs(foldername = foldername_orig, folderout = folderout_orig, K_list = [15,25], init = True)
+df_orig, quantiles_orig = setup_dfs(foldername = foldername_orig, folderout = folderout_orig, K_list = [0,15,25], init = True)
 
-df_new, quantiles_new = setup_dfs(foldername = foldername_new, folderout = folderout_new, K_list = [15,25], init = True)
+df_new, quantiles_new = setup_dfs(foldername = foldername_new, folderout = folderout_new, K_list = [0,15,25], init = True)
 
 df_orig_dro, quantiles_orig_dro = setup_dfs(foldername = foldername_orig_dro, folderout = folderout_orig_dro, K_list = [0], init = True)
 
@@ -872,24 +872,24 @@ df_new_dro, quantiles_new_dro = setup_dfs(foldername = foldername_new_dro, folde
 # df1,quantiles1 = setup_dfs(folderout = folderout,init = False)
 
 end_ind_orig = infer_end_ind(df_orig, K=25)
+end_ind_new = 0
+# end_ind_new = infer_end_ind(df_new, K = 25)
 
-end_ind_new = infer_end_ind(df_new, K = 25)
+plot_eval_all(df_orig,quantiles_orig,df_orig,quantiles_orig,j=(0,0,0),K=25,q=(25,75),ylim=[0.004,0.02],legend = True,val2=2.3, end_ind=end_ind_orig)
 
-# plot_eval_all(df_orig,quantiles_orig,df_orig,quantiles_orig,j=(0,0,0),K=15,q=(25,75),ylim=[0.004,0.02],legend = True,val2=2.3, end_ind=end_ind_orig)
-
-# plot_eval(df_orig,quantiles_orig,df_orig,quantiles_orig,j=(0,0,0),K=15,q=(25,75),end_ind=end_ind_orig,legend = True)
+plot_eval(df_orig,quantiles_orig,df_orig,quantiles_orig,j=(0,0,0),K=25,q=(25,75),end_ind=end_ind_orig,legend = True)
 
 
-plot_eval_all_compare(
-    df_orig, quantiles_orig, df_orig_dro, quantiles_orig_dro,
-    df_new, quantiles_new, df_new_dro, quantiles_new_dro,
-    j=(0,2,5), j_grad=(0,2,0), K=25, q=(25,75),
-    end_ind=end_ind_orig, end_ind_grad= end_ind_new,val2=2.3, legend=True,
-)
+# plot_eval_all_compare(
+#     df_orig, quantiles_orig, df_orig_dro, quantiles_orig_dro,
+#     df_new, quantiles_new, df_new_dro, quantiles_new_dro,
+#     j=(0,2,4), j_grad=(0,2,4), K=25, q=(25,75),
+#     end_ind=end_ind_orig, end_ind_grad= end_ind_new,val2=2.3, legend=True,
+# )
 
-plot_eval_compare(
-   df_orig, quantiles_orig, df_orig_dro, quantiles_orig_dro,
-    df_new, quantiles_new, df_new_dro, quantiles_new_dro,
-    j=(0,2,5), j_grad=(0,2,0), K=25, q=(25,75),
-    end_ind=end_ind_orig, end_ind_grad= end_ind_new, legend=True,
-)
+# plot_eval_compare(
+#    df_orig, quantiles_orig, df_orig_dro, quantiles_orig_dro,
+#     df_new, quantiles_new, df_new_dro, quantiles_new_dro,
+#     j=(0,2,4), j_grad=(0,2,4), K=25, q=(25,75),
+#     end_ind=end_ind_orig, end_ind_grad= end_ind_new, legend=True,
+# )
