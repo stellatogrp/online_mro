@@ -645,6 +645,20 @@ def create_scenario_dro(dat,m,num_dat):
     problem = cp.Problem(cp.Minimize(objective), constraints)
     return problem, x, tau
 
+
+def create_scenario_cluster(dat, m, K, w):
+    """SAA scenario/CVaR problem (same formulation as ``create_scenario_dro``)
+    but over the ``K`` clustered points ``dat`` weighted by the cluster masses
+    ``w`` (which sum to 1) instead of a uniform ``1/num_dat`` weighting."""
+    tau = cp.Variable()
+    x = cp.Variable(m)
+    objective = w @ (tau + 5*cp.maximum(-dat@x - tau, 0))
+    constraints = []
+    constraints += [cp.sum(x) == 1]
+    constraints += [x >= 0, x <= 1]
+    problem = cp.Problem(cp.Minimize(objective), constraints)
+    return problem, x, tau
+
 def createproblem_worstcase_p1_online(N, m, a=-5):
     """Worst-case distribution problem with parameters for warm re-solving.
 

@@ -21,7 +21,7 @@ conda activate lropt_rev
 
 python port_new/reg_orig.py --foldername regression/results/p2/0/ --R 5 --T 2001 --fixed_time 2001 --interval 100 --Q 500 --K 10 --N_init 5 --r_start 0 --m 50
 
-python port_new/reg_DRO_orig.py --foldername regression/results/p2/0/ --R 2 --T 2001 --interval 100 --interval_SAA 100 --N_init 5 --r_start 0 --m 50
+# python port_new/reg_DRO_orig.py --foldername regression/results/p2/0/ --R 2 --T 2001 --interval 100 --interval_SAA 100 --N_init 5 --r_start 0 --m 50
 
 
 # python portfolio_new/port.py --foldername portfolio_new/results/ --R 10 --T 10000 --fixed_time 8500  --interval 500 --Q 500 --K 5 --r_start 20 --m 50 --N_init 5

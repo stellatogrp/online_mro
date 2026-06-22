@@ -17,6 +17,7 @@ import copy
 
 from utils import (
     createproblem_portLP,
+    create_scenario_cluster,
     fixed_cluster,
     get_n_processes,
     safe_solve,
@@ -32,6 +33,35 @@ from utils import online_cluster_update_online as online_cluster_update
 
 
 output_stream = sys.stdout
+
+
+def compute_saa_regret(history, dateval, m):
+    """cluster_SAA analogue of ``compute_cumulative_regret_online``.
+
+    Evaluates the SAA-on-clustered-data solution (``SAA_x``/``SAA_tau``) on the
+    held-out samples and reports the (in-sample objective >= out-of-sample
+    cost) satisfaction indicators, matching the online/MRO bookkeeping.
+    """
+    def evaluate_expected_cost(d_eval, x, tau):
+        return np.mean(np.maximum(-5*d_eval@x - 4*tau, tau))
+
+    SAA_e = []
+    SAA_s = []
+    SAA_ws = []
+    T = len(history['t'])
+    for j in range(2):
+        eval_values = np.zeros(T)
+        eval_samples = dateval[(j*200):(j+1)*200, :m]
+        for t in range(T):
+            eval_values[t] = evaluate_expected_cost(
+                eval_samples, history['SAA_x'][t], history['SAA_tau'][t])
+        satisfy = np.array(history['SAA_obj_values'] >= eval_values).astype(float)
+        worst_satisfy = np.array(
+            np.array(history['SAA_obj_values']) + 5*np.array(history['sig_val_SAA']) >= eval_values).astype(float)
+        SAA_e.append(eval_values)
+        SAA_s.append(satisfy)
+        SAA_ws.append(worst_satisfy)
+    return SAA_e, SAA_s, SAA_ws
 
 
 def port_experiments(r_input,K,T,N_init,synthetic_returns,r_start):
@@ -56,12 +86,18 @@ def port_experiments(r_input,K,T,N_init,synthetic_returns,r_start):
         MRO_tau_prev = 0
         tau_prev = 0
         x_prev = np.zeros(m)
+        # cluster_SAA: sample-average approximation on the *same* clustered data
+        # as MRO but with radius 0 (no Wasserstein ball).
+        SAA_x_prev = np.zeros(m)
+        SAA_tau_prev = 0
         # Pre-seed the iterate so a solver failure at the first interval still
         # leaves x_current / tau_current well defined for the worst-case eval.
         x_current = np.ones(m) / m
         tau_current = 0.0
         MRO_x_current = np.ones(m) / m
         MRO_tau_current = 0.0
+        SAA_x_current = np.ones(m) / m
+        SAA_tau_current = 0.0
         init_radius_val = init_eps*(1/(num_dat**(1/(40))))
         # Keep the online and MRO solves on *separate* problem instances so that
         # Clarabel's in-place update path only ever sees one parameter trajectory
@@ -90,6 +126,22 @@ def port_experiments(r_input,K,T,N_init,synthetic_returns,r_start):
                 'total_iteration': []
             },
             'MRO_computation_times':{
+            'clustering': [],
+            'min_problem': [],
+            'total_iteration':[]
+            },
+            'SAA_x': [],
+            'SAA_tau': [],
+            'SAA_obj_values': [],
+            'SAA_worst_values': [],
+            'SAA_worst_times': [],
+            'SAA_worst_values_regret': [],
+            'SAA_worst_times_regret': [],
+            'SAA_weights': [],
+            'mean_val_SAA': [],
+            'square_val_SAA': [],
+            'sig_val_SAA': [],
+            'SAA_computation_times':{
             'clustering': [],
             'min_problem': [],
             'total_iteration':[]
@@ -212,6 +264,27 @@ def port_experiments(r_input,K,T,N_init,synthetic_returns,r_start):
                     history['MRO_computation_times']['clustering'].append(cluster_time)
                     history['MRO_weights'].append(new_k_dict['w'])
 
+                    # cluster_SAA: SAA on the clustered data (new_k_dict) for
+                    # the given K -- the scenario/CVaR problem (same code as the
+                    # plain SAA, create_scenario_*) over the K cluster centroids
+                    # weighted by the cluster masses.
+                    SAA_problem, SAA_x, SAA_tau = create_scenario_cluster(new_k_dict['d'], m, cur_K_mro, new_k_dict['w'])
+                    if safe_solve(SAA_problem, name='SAA_problem', t=t,
+                                  ignore_dpp=True, solver=cp.CLARABEL, verbose=False, time_limit=1500.0):
+                        SAA_x_current = SAA_x.value
+                        SAA_tau_current = SAA_tau.value
+                        SAA_min_obj = SAA_problem.objective.value
+                        SAA_min_time = SAA_problem.solver_stats.solve_time
+                    else:
+                        SAA_min_obj = np.nan
+                        SAA_min_time = np.nan
+                    mean_val_saa, square_val_saa, sig_val_saa = calc_cluster_val(K, new_k_dict,num_dat,SAA_x_current,running_samples)
+
+                    history['SAA_computation_times']['min_problem'].append(SAA_min_time)
+                    history['SAA_computation_times']['total_iteration'].append(SAA_min_time+cluster_time)
+                    history['SAA_computation_times']['clustering'].append(cluster_time)
+                    history['SAA_weights'].append(new_k_dict['w'])
+
 
             if t % interval == 0 or ((t-1) % interval == 0) or (t in t_list) :
                 if t <= 8001 or (t in t_list):
@@ -254,6 +327,20 @@ def port_experiments(r_input,K,T,N_init,synthetic_returns,r_start):
                         history['MRO_worst_values'].append(new_worst_MRO)
                         history['MRO_worst_times'].append(MRO_worst_time)
 
+                        # cluster_SAA worst value (wrt non clustered data)
+                        x_d.value = SAA_x_current
+                        tau_d.value = SAA_tau_current
+                        if safe_solve(new_problem, name='worst_case(SAA)', t=t,
+                                      ignore_dpp=True, solver=cp.CLARABEL, verbose=False, time_limit=1500.0):
+                            new_worst_SAA = new_problem.objective.value
+                            SAA_worst_time = new_problem.solver_stats.solve_time
+                        else:
+                            new_worst_SAA = np.nan
+                            SAA_worst_time = np.nan
+
+                        history['SAA_worst_values'].append(new_worst_SAA)
+                        history['SAA_worst_times'].append(SAA_worst_time)
+
 
             if t % interval == 0 or ((t-1) % interval == 0) or (t in t_list) :
                 if t <= 8001 or (t in t_list):
@@ -291,10 +378,26 @@ def port_experiments(r_input,K,T,N_init,synthetic_returns,r_start):
                     history['MRO_worst_values_regret'].append(new_worst_MRO)
                     history['MRO_worst_times_regret'].append(MRO_worst_time)
 
+                    # cluster_SAA worst value (wrt prev stage sols)
+                    x_d.value = SAA_x_prev
+                    tau_d.value = SAA_tau_prev
+                    if safe_solve(new_problem, name='worst_case(SAA,regret)', t=t,
+                                  ignore_dpp=True, solver=cp.CLARABEL, verbose=False, time_limit=1500.0):
+                        new_worst_SAA = new_problem.objective.value
+                        SAA_worst_time = new_problem.solver_stats.solve_time
+                    else:
+                        new_worst_SAA = np.nan
+                        SAA_worst_time = np.nan
+
+                    history['SAA_worst_values_regret'].append(new_worst_SAA)
+                    history['SAA_worst_times_regret'].append(SAA_worst_time)
+
                     MRO_x_prev = MRO_x_current
                     MRO_tau_prev = MRO_tau_current
                     x_prev = x_current
                     tau_prev = tau_current
+                    SAA_x_prev = SAA_x_current
+                    SAA_tau_prev = SAA_tau_current
 
 
             # New sample
@@ -325,6 +428,12 @@ def port_experiments(r_input,K,T,N_init,synthetic_returns,r_start):
                     history['mean_val_MRO'].append(mean_val_mro)
                     history['sig_val_MRO'].append(sig_val_mro)
                     history['square_val_MRO'].append(square_val_mro)
+                    history['mean_val_SAA'].append(mean_val_saa)
+                    history['sig_val_SAA'].append(sig_val_saa)
+                    history['square_val_SAA'].append(square_val_saa)
+                    history['SAA_x'].append(SAA_x_current)
+                    history['SAA_tau'].append(SAA_tau_current)
+                    history['SAA_obj_values'].append(SAA_min_obj)
                     history['x'].append(x_current)
                     history['tau'].append(tau_current)
                     history['obj_values'].append(min_obj)
@@ -345,6 +454,7 @@ def port_experiments(r_input,K,T,N_init,synthetic_returns,r_start):
 
                     MRO_e, MRO_s, online_e, online_s, online_ws, MRO_ws = compute_cumulative_regret(
                     history, dateval, m)
+                    SAA_e, SAA_s, SAA_ws = compute_saa_regret(history, dateval, m)
 
                     df = pd.DataFrame({
                     # 'x': history['x'],
@@ -353,32 +463,43 @@ def port_experiments(r_input,K,T,N_init,synthetic_returns,r_start):
                     # 'MRO_x': history['MRO_x'],
                     'MRO_tau':np.array(history['MRO_tau']),
                     'MRO_obj_values': np.array(history['MRO_obj_values']),
+                    'SAA_tau': np.array(history['SAA_tau']),
+                    'SAA_obj_values': np.array(history['SAA_obj_values']),
                     'epsilon': np.array(history['epsilon']),
                     'weights':  history['weights'],
                     'MRO_weights': history['MRO_weights'],
+                    'SAA_weights': history['SAA_weights'],
                     # 'weights_q': history['weights_q'],
                     'online_time':  np.array(history['online_computation_times']['total_iteration']),
                     'MRO_time':  np.array(history['MRO_computation_times']['total_iteration']),
+                    'SAA_time':  np.array(history['SAA_computation_times']['total_iteration']),
                     'MRO_mean_val': np.array(history['mean_val_MRO']),
                     'MRO_square_val': np.array(history['square_val_MRO']),
                     'MRO_sig_val': np.array(history['sig_val_MRO']),
+                    'SAA_mean_val': np.array(history['mean_val_SAA']),
+                    'SAA_square_val': np.array(history['square_val_SAA']),
+                    'SAA_sig_val': np.array(history['sig_val_SAA']),
                     'mean_val': np.array(history['mean_val']),
                     'square_val': np.array(history['square_val']),
                     'sig_val': np.array(history['sig_val']),
                     "worst_values":np.array(history['worst_values']),
                     "MRO_worst_values":np.array(history['MRO_worst_values']),
+                    "SAA_worst_values":np.array(history['SAA_worst_values']),
                     "worst_times":np.array(history['worst_times']),
                     "MRO_worst_times":np.array(history['MRO_worst_times']),
+                    "SAA_worst_times":np.array(history['SAA_worst_times']),
                     "worst_values_regret":np.array(history['worst_values_regret']),
                     "MRO_worst_values_regret":np.array(history['MRO_worst_values_regret']),
+                    "SAA_worst_values_regret":np.array(history['SAA_worst_values_regret']),
                     "worst_times_regret":np.array(history['worst_times_regret']),
                     "MRO_worst_times_regret":np.array(history['MRO_worst_times_regret']),
+                    "SAA_worst_times_regret":np.array(history['SAA_worst_times_regret']),
                     't': np.array(history['t']),
                     'regret_bound': history["regret_bound"],
                     'MRO_regret_bound': history["MRO_regret_bound"]
                     })
-                    colnames = ['MRO_eval', "MRO_satisfy",'O_eval',"O_satisfy", "O_worst_satisfy", "MRO_worst_satisfy"]
-                    colvals = [MRO_e, MRO_s, online_e, online_s, online_ws, MRO_ws]
+                    colnames = ['MRO_eval', "MRO_satisfy",'O_eval',"O_satisfy", "O_worst_satisfy", "MRO_worst_satisfy", "SAA_eval", "SAA_satisfy", "SAA_worst_satisfy"]
+                    colvals = [MRO_e, MRO_s, online_e, online_s, online_ws, MRO_ws, SAA_e, SAA_s, SAA_ws]
                     for i in range(len(colnames)):
                         for j in range(2):
                             df[colnames[i]+str(j)] = np.array(colvals[i][j])
@@ -387,6 +508,7 @@ def port_experiments(r_input,K,T,N_init,synthetic_returns,r_start):
 
         MRO_e, MRO_s, online_e, online_s, online_ws, MRO_ws = compute_cumulative_regret(
                 history, dateval, m)
+        SAA_e, SAA_s, SAA_ws = compute_saa_regret(history, dateval, m)
 
         df = pd.DataFrame({
         # 'x': history['x'],
@@ -395,32 +517,42 @@ def port_experiments(r_input,K,T,N_init,synthetic_returns,r_start):
         # 'MRO_x': history['MRO_x'],
         # 'MRO_tau':np.array(history['MRO_tau'][1:]),
         'MRO_obj_values': np.array(history['MRO_obj_values']),
+        'SAA_obj_values': np.array(history['SAA_obj_values']),
         'epsilon': np.array(history['epsilon']),
         'weights':  history['weights'],
         'MRO_weights': history['MRO_weights'],
+        'SAA_weights': history['SAA_weights'],
         # 'weights_q': history['weights_q'],
         'online_time':  np.array(history['online_computation_times']['total_iteration']),
         'MRO_time':  np.array(history['MRO_computation_times']['total_iteration']),
+        'SAA_time':  np.array(history['SAA_computation_times']['total_iteration']),
         'MRO_mean_val': np.array(history['mean_val_MRO']),
         'MRO_square_val': np.array(history['square_val_MRO']),
         'MRO_sig_val': np.array(history['sig_val_MRO']),
+        'SAA_mean_val': np.array(history['mean_val_SAA']),
+        'SAA_square_val': np.array(history['square_val_SAA']),
+        'SAA_sig_val': np.array(history['sig_val_SAA']),
         'mean_val': np.array(history['mean_val']),
         'square_val': np.array(history['square_val']),
         'sig_val': np.array(history['sig_val']),
         "worst_values":np.array(history['worst_values']),
         "MRO_worst_values":np.array(history['MRO_worst_values']),
+        "SAA_worst_values":np.array(history['SAA_worst_values']),
         "worst_times":np.array(history['worst_times']),
         "MRO_worst_times":np.array(history['MRO_worst_times']),
+        "SAA_worst_times":np.array(history['SAA_worst_times']),
         "worst_values_regret":np.array(history['worst_values_regret']),
         "MRO_worst_values_regret":np.array(history['MRO_worst_values_regret']),
+        "SAA_worst_values_regret":np.array(history['SAA_worst_values_regret']),
         "worst_times_regret":np.array(history['worst_times_regret']),
         "MRO_worst_times_regret":np.array(history['MRO_worst_times_regret']),
+        "SAA_worst_times_regret":np.array(history['SAA_worst_times_regret']),
         't': np.array(history['t']),
         'regret_bound': history["regret_bound"],
                 'MRO_regret_bound': history["MRO_regret_bound"]
         })
-        colnames = ['MRO_eval', "MRO_satisfy",'O_eval',"O_satisfy", "O_worst_satisfy", "MRO_worst_satisfy"]
-        colvals = [MRO_e, MRO_s, online_e, online_s, online_ws, MRO_ws]
+        colnames = ['MRO_eval', "MRO_satisfy",'O_eval',"O_satisfy", "O_worst_satisfy", "MRO_worst_satisfy", "SAA_eval", "SAA_satisfy", "SAA_worst_satisfy"]
+        colvals = [MRO_e, MRO_s, online_e, online_s, online_ws, MRO_ws, SAA_e, SAA_s, SAA_ws]
         for i in range(len(colnames)):
             for j in range(2):
                 df[colnames[i]+str(j)] = np.array(colvals[i][j])
@@ -533,7 +665,7 @@ if __name__ == '__main__':
         findfs[r].to_csv(newfoldername + 'df_' + str(r+r_start) +'.csv')
 
     for r in range(R):
-        findfs[r] = findfs[r].drop(columns=['weights','MRO_weights'])
+        findfs[r] = findfs[r].drop(columns=['weights','MRO_weights','SAA_weights'])
         findfs[r].to_csv(newdatname + 'df_' + 'K'+str(K)+'R'+ str(r+r_start) +'.csv')
 
     print("DONE")
