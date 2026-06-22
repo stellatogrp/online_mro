@@ -757,6 +757,19 @@ def online_cluster_init_online(K, Q, data, m):
     q_dict['d'][:cur_Q,:] = qmeans.cluster_centers_
     q_dict['w'][:cur_Q] = np.bincount(qmeans.labels_) / init_num
     q_dict['rmse'][:cur_Q] = np.zeros(q_dict['cur_Q'])
+    # Data-adaptive floor for singleton micro-cluster radii.  The absorption
+    # rule (online_cluster_update) admits a new point only when its distance to
+    # the nearest micro-center is <= 2*rmse, so the floor must track the data
+    # scale rather than the fixed constant 0.02.  We set it to 0.3 * median
+    # nearest-neighbour distance of the init centroids so it auto-rescales.
+    if cur_Q > 1:
+        _dd = cdist(qmeans.cluster_centers_, qmeans.cluster_centers_)
+        np.fill_diagonal(_dd, np.inf)
+        rmse_floor = 0.3 * np.median(_dd.min(axis=1))
+    else:
+        rmse_floor = 0.02
+    if not np.isfinite(rmse_floor) or rmse_floor <= 1e-6:
+        rmse_floor = 0.02
     total_time = time.time() - start_time
     q_dict['data'] = {}
     for q in range(q_dict['cur_Q']):
@@ -764,7 +777,7 @@ def online_cluster_init_online(K, Q, data, m):
         q_dict['data'][q] = cluster_data
         rmse = np.sqrt(calc_rmse(cluster_data,np.reshape(q_dict['d'][q],(1,m))))
         if rmse <= 1e-6:
-            rmse = 0.02
+            rmse = rmse_floor
         q_dict['rmse'][q] = rmse
     k_dict = {}
     k_dict['a'] = np.zeros((K,m))
