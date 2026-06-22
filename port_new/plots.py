@@ -894,8 +894,8 @@ def infer_end_ind(df_dict, K=None, t_col='t'):
 
     return int(len(dfk))
 
-preamble = "/Users/irina.wang/Desktop/Princeton/Project2/mro_mpc/"
-# preamble = "scratch/gpfs/BSTELLATO/iywang/low_rank/online_mro/"
+# preamble = "/Users/irina.wang/Desktop/Princeton/Project2/mro_mpc/"
+preamble = "/scratch/gpfs/BSTELLATO/iywang/low_rank/online_mro/"
 
 foldername_orig = preamble + 'port_new/results/orig/p1/4/T'+str(T-1)+'R'+str(R)+'/'
 
@@ -909,28 +909,28 @@ folderout_orig_dro = preamble + 'port_new/plots_new/orig/4/T'+str(T-1)+'R'+str(R
 
 os.makedirs(folderout_orig, exist_ok=True)
 
-foldername_new = preamble + 'port_new/results/new/p1/4/T'+str(T-1)+'R'+str(R)+'/'
+foldername_new = preamble + 'port_new/results/old_runs/new/p1/4/T'+str(T-1)+'R'+str(R)+'/'
 
 folderout_new = preamble + 'port_new/plots_new/new/4/T'+str(T-1)+'R'+str(R)+'/'
 
 os.makedirs(folderout_new, exist_ok=True)
 
-foldername_new_dro = preamble + 'port_new/results/new/p1/8/T'+str(T-1)+'R'+str(R)+'/'
+foldername_new_dro = preamble + 'port_new/results/old_runs/new/p1/8/T'+str(T-1)+'R'+str(R)+'/'
 
 folderout_new_dro = preamble + 'port_new/plots_new/new/8/T'+str(T-1)+'R'+str(R)+'/'
 
 os.makedirs(folderout_new_dro, exist_ok=True)
 
-folderout = preamble + 'port_new/plots_new/comp/4_new/T'+str(T-1)+'R'+str(R)+'/'
+folderout = preamble + 'port_new/plots_new/comp/4_redo/T'+str(T-1)+'R'+str(R)+'/'
 
 os.makedirs(folderout, exist_ok=True)
 
 
-df_orig, quantiles_orig = setup_dfs(foldername = foldername_orig, folderout = folderout_orig, K_list = [15,25], init = False)
+df_orig, quantiles_orig = setup_dfs(foldername = foldername_orig, folderout = folderout_orig, K_list = [15,25], init = True)
 
 df_new, quantiles_new = setup_dfs(foldername = foldername_new, folderout = folderout_new, K_list = [15,25], init = False)
 
-df_orig_dro, quantiles_orig_dro = setup_dfs(foldername = foldername_orig_dro, folderout = folderout_orig_dro, K_list = [0], init = False)
+df_orig_dro, quantiles_orig_dro = setup_dfs(foldername = foldername_orig_dro, folderout = folderout_orig_dro, K_list = [0], init = True)
 
 df_new_dro, quantiles_new_dro = setup_dfs(foldername = foldername_new_dro, folderout = folderout_new_dro, K_list = [0], init = False)
 
@@ -940,9 +940,9 @@ end_ind_orig = infer_end_ind(df_orig, K=25)
 end_ind_new = 0
 # end_ind_new = infer_end_ind(df_new, K = 25)
 
-plot_eval_all(df_orig,quantiles_orig,df_orig,quantiles_orig,j=(0,0,0),K=25,q=(25,75),ylim=[0.004,0.02],legend = True,val2=2.3, end_ind=end_ind_orig)
+plot_eval_all(df_orig,quantiles_orig,df_orig_dro,quantiles_orig_dro,j=(0,0,0),K=25,q=(25,75),ylim=[0.004,0.02],legend = True,val2=2.3, end_ind=end_ind_orig)
 
-plot_eval(df_orig,quantiles_orig,df_orig,quantiles_orig,j=(0,0,0),K=25,q=(25,75),end_ind=end_ind_orig,legend = True)
+plot_eval(df_orig,quantiles_orig,df_orig_dro,quantiles_orig_dro,j=(0,0,0),K=25,q=(25,75),end_ind=end_ind_orig,legend = True)
 
 
 # plot_eval_all_compare(

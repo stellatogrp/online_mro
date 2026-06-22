@@ -413,10 +413,10 @@ def port_experiments(r_input,K,T,N_init,synthetic_returns,r_start):
                 if t <= 8001 or (t in t_list):
                     N_dist_cur = wasserstein(init_samples,running_samples)
 
-                    history['regret_K'].append(w2_dist(k_dict, k_dict_prev, m)+ 2*radius )
-                    history['MRO_regret_K'].append(w2_dist(new_k_dict, new_k_dict_prev, m)+ 2*radius)
-                    regret_bound = (np.sum(history['regret_K']) + N_dist_cur+ radius + init_radius_val)/(t+1)
-                    MRO_regret_bound = (np.sum(history['MRO_regret_K']) + N_dist_cur+ radius + init_radius_val)/(t+1)
+                    history['regret_K'].append(w2_dist(k_dict, k_dict_prev, m) )
+                    history['MRO_regret_K'].append(w2_dist(new_k_dict, new_k_dict_prev, m))
+                    regret_bound = (np.sum(history['regret_K']) + N_dist_cur+ init_radius_val - radius)/(t+1)
+                    MRO_regret_bound = (np.sum(history['MRO_regret_K']) + N_dist_cur+  init_radius_val - radius)/(t+1)
                     history["regret_bound"].append(regret_bound)
                     history["MRO_regret_bound"].append(MRO_regret_bound)
                     k_dict_prev = copy.deepcopy(k_dict)

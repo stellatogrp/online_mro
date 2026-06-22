@@ -800,7 +800,7 @@ def online_cluster_update_online(K, new_dat, q_dict, k_dict, num_dat, t, fix_tim
     dists = cdist(new_dat,q_dict['d'][:cur_Q,:])
     min_dist = np.min(dists)
     min_ind = np.argmin(dists)
-    if min_dist <= 2*q_dict['rmse'][min_ind] and cur_K == K:
+    if min_dist <= q_dict['rmse'][min_ind] and cur_K == K:
         q_dict['d'][min_ind] = (q_dict['d'][min_ind]*q_dict['w'][min_ind]*num_dat + new_dat)/(q_dict['w'][min_ind]*num_dat + 1)
         q_dict['rmse'][min_ind] = np.sqrt((q_dict['rmse'][min_ind]**2*q_dict['w'][min_ind]*num_dat + np.linalg.norm(new_dat - q_dict['d'][min_ind],2)**2)/(q_dict['w'][min_ind]*num_dat + 1))
         w_q_temp = q_dict['w'][:cur_Q]*num_dat/(num_dat+1)
