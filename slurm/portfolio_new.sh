@@ -4,7 +4,7 @@
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=35
 #SBATCH --mem-per-cpu=10G
-#SBATCH --time=10:00:00
+#SBATCH --time=15:00:00
 #SBATCH -o /scratch/gpfs/BSTELLATO/iywang/low_rank/online_mro/portfolio_test_p2_%A_.txt
 #SBATCH --mail-type=BEGIN,END,FAIL,TIME_LIMIT
 #SBATCH --mail-user=iabirina@hotmail.com
@@ -26,7 +26,7 @@ conda activate lropt_rev
 
 # python port_new/port_DRO.py --foldername port_new/results/new/p1/16/ --R 2 --T 2001 --interval 1 --N_init 5 --r_start 0 --m 50 --eta_0 0.01 --no-line_search
 
-python port_new/port_DRO_orig.py --foldername port_new/results/orig/p1/3/ --R 2 --T 2001 --interval 10 --interval_SAA 10 --N_init 5 --r_start 0 --m 50
+python port_new/port_DRO_orig.py --foldername port_new/results/orig/p1/4/ --R 2 --T 2001 --interval 10 --interval_SAA 10 --N_init 5 --r_start 8 --m 150
 
 # python port_new/port_DRO_orig_pca.py --foldername port_new/results/orig/p1/pca5/ --R 2 --T 2001 --interval 10 --interval_SAA 10 --N_init 5 --r_start 0 --m 150 --lr_var_frac 0.95 --pca_interval 100 --pca_init_interval 10 --pca_init_timesteps 200
 

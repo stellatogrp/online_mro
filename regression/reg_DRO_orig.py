@@ -172,6 +172,7 @@ if __name__ == '__main__':
     parser.add_argument('--interval_SAA', type=int, default=100)
     parser.add_argument('--N_init', type=int, default=50)
     parser.add_argument('--r_start', type=int, default=0)
+    parser.add_argument('--noise', type=float, default=3.0)
 
     arguments = parser.parse_args()
     foldername = arguments.foldername
@@ -180,6 +181,7 @@ if __name__ == '__main__':
     k = arguments.k
     k_true = arguments.k_true
     T = arguments.T
+    noise_std = arguments.noise
     r_start = arguments.r_start
     interval = arguments.interval
     interval_SAA = arguments.interval_SAA
@@ -192,7 +194,7 @@ if __name__ == '__main__':
     # Synthetic regression data: one fixed dataset (like synthetic_200_1.csv);
     # each seed draws its own train/test split below.
     synthetic_data, beta_true = generate_regression_data(
-        n_total=20000, m=m, k_true=k_true, seed=12345)
+        n_total=20000, m=m, k_true=k_true, noise_std=noise_std, seed=12345)
 
     init_ind = 0
     njobs = get_n_processes(100)
@@ -213,6 +215,7 @@ if __name__ == '__main__':
         {
             'filename': os.path.basename(__file__),
             'T': T, 'R': R, 'm': m, 'k': k, 'k_true': k_true,
+            'noise_std': noise_std,
             'interval': interval, 'interval_SAA': interval_SAA, 'N_init': N_init,
             'r_start': r_start,
             'epsilon_values': [float(e) for e in eps_init],

@@ -376,6 +376,7 @@ if __name__ == '__main__':
     parser.add_argument('--interval', type=int, default=100)
     parser.add_argument('--N_init', type=int, default=50)
     parser.add_argument('--r_start', type=int, default=0)
+    parser.add_argument('--noise', type=float, default=3.0)
 
     arguments = parser.parse_args()
     foldername = arguments.foldername
@@ -386,6 +387,7 @@ if __name__ == '__main__':
     k_true = arguments.k_true
     Q = arguments.Q
     T = arguments.T
+    noise_std = arguments.noise
     r_start = arguments.r_start
     fixed_time = arguments.fixed_time
     interval = arguments.interval
@@ -399,7 +401,7 @@ if __name__ == '__main__':
     # Synthetic regression data: one fixed dataset (like synthetic_200_1.csv);
     # each seed draws its own train/test split inside reg_experiments.
     synthetic_data, beta_true = generate_regression_data(
-        n_total=20000, m=m, k_true=k_true, seed=12345)
+        n_total=20000, m=m, k_true=k_true, noise_std=noise_std, seed=12345)
 
     init_ind = 0
     njobs = get_n_processes(100)
@@ -418,7 +420,9 @@ if __name__ == '__main__':
     save_run_metadata(
         {
             'filename': os.path.basename(__file__),
-            'K': K, 'T': T, 'R': R, 'm': m, 'k': k, 'k_true': k_true, 'Q': Q,
+            'K': K, 'T': T, 'R': R, 'm': m, 'k': k, 'k_true': k_true, 
+            'noise_std': noise_std,
+            'Q': Q,
             'fixed_time': fixed_time, 'interval': interval, 'N_init': N_init,
             'r_start': r_start,
             'epsilon_values': [float(e) for e in eps_init],

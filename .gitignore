@@ -175,3 +175,5 @@ pyrightconfig.json
 
 port_new/results/
 *.txt
+
+regression/results
