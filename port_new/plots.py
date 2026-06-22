@@ -137,11 +137,11 @@ def plot_eval_all_compare(
     df,  quantiles,  df1, quantiles1,
     df2, quantiles2, df3, quantiles3,
     end_ind=61,
-    end_ind_grad=None,   # Grad epsilon-block length; falls back to end_ind if None
-    j=(0, 0, 0),         # Full epsilon-indices: (online, reclustering, DRO/SAA)
-    j_grad=(0, 0, 0),    # Grad epsilon-indices: (online, reclustering, DRO)
-    stride=2,            # subsample stride within an epsilon block (Full)
-    stride_grad=None,    # Grad stride; falls back to stride if None
+    end_ind_grad=None,   # subgrad epsilon-block length; falls back to end_ind if None
+    j=(0, 0, 0),         # full epsilon-indices: (online, reclustering, DRO/SAA)
+    j_grad=(0, 0, 0),    # subgrad epsilon-indices: (online, reclustering, DRO)
+    stride=2,            # subsample stride within an epsilon block (full)
+    stride_grad=None,    # subgrad stride; falls back to stride if None
     q=(40, 60),
     K=5,
     alpha=0.1,
@@ -151,20 +151,20 @@ def plot_eval_all_compare(
 ):
     """3-panel comparison plot overlaying two experiment sets.
 
-    Mirrors ``plot_eval_all`` for the *Full* set (df/df1, solid lines, suffix
-    "Full") and overlays a second *Grad* set (df2/df3, dashed lines, suffix
-    "Grad") on the same axes.  Same colors per method, same markers.
+    Mirrors ``plot_eval_all`` for the *full* set (df/df1, solid lines, suffix
+    "full") and overlays a second *subgrad* set (df2/df3, dashed lines, suffix
+    "subgrad") on the same axes.  Same colors per method, same markers.
 
     The two experiment sets are allowed to have different per-epsilon block
-    lengths -- pass ``end_ind`` for the Full set and ``end_ind_grad`` for the
-    Grad set.  Each set is sliced with its own block length and its own
+    lengths -- pass ``end_ind`` for the full set and ``end_ind_grad`` for the
+    subgrad set.  Each set is sliced with its own block length and its own
     ``t``-axis taken from the corresponding dataframe.
 
     Method -> data source:
       online clustering : df[K]   / df2[K]
       reclustering      : df[K]   / df2[K]
       DRO               : df1[0]  / df3[0]
-      SAA               : df1[0]  ONLY  (no Grad overlay)
+      SAA               : df1[0]  ONLY  (no subgrad overlay)
     """
     if end_ind_grad is None:
         end_ind_grad = end_ind
@@ -198,34 +198,34 @@ def plot_eval_all_compare(
     # ============================================================
     # ax1: computation time
     # ============================================================
-    # Full
+    # full
     # ax1.plot(t_range, df['online_time'][(j1*end_ind):(j1+1)*end_ind:stride], 'b-',
-    #          linewidth=1, label="online clustering Full", marker="v", ms=1.5)
+    #          linewidth=1, label="online clustering full", marker="v", ms=1.5)
     # _band(ax1, quantiles[q1], quantiles[q2], 'online_time', j1, end_ind, 'b', t_range, stride)
     ax1.plot(t_range, df['MRO_time'][(j4*end_ind):(j4+1)*end_ind:stride], 'r-',
-             linewidth=1, label="Reclustering Full", marker="D", ms=1.5)
+             linewidth=1, label="Reclustering full", marker="D", ms=1.5)
     _band(ax1, quantiles[q1], quantiles[q2], 'MRO_time', j4, end_ind, 'r', t_range, stride)
     ax1.plot(t_range, df1['DRO_time'][(j3*end_ind):(j3+1)*end_ind:stride], 'k-',
-             linewidth=1, label="DRO Full", marker="s", ms=1.5)
+             linewidth=1, label="DRO full", marker="s", ms=1.5)
     _band(ax1, quantiles1[q1], quantiles1[q2], 'DRO_time', j3, end_ind, 'black', t_range, stride)
     ax1.plot(t_range, df1['SA_time'][(j3*end_ind):(j3+1)*end_ind:stride], 'g-',
              linewidth=1, label="SAA", marker="o", ms=1.5)
     _band(ax1, quantiles1[q1], quantiles1[q2], 'SA_time', j3, end_ind, 'g', t_range, stride)
-    # Grad overlay (no SAA) -- uses end_ind_grad and t_range_grad,
-    # and a lighter shade of each Full color (b -> cornflowerblue,
-    # r -> salmon, k -> gray) so Full vs Grad is distinguishable by both
+    # subgrad overlay (no SAA) -- uses end_ind_grad and t_range_grad,
+    # and a lighter shade of each full color (b -> cornflowerblue,
+    # r -> salmon, k -> gray) so full vs subgrad is distinguishable by both
     # linestyle and hue.
     # ax1.plot(t_range_grad, df2['online_time'][(j1g*end_ind_grad):(j1g+1)*end_ind_grad:stride_grad],
     #          color='cornflowerblue', linestyle='--',
-    #          linewidth=1, label="online clustering Grad", marker="v", ms=1.5)
+    #          linewidth=1, label="online clustering subgrad", marker="v", ms=1.5)
     # _band(ax1, quantiles2[q1], quantiles2[q2], 'online_time', j1g, end_ind_grad, 'cornflowerblue', t_range_grad, stride_grad)
     # ax1.plot(t_range_grad, df2['MRO_time'][(j4g*end_ind_grad):(j4g+1)*end_ind_grad:stride_grad],
     #          color='salmon', linestyle='--',
-    #          linewidth=1, label="reclustering Grad", marker="D", ms=1.5)
+    #          linewidth=1, label="reclustering subgrad", marker="D", ms=1.5)
     # _band(ax1, quantiles2[q1], quantiles2[q2], 'MRO_time', j4g, end_ind_grad, 'salmon', t_range_grad, stride_grad)
     ax1.plot(t_range_grad, df3['DRO_time'][(j3g*end_ind_grad):(j3g+1)*end_ind_grad:stride_grad],
              color='gray', linestyle='--',
-             linewidth=1, label="DRO Grad", marker="s", ms=1.5)
+             linewidth=1, label="DRO subgrad", marker="s", ms=1.5)
     _band(ax1, quantiles3[q1], quantiles3[q2], 'DRO_time', j3g, end_ind_grad, 'gray', t_range_grad, stride_grad)
 
     ax1.set_xlabel(r'Time step $(t)$')
@@ -237,31 +237,31 @@ def plot_eval_all_compare(
     # ============================================================
     # ax2: in-sample objective value  (line handles captured for legend)
     # ============================================================
-    # Full
+    # full
     # line_online_full,    = ax2.plot(t_range, df['obj_values'][(j1*end_ind):(j1+1)*end_ind:stride], 'b-',
-    #                                 linewidth=1, label="online clustering Full", marker="v", ms=1.5)
+    #                                 linewidth=1, label="online clustering full", marker="v", ms=1.5)
     # _band(ax2, quantiles[q1], quantiles[q2], 'obj_values', j1, end_ind, 'b', t_range, stride)
     line_recluster_full, = ax2.plot(t_range, np.array(df['MRO_obj_values'][(j4*end_ind):(j4+1)*end_ind:stride]), 'r-',
-                                    linewidth=1, label="reclustering Full", marker="D", ms=1.5)
+                                    linewidth=1, label="reclustering full", marker="D", ms=1.5)
     _band(ax2, quantiles[q1], quantiles[q2], 'MRO_obj_values', j4, end_ind, 'r', t_range, stride)
     line_DRO_full,       = ax2.plot(t_range, df1['DRO_obj_values'][(j3*end_ind):(j3+1)*end_ind:stride], 'k-',
-                                    linewidth=1, label="DRO Full", marker="s", ms=1.5)
+                                    linewidth=1, label="DRO full", marker="s", ms=1.5)
     _band(ax2, quantiles1[q1], quantiles1[q2], 'DRO_obj_values', j3, end_ind, 'black', t_range, stride)
     line_SAA,            = ax2.plot(t_range, df1['SA_obj_values'][(j3*end_ind):(j3+1)*end_ind:stride], 'g-',
                                     linewidth=1, label="SAA", marker="o", ms=1.5)
     _band(ax2, quantiles1[q1], quantiles1[q2], 'SA_obj_values', j3, end_ind, 'g', t_range, stride)
-    # Grad overlay -- lighter shades, dashed; uses end_ind_grad / t_range_grad.
+    # subgrad overlay -- lighter shades, dashed; uses end_ind_grad / t_range_grad.
     # line_online_grad,    = ax2.plot(t_range_grad, df2['obj_values'][(j1g*end_ind_grad):(j1g+1)*end_ind_grad:stride_grad],
     #                                 color='cornflowerblue', linestyle='--',
-    #                                 linewidth=1, label="online clustering Grad", marker="v", ms=1.5)
+    #                                 linewidth=1, label="online clustering subgrad", marker="v", ms=1.5)
     # _band(ax2, quantiles2[q1], quantiles2[q2], 'obj_values', j1g, end_ind_grad, 'cornflowerblue', t_range_grad, stride_grad)
     # line_recluster_grad, = ax2.plot(t_range_grad, np.array(df2['MRO_obj_values'][(j4g*end_ind_grad):(j4g+1)*end_ind_grad:stride_grad]),
     #                                 color='salmon', linestyle='--',
-    #                                 linewidth=1, label="reclustering Grad", marker="D", ms=1.5)
+    #                                 linewidth=1, label="reclustering subgrad", marker="D", ms=1.5)
     # _band(ax2, quantiles2[q1], quantiles2[q2], 'MRO_obj_values', j4g, end_ind_grad, 'salmon', t_range_grad, stride_grad)
     line_DRO_grad,       = ax2.plot(t_range_grad, df3['DRO_obj_values'][(j3g*end_ind_grad):(j3g+1)*end_ind_grad:stride_grad],
                                     color='gray', linestyle='--',
-                                    linewidth=1, label="DRO Grad", marker="s", ms=1.5)
+                                    linewidth=1, label="DRO subgrad", marker="s", ms=1.5)
     _band(ax2, quantiles3[q1], quantiles3[q2], 'DRO_obj_values', j3g, end_ind_grad, 'gray', t_range_grad, stride_grad)
 
     ax2.set_xlabel(r'Time step $(t)$')
@@ -274,32 +274,32 @@ def plot_eval_all_compare(
     # ============================================================
     # ax3: confidence
     # ============================================================
-    # Full
+    # full
     # ax3.plot(t_range, df['O_satisfy0'][(j1*end_ind):(j1+1)*end_ind:stride], 'b-',
-    #          linewidth=1, label="online clustering Full", marker="v", ms=1.5)
+    #          linewidth=1, label="online clustering full", marker="v", ms=1.5)
     ax3.plot(t_range, df['MRO_satisfy0'][(j4*end_ind):(j4+1)*end_ind:stride], 'r', linestyle='-',
-             linewidth=1, label="reclustering Full", marker="D", ms=1.5)
+             linewidth=1, label="reclustering full", marker="D", ms=1.5)
     ax3.plot(t_range, df1['DRO_satisfy1'][(j3*end_ind):(j3+1)*end_ind:stride], 'k-',
-             linewidth=1, label="DRO Full", marker="s", ms=1.5)
+             linewidth=1, label="DRO full", marker="s", ms=1.5)
     ax3.plot(t_range, df1['SA_satisfy1'][(j3*end_ind):(j3+1)*end_ind:stride], 'g-',
              linewidth=1, label="SAA", marker="o", ms=1.5)
-    # Grad -- lighter shades, dashed; uses end_ind_grad / t_range_grad.
+    # subgrad -- lighter shades, dashed; uses end_ind_grad / t_range_grad.
     # ax3.plot(t_range_grad, df2['O_satisfy0'][(j1g*end_ind_grad):(j1g+1)*end_ind_grad:stride_grad],
     #          color='cornflowerblue', linestyle='--',
-    #          linewidth=1, label="online clustering Grad", marker="v", ms=1.5)
+    #          linewidth=1, label="online clustering subgrad", marker="v", ms=1.5)
     # ax3.plot(t_range_grad, df2['MRO_satisfy0'][(j4g*end_ind_grad):(j4g+1)*end_ind_grad:stride_grad],
     #          color='salmon', linestyle='--',
-    #          linewidth=1, label="reclustering Grad", marker="D", ms=1.5)
+    #          linewidth=1, label="reclustering subgrad", marker="D", ms=1.5)
     ax3.plot(t_range_grad, df3['DRO_satisfy1'][(j3g*end_ind_grad):(j3g+1)*end_ind_grad:stride_grad],
              color='gray', linestyle='--',
-             linewidth=1, label="DRO Grad", marker="s", ms=1.5)
+             linewidth=1, label="DRO subgrad", marker="s", ms=1.5)
 
     ax3.set_xlabel(r'Time step $(t)$')
     ax3.set_title(r'Confidence $1-\hat{\beta}_t$')
     ax3.grid(True, alpha=0.3)
     ax3.set_xscale("log")
 
-    # ---- shared legend (7 handles, Full block + SAA + Grad block) ----------
+    # ---- shared legend (7 handles, full block + SAA + subgrad block) ----------
     lines = [
          line_recluster_full, line_DRO_full,
         line_SAA,
@@ -477,27 +477,27 @@ def plot_eval_compare(
     df,  quantiles,  df1, quantiles1,
     df2, quantiles2, df3, quantiles3,
     end_ind=61,
-    end_ind_grad=None,   # Grad epsilon-block length; falls back to end_ind if None
-    j=(0, 0, 0),         # Full epsilon-indices: (online, reclustering, DRO/SAA)
-    j_grad=(0, 0, 0),    # Grad epsilon-indices: (online, reclustering, DRO)
-    stride=2,            # subsample stride within an epsilon block (Full)
-    stride_grad=None,    # Grad stride; falls back to stride if None
+    end_ind_grad=None,   # subgrad epsilon-block length; falls back to end_ind if None
+    j=(0, 0, 0),         # full epsilon-indices: (online, reclustering, DRO/SAA)
+    j_grad=(0, 0, 0),    # subgrad epsilon-indices: (online, reclustering, DRO)
+    stride=2,            # subsample stride within an epsilon block (full)
+    stride_grad=None,    # subgrad stride; falls back to stride if None
     q=(40, 60),
     K=5,
     alpha=0.1,
     legend=True,
 ):
-    """Out-of-sample expected value -- Full vs Grad overlay.
+    """Out-of-sample expected value -- full vs subgrad overlay.
 
-    Mirrors ``plot_eval`` for the Full set (solid lines, suffix "Full") and
-    overlays a second Grad set (dashed lines + lighter colors, suffix "Grad").
+    Mirrors ``plot_eval`` for the full set (solid lines, suffix "full") and
+    overlays a second subgrad set (dashed lines + lighter colors, suffix "subgrad").
     SAA is not overlaid.
 
     Method -> data source:
       online clustering : df[K]   / df2[K]
       reclustering      : df[K]   / df2[K]
       DRO               : df1[0]  / df3[0]
-      SAA               : df1[0]  ONLY  (no Grad overlay)
+      SAA               : df1[0]  ONLY  (no subgrad overlay)
     """
     if end_ind_grad is None:
         end_ind_grad = end_ind
@@ -537,31 +537,31 @@ def plot_eval_compare(
             alpha=alpha, color=color,
         )
 
-    # Full
+    # full
     # plt.plot(t_range, df['O_eval1'][(j1*end_ind):(j1+1)*end_ind:stride], 'b-',
-    #          linewidth=1, label="online clustering Full", marker="v", ms=1.5)
+    #          linewidth=1, label="online clustering full", marker="v", ms=1.5)
     # _band(quantiles[q1], quantiles[q2], 'O_eval1', j1, end_ind, 'b', t_range, stride)
     plt.plot(t_range, df['MRO_eval1'][(j2*end_ind):(j2+1)*end_ind:stride], 'r-',
-             linewidth=1, label="reclustering Full", marker="D", ms=1.5)
+             linewidth=1, label="reclustering full", marker="D", ms=1.5)
     _band(quantiles[q1], quantiles[q2], 'MRO_eval1', j2, end_ind, 'r', t_range, stride)
     plt.plot(t_range, df1['DRO_eval2'][(j3*end_ind):(j3+1)*end_ind:stride], color='black', linestyle='-',
-             linewidth=1, label="DRO Full", marker="s", ms=1.5)
+             linewidth=1, label="DRO full", marker="s", ms=1.5)
     _band(quantiles1[q1], quantiles1[q2], 'DRO_eval2', j3, end_ind, 'black', t_range, stride)
     plt.plot(t_range, df1['SA_eval2'][(j3*end_ind):(j3+1)*end_ind:stride], 'g-',
              linewidth=1, label="SAA", marker="o", ms=1.5)
     _band(quantiles1[q1], quantiles1[q2], 'SA_eval2', j3, end_ind, 'g', t_range, stride)
-    # Grad overlay (no SAA) -- lighter shades, dashed.
+    # subgrad overlay (no SAA) -- lighter shades, dashed.
     # plt.plot(t_range_grad, df2['O_eval1'][(j1g*end_ind_grad):(j1g+1)*end_ind_grad:stride_grad],
     #          color='cornflowerblue', linestyle='--',
-    #          linewidth=1, label="online clustering Grad", marker="v", ms=1.5)
+    #          linewidth=1, label="online clustering subgrad", marker="v", ms=1.5)
     # _band(quantiles2[q1], quantiles2[q2], 'O_eval1', j1g, end_ind_grad, 'cornflowerblue', t_range_grad, stride_grad)
     # plt.plot(t_range_grad, df2['MRO_eval1'][(j2g*end_ind_grad):(j2g+1)*end_ind_grad:stride_grad],
     #          color='salmon', linestyle='--',
-    #          linewidth=1, label="reclustering Grad", marker="D", ms=1.5)
+    #          linewidth=1, label="reclustering subgrad", marker="D", ms=1.5)
     # _band(quantiles2[q1], quantiles2[q2], 'MRO_eval1', j2g, end_ind_grad, 'salmon', t_range_grad, stride_grad)
     plt.plot(t_range_grad, df3['DRO_eval2'][(j3g*end_ind_grad):(j3g+1)*end_ind_grad:stride_grad],
              color='gray', linestyle='--',
-             linewidth=1, label="DRO Grad", marker="s", ms=1.5)
+             linewidth=1, label="DRO subgrad", marker="s", ms=1.5)
     _band(quantiles3[q1], quantiles3[q2], 'DRO_eval2', j3g, end_ind_grad, 'gray', t_range_grad, stride_grad)
 
     plt.xscale("log")
@@ -671,6 +671,69 @@ def plot_regret(df, quantiles, df1=None, quantiles1=None,end_ind=61,j=(0,0,0), q
     plt.grid(True, alpha=alpha)
     plt.savefig(folderout + 'regret_analysis.pdf', bbox_inches='tight', dpi=300)
 
+
+def plot_regret_new(df, quantiles, df1=None, quantiles1=None,end_ind=61,j=(0,0,0), q = (40,60),K=5, alpha=0.1,ylim=[0.008,0.022]):
+    j1,j2,j3 = j
+    # Set up LaTeX rendering
+    df = df[K]
+    # df = quantiles[K][50].copy()
+    # df1 = quantiles[0][50].copy()
+    quantiles = quantiles[K].copy()
+    fontsize= 10
+    q1,q2 = q
+    radius = [0.0012*(1/((t+5)**(1/(40)))) for t in range(2001)]
+    plt.rcParams.update({
+        "text.usetex": True,
+        "font.family": "serif",
+        "font.serif": ["Computer Modern Roman"],
+        "font.size": fontsize,
+        "axes.labelsize": fontsize,
+        "axes.titlesize": 11,
+        "legend.fontsize": 7.1
+    })
+    t_range = np.array(df['t'])[(0*end_ind)+1:(1)*end_ind:2]
+    plt.figure(figsize=(4.3, 2.1), dpi=300)
+
+    # online and reclustering regret
+
+    # plt.plot(t_range, 5*df['regret_bound'][(j1*end_ind+1):(j1+1)*end_ind:2]+ np.array([5*np.sum(df['sig_val'][(j1*end_ind+1):(j1+1)*end_ind:2][:i+1])/(i) for i in range(1,int((end_ind)/2)+1)]), 'b:', linewidth=1, label = "online clustering UB", marker="o",ms=1.5)
+    
+    # plt.plot(t_range, 5*np.array(df['sig_val'][(j1*end_ind+1):(j1+1)*end_ind:2]), 'b--', label = r"online clustering $\Phi^K_t$",linewidth = 0.5)
+
+    # plt.plot(t_range, np.array([np.sum((np.array(df['worst_values_regret'][(j1*end_ind+1):(j1+1)*end_ind:2])-np.array(df1['DRO_obj_values'][(j3*end_ind+1):(j3+1)*end_ind:2]))[:i+1])/(i) for i in range(1,int((end_ind)/2)+1)]), 'b-', linewidth=1, label = "online clustering", marker="v",ms=1.5)
+
+
+    plt.plot(t_range, 5*df['MRO_regret_bound'][(j2*end_ind+1):(j2+1)*end_ind:2]+ np.array([5*np.sum(df['MRO_sig_val'][(j2*end_ind+1):(j2+1)*end_ind:2][:i+1])/(i) for i in range(1,int((end_ind)/2)+1)])  - 5*np.array([2*np.sum(radius[:i+1])/(i) +2*radius[i]/(i)  for i in range(1,int((end_ind)/2)+1)]), color='cornflowerblue', linestyle = ":", linewidth=1, label = "reclustering UB", marker="D",ms=1.5)
+
+    # plt.plot(t_range, 5*np.array(df['MRO_sig_val'][(j2*end_ind+1):(j2+1)*end_ind:2]), 'r--',label = r"reclustering $\Phi^K_t$" , linewidth = 0.5)
+
+    plt.plot(t_range, np.array([np.sum((np.array(df['MRO_worst_values_regret'][(j2*end_ind+1):(j2+1)*end_ind:2])-np.array(df1['DRO_obj_values'][(j3*end_ind+1):(j3+1)*end_ind:2]))[:i+1])/(i) for i in range(1,int((end_ind)/2)+1)]), 'r-', linewidth=1, label = "reclustering empirical", marker="D",ms=1.5)
+    
+
+    # plt.fill_between(np.array(t_range),y1=[np.sum((np.array(quantiles[q1]['worst_values_regret'][(j1*end_ind+1):(j1+1)*end_ind:2])-np.array(quantiles1[q1]['DRO_obj_values'][(j3*end_ind+1):(j3+1)*end_ind:2]))[:i+1])/(i) for i in range(1,int((end_ind)/2)+1)],y2=[np.sum((np.array(quantiles[q2]['worst_values_regret'][(j1*end_ind+1):(j1+1)*end_ind:2])-np.array(quantiles1[q2]['DRO_obj_values'][(j3*end_ind+1):(j3+1)*end_ind:2]))[:i+1])/(i) for i in range(1,int((end_ind)/2)+1)],alpha=alpha, color = 'b')
+
+    
+
+    plt.fill_between(np.array(t_range),y1=[np.sum((np.array(quantiles[q1]['MRO_worst_values_regret'][(j2*end_ind+1):(j2+1)*end_ind:2])-np.array(quantiles1[q1]['DRO_obj_values'][(j3*end_ind+1):(j3+1)*end_ind:2]))[:i+1])/(i) for i in range(1,int((end_ind)/2)+1)],y2=[np.sum((np.array(quantiles[q2]['MRO_worst_values_regret'][(j2*end_ind+1):(j2+1)*end_ind:2])-np.array(quantiles1[q2]['DRO_obj_values'][(j3*end_ind+1):(j3+1)*end_ind:2]))[:i+1])/(i) for i in range(1,int((end_ind)/2)+1)],alpha=alpha, color = 'r')
+
+
+    # theoretical bounds
+   
+    # plt.fill_between(np.array(t_range),y1=np.array(5*quantiles[q1]['regret_bound'][(j1*end_ind+1):(j1+1)*end_ind:2])+ np.array([5*np.sum(quantiles[q1]['sig_val'][(j1*end_ind+1):(j1+1)*end_ind:2][:i+1])/(i) for i in  range(1,int((end_ind)/2)+1)]) ,y2=np.array(5*quantiles[q2]['regret_bound'][(j1*end_ind+1):(j1+1)*end_ind:2])+np.array([5*np.sum(quantiles[q2]['sig_val'][(j1*end_ind+1):(j1+1)*end_ind:2][:i+1])/(i) for i in range(1,int((end_ind)/2)+1)]) ,alpha=alpha, color = 'b')
+
+    
+    plt.fill_between(np.array(t_range),y1=np.array(5*quantiles[q1]['MRO_regret_bound'][(j2*end_ind+1):(j2+1)*end_ind:2])+ np.array([5*np.sum(quantiles[q1]['MRO_sig_val'][(j2*end_ind+1):(j2+1)*end_ind:2][:i+1])/(i) for i in  range(1,int((end_ind)/2)+1)]) - 5*np.array([2*np.sum(radius[:i+1])/(i) +2*radius[i]/(i)  for i in range(1,int((end_ind)/2)+1)]) ,y2=np.array(5*quantiles[q2]['MRO_regret_bound'][(j2*end_ind+1):(j2+1)*end_ind:2])+np.array([5*np.sum(quantiles[q2]['MRO_sig_val'][(j2*end_ind+1):(j2+1)*end_ind:2][:i+1])/(i) for i in range(1,int((end_ind)/2)+1)]) - 5*np.array([2*np.sum(radius[:i+1])/(i) +2*radius[i]/(i)  for i in range(1,int((end_ind)/2)+1)]),alpha=alpha, color = 'cornflowerblue')
+
+
+    plt.legend(ncol = 2)
+    plt.xlabel(r'Time step $(t)$')
+    plt.title(r'Dynamic regret')
+    plt.ylim(ylim)
+    plt.yscale('log')
+    plt.xscale('log')
+    plt.grid(True, alpha=alpha)
+    plt.savefig(folderout + 'regret_analysis.pdf', bbox_inches='tight', dpi=300)
+
 def plot_bounds(df, quantiles, df1=None, quantiles1=None, end_ind=61,j=(0,0,0), q = (40,60),K=5, alpha=0.1):
     j1,j2,j3 = j
     # Set up LaTeX rendering
@@ -736,13 +799,13 @@ quant_list = [25,75]
 
 # foldername = '/Users/irina.wang/Desktop/Princeton/Project2/mro_mpc/port_new/results_new_p2/2/T'+str(T-1)+'R'+str(R)+'/'
 
-foldername = '/scratch/gpfs/BSTELLATO/iywang/low_rank/online_mro/port_new/results/orig/p1/1/T'+str(T-1)+'R'+str(R)+'/'
+# foldername = '/scratch/gpfs/BSTELLATO/iywang/low_rank/online_mro/port_new/results/orig/p1/1/T'+str(T-1)+'R'+str(R)+'/'
 
 # folderout = '/Users/irina.wang/Desktop/Princeton/Project2/mro_mpc/port_new/results_new_p2_plots/2/T'+str(T-1)+'R'+str(R)+'/'
 
-folderout = '/scratch/gpfs/BSTELLATO/iywang/low_rank/online_mro/port_new/plots_new/orig/1/T'+str(T-1)+'R'+str(R)+'/'
+# folderout = '/scratch/gpfs/BSTELLATO/iywang/low_rank/online_mro/port_new/plots_new/orig/1/T'+str(T-1)+'R'+str(R)+'/'
 
-os.makedirs(folderout, exist_ok=True)
+# os.makedirs(folderout, exist_ok=True)
 
 # folderout2 = '/Users/irina.wang/Desktop/Princeton/Project2/mro_mpc/port_new/results_new_p1_plots/2/T'+str(T-1)+'R'+str(R)+'/'
 # folderout2 = '/scratch/gpfs/BSTELLATO/iywang/low_rank/online_mro/port_new/results_new_p1_plots/2/T'+str(T-1)+'R'+str(R)+'/'
@@ -750,7 +813,7 @@ os.makedirs(folderout, exist_ok=True)
 # os.makedirs(folderout2, exist_ok=True)
 
 # setup MRO dfs
-def setup_dfs(folderout = folderout, foldername = foldername, K_list = K_list, init = False):
+def setup_dfs(folderout = None, foldername = None, K_list = K_list, init = False):
     if init:
         quantiles = {}
         for K in K_list:
@@ -831,43 +894,45 @@ def infer_end_ind(df_dict, K=None, t_col='t'):
 
     return int(len(dfk))
 
+preamble = "/Users/irina.wang/Desktop/Princeton/Project2/mro_mpc/"
+# preamble = "scratch/gpfs/BSTELLATO/iywang/low_rank/online_mro/"
 
-foldername_orig = '/scratch/gpfs/BSTELLATO/iywang/low_rank/online_mro/port_new/results/orig/p1/pca5/T'+str(T-1)+'R'+str(R)+'/'
+foldername_orig = preamble + 'port_new/results/orig/p1/4/T'+str(T-1)+'R'+str(R)+'/'
 
-folderout_orig = '/scratch/gpfs/BSTELLATO/iywang/low_rank/online_mro/port_new/plots_new/orig/pca5/T'+str(T-1)+'R'+str(R)+'/'
-
-os.makedirs(folderout_orig, exist_ok=True)
-
-foldername_orig_dro = '/scratch/gpfs/BSTELLATO/iywang/low_rank/online_mro/port_new/results/orig/p1/pca5/T'+str(T-1)+'R'+str(R)+'/'
-
-folderout_orig_dro = '/scratch/gpfs/BSTELLATO/iywang/low_rank/online_mro/port_new/plots_new/orig/pca5/T'+str(T-1)+'R'+str(R)+'/'
+folderout_orig = preamble + 'port_new/plots_new/orig/4/T'+str(T-1)+'R'+str(R)+'/'
 
 os.makedirs(folderout_orig, exist_ok=True)
 
-foldername_new = '/scratch/gpfs/BSTELLATO/iywang/low_rank/online_mro/port_new/results/new/p1/pca5/T'+str(T-1)+'R'+str(R)+'/'
+foldername_orig_dro = preamble + 'port_new/results/orig/p1/4/T'+str(T-1)+'R'+str(R)+'/'
 
-folderout_new = '/scratch/gpfs/BSTELLATO/iywang/low_rank/online_mro/port_new/plots_new/new/pca5/T'+str(T-1)+'R'+str(R)+'/'
+folderout_orig_dro = preamble + 'port_new/plots_new/orig/4/T'+str(T-1)+'R'+str(R)+'/'
+
+os.makedirs(folderout_orig, exist_ok=True)
+
+foldername_new = preamble + 'port_new/results/new/p1/4/T'+str(T-1)+'R'+str(R)+'/'
+
+folderout_new = preamble + 'port_new/plots_new/new/4/T'+str(T-1)+'R'+str(R)+'/'
 
 os.makedirs(folderout_new, exist_ok=True)
 
-foldername_new_dro = '/scratch/gpfs/BSTELLATO/iywang/low_rank/online_mro/port_new/results/new/p1/pca5/T'+str(T-1)+'R'+str(R)+'/'
+foldername_new_dro = preamble + 'port_new/results/new/p1/8/T'+str(T-1)+'R'+str(R)+'/'
 
-folderout_new_dro = '/scratch/gpfs/BSTELLATO/iywang/low_rank/online_mro/port_new/plots_new/new/pca5/T'+str(T-1)+'R'+str(R)+'/'
+folderout_new_dro = preamble + 'port_new/plots_new/new/8/T'+str(T-1)+'R'+str(R)+'/'
 
 os.makedirs(folderout_new_dro, exist_ok=True)
 
-folderout = '/scratch/gpfs/BSTELLATO/iywang/low_rank/online_mro/port_new/plots_new/comp/pca5/T'+str(T-1)+'R'+str(R)+'/'
+folderout = preamble + 'port_new/plots_new/comp/4_new/T'+str(T-1)+'R'+str(R)+'/'
 
 os.makedirs(folderout, exist_ok=True)
 
 
-df_orig, quantiles_orig = setup_dfs(foldername = foldername_orig, folderout = folderout_orig, K_list = [0,15,25], init = True)
+df_orig, quantiles_orig = setup_dfs(foldername = foldername_orig, folderout = folderout_orig, K_list = [15,25], init = False)
 
-df_new, quantiles_new = setup_dfs(foldername = foldername_new, folderout = folderout_new, K_list = [0,15,25], init = True)
+df_new, quantiles_new = setup_dfs(foldername = foldername_new, folderout = folderout_new, K_list = [15,25], init = False)
 
-df_orig_dro, quantiles_orig_dro = setup_dfs(foldername = foldername_orig_dro, folderout = folderout_orig_dro, K_list = [0], init = True)
+df_orig_dro, quantiles_orig_dro = setup_dfs(foldername = foldername_orig_dro, folderout = folderout_orig_dro, K_list = [0], init = False)
 
-df_new_dro, quantiles_new_dro = setup_dfs(foldername = foldername_new_dro, folderout = folderout_new_dro, K_list = [0], init = True)
+df_new_dro, quantiles_new_dro = setup_dfs(foldername = foldername_new_dro, folderout = folderout_new_dro, K_list = [0], init = False)
 
 # df1,quantiles1 = setup_dfs(folderout = folderout,init = False)
 
@@ -887,9 +952,11 @@ plot_eval(df_orig,quantiles_orig,df_orig,quantiles_orig,j=(0,0,0),K=25,q=(25,75)
 #     end_ind=end_ind_orig, end_ind_grad= end_ind_new,val2=2.3, legend=True,
 # )
 
-# plot_eval_compare(
-#    df_orig, quantiles_orig, df_orig_dro, quantiles_orig_dro,
-#     df_new, quantiles_new, df_new_dro, quantiles_new_dro,
-#     j=(0,2,4), j_grad=(0,2,4), K=25, q=(25,75),
-#     end_ind=end_ind_orig, end_ind_grad= end_ind_new, legend=True,
-# )
+plot_eval_compare(
+   df_orig, quantiles_orig, df_orig_dro, quantiles_orig_dro,
+    df_new, quantiles_new, df_new_dro, quantiles_new_dro,
+    j=(0,2,5), j_grad=(0,2,0), K=25, q=(25,75),
+    end_ind=end_ind_orig, end_ind_grad= end_ind_new, legend=True,
+)
+
+plot_regret_new(df_orig,quantiles_orig,df_orig_dro[0],quantiles_orig_dro[0],j=(0,2,5),K=25,q=(25,75),end_ind = end_ind_orig,ylim=[0.0005,1])
