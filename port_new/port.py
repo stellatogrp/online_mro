@@ -383,7 +383,7 @@ def port_experiments(r_input,K,T,N_init,synthetic_returns,eta_0, r_start, newfol
 
             # New sample
             new_sample = dat[init_ind+num_dat]
-            q_dict, k_dict, weight_update_time = online_cluster_update(K, new_sample, q_dict, k_dict, num_dat, t, fixed_time, m, Q)
+            q_dict, k_dict, weight_update_time = online_cluster_update(K, new_sample, q_dict, k_dict, num_dat, t, fixed_time, m, Q, rmse_mult)
             if t >= fixed_time:
                 new_k_dict, cluster_time = fixed_cluster(new_k_dict, new_sample, num_dat=num_dat, m=m)
             num_dat += 1
@@ -548,6 +548,7 @@ if __name__ == '__main__':
     parser.add_argument('--fixed_time', type=int, default=1500)
     parser.add_argument('--interval', type=int, default=100)
     parser.add_argument('--N_init', type=int, default=50)
+    parser.add_argument('--rmse_mult', type=float, default=2)
     parser.add_argument('--r_start', type=int, default=0)
     parser.add_argument('--line_search', action=argparse.BooleanOptionalAction,
                         default=True,
@@ -567,6 +568,7 @@ if __name__ == '__main__':
     fixed_time = arguments.fixed_time
     interval = arguments.interval
     N_init = arguments.N_init
+    rmse_mult = arguments.rmse_mult
     line_search = arguments.line_search
     K_arr = [15,25,30]
     K = K_arr[idx]
@@ -599,6 +601,7 @@ if __name__ == '__main__':
             'filename': os.path.basename(__file__),
             'K': K, 'T': T, 'R': R, 'm': m, 'Q': Q,
             'fixed_time': fixed_time, 'interval': interval, 'N_init': N_init,
+            'rmse_mult': rmse_mult,
             'r_start': r_start, 'line_search': line_search,
             'eta_0': eta_0,
             'epsilon_values': [float(e) for e in eps_init],
