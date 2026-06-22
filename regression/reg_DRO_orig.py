@@ -166,10 +166,10 @@ if __name__ == '__main__':
     parser.add_argument('--T', type=int, default=3001)
     parser.add_argument('--R', type=int, default=5)
     parser.add_argument('--m', type=int, default=10)        # covariate dimension d
-    parser.add_argument('--k', type=int, default=5)         # cardinality budget
-    parser.add_argument('--k_true', type=int, default=5)    # true sparsity
-    parser.add_argument('--interval', type=int, default=1)
-    parser.add_argument('--interval_SAA', type=int, default=1)
+    parser.add_argument('--k', type=int, default=10)         # cardinality budget
+    parser.add_argument('--k_true', type=int, default=10)    # true sparsity
+    parser.add_argument('--interval', type=int, default=100)
+    parser.add_argument('--interval_SAA', type=int, default=100)
     parser.add_argument('--N_init', type=int, default=50)
     parser.add_argument('--r_start', type=int, default=0)
 
@@ -203,7 +203,7 @@ if __name__ == '__main__':
     if T >= 10000:
         eps_init = [1.0]
     else:
-        eps_init = [3.0, 2.0, 1.5, 1.0, 0.7, 0.5,0.3]
+        eps_init = [2.0, 1.5, 1.0, 0.7, 0.5, 0.3]
     M = len(eps_init)
     list_inds = list(itertools.product(np.arange(R), np.arange(M)))
     t_list = [4, 5, 9, 10, 14, 15, 19, 20, 1249, 1250, 1499, 1500, 1749, 1750, 1999, 2000]

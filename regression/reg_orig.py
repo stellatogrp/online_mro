@@ -369,8 +369,8 @@ if __name__ == '__main__':
     parser.add_argument('--T', type=int, default=3001)
     parser.add_argument('--R', type=int, default=5)
     parser.add_argument('--m', type=int, default=10)        # covariate dimension d
-    parser.add_argument('--k', type=int, default=5)         # cardinality budget
-    parser.add_argument('--k_true', type=int, default=5)    # true sparsity
+    parser.add_argument('--k', type=int, default=10)         # cardinality budget
+    parser.add_argument('--k_true', type=int, default=10)    # true sparsity
     parser.add_argument('--Q', type=int, default=500)
     parser.add_argument('--fixed_time', type=int, default=1500)
     parser.add_argument('--interval', type=int, default=100)
@@ -390,7 +390,7 @@ if __name__ == '__main__':
     fixed_time = arguments.fixed_time
     interval = arguments.interval
     N_init = arguments.N_init
-    K_arr = [15, 25, 30]
+    K_arr = [10, 25]
     K = K_arr[idx]
     newfoldername = foldername + 'K' + str(K) + '_R' + str(R) + '_T' + str(T - 1) + '/'
     os.makedirs(newfoldername, exist_ok=True)
@@ -407,7 +407,7 @@ if __name__ == '__main__':
     # Range brackets the validity threshold (init_eps ~1, where the worst-case
     # objective becomes a valid upper bound) up through the out-of-sample-MSE
     # optimum (init_eps ~2-3); init_eps >~5 over-shrinks beta.
-    eps_init = [3.0, 2.0, 1.5, 1.0, 0.7, 0.5,0.3]
+    eps_init = [2.0, 1.5, 1.0, 0.7, 0.5, 0.3]
     if T >= 5000:
         eps_init = [2.0, 1.5, 1.0, 0.7]
     M = len(eps_init)
