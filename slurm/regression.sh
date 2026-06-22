@@ -9,6 +9,8 @@
 #SBATCH --mail-type=BEGIN,END,FAIL,TIME_LIMIT
 #SBATCH --mail-user=iabirina@hotmail.com
 
+#  SBATCH --array=0-1           # job array with index values 0, 1, 2, 3
+
 
 cd "$SLURM_SUBMIT_DIR"
 
@@ -18,10 +20,8 @@ module purge
 module load anaconda3/2024.2
 conda activate lropt_rev
 
-# python regression/reg_orig.py --foldername regression/results/p2/4/ --R 5 --T 2001 --fixed_time 2001 --interval 100 --Q 500 --K 10 --N_init 5 --r_start 0 --m 50 --noise 1
+# python regression/reg_orig.py --foldername regression/results/p2/5/ --R 5 --T 2001 --fixed_time 2001 --interval 100 --Q 500 --K 10 --N_init 5 --r_start 0 --m 50 --noise 3 --rmse_mult 1 
 
-python regression/reg_DRO_orig.py --foldername regression/results/p2/4/ --R 5 --T 2001 --interval 100 --interval_SAA 100 --N_init 5 --r_start 0 --m 50 --noise 1
+python regression/reg_DRO_orig.py --foldername regression/results/p2/5/ --R 5 --T 2001 --interval 100 --interval_SAA 100 --N_init 5 --r_start 0 --m 50 --noise 3 --rmse_mult 1 
 
-# python portfolio_new/port.py --foldername portfolio_new/results/ --R 10 --T 10000 --fixed_time 8500  --interval 500 --Q 500 --K 5 --r_start 20 --m 50 --N_init 5
 
-#  SBATCH --array=0-1           # job array with index values 0, 1, 2, 3

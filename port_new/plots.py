@@ -930,7 +930,7 @@ df_orig, quantiles_orig = setup_dfs(foldername = foldername_orig, folderout = fo
 
 df_new, quantiles_new = setup_dfs(foldername = foldername_new, folderout = folderout_new, K_list = [15,25], init = False)
 
-df_orig_dro, quantiles_orig_dro = setup_dfs(foldername = foldername_orig_dro, folderout = folderout_orig_dro, K_list = [0], init = True)
+df_orig_dro, quantiles_orig_dro = setup_dfs(foldername = foldername_orig_dro, folderout = folderout_orig_dro, K_list = [0], init = False)
 
 df_new_dro, quantiles_new_dro = setup_dfs(foldername = foldername_new_dro, folderout = folderout_new_dro, K_list = [0], init = False)
 
@@ -940,9 +940,9 @@ end_ind_orig = infer_end_ind(df_orig, K=25)
 end_ind_new = 0
 # end_ind_new = infer_end_ind(df_new, K = 25)
 
-plot_eval_all(df_orig,quantiles_orig,df_orig_dro,quantiles_orig_dro,j=(0,0,0),K=25,q=(25,75),ylim=[0.004,0.02],legend = True,val2=2.3, end_ind=end_ind_orig)
+plot_eval_all(df_orig,quantiles_orig,df_orig_dro,quantiles_orig_dro,j=(0,2,5),K=25,q=(25,75),ylim=[0.004,0.02],legend = True,val2=2.3, end_ind=end_ind_orig)
 
-plot_eval(df_orig,quantiles_orig,df_orig_dro,quantiles_orig_dro,j=(0,0,0),K=25,q=(25,75),end_ind=end_ind_orig,legend = True)
+plot_eval(df_orig,quantiles_orig,df_orig_dro,quantiles_orig_dro,j=(0,2,5),K=25,q=(25,75),end_ind=end_ind_orig,legend = True)
 
 
 # plot_eval_all_compare(
