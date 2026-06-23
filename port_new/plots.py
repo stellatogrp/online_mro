@@ -74,6 +74,10 @@ def plot_eval_all(df, quantiles, df1=None, quantiles1=None,end_ind=61,j=(0,0,0),
     ax1.plot(t_range, df1['SA_time'][(j3*end_ind):(j3+1)*end_ind:2], color ='g', linewidth=1, label = "SAA",marker="o",ms=1.5)
     ax1.fill_between(np.array(t_range),y1=np.array(quantiles1[q1]['DRO_time'][(j3*end_ind):(j3+1)*end_ind:2]).astype(float),y2=np.array(quantiles1[q2]['DRO_time'][(j3*end_ind):(j3+1)*end_ind:2]).astype(float),alpha=alpha, color = 'black')
     ax1.fill_between(np.array(t_range),y1=np.array(quantiles1[q1]['SA_time'][(j3*end_ind):(j3+1)*end_ind:2]).astype(float),y2=np.array(quantiles1[q2]['SA_time'][(j3*end_ind):(j3+1)*end_ind:2]).astype(float),alpha=alpha, color = 'g')
+    if 'SAA_time' in df.columns:
+        ax1.plot(t_range, df['SAA_time'][(j1*end_ind):(j1+1)*end_ind:2], color ='m', linewidth=1, label = "cluster SAA",marker="x",ms=1.5)
+        if 'SAA_time' in quantiles[q1].columns:
+            ax1.fill_between(np.array(t_range),y1=np.array(quantiles[q1]['SAA_time'][(j1*end_ind):(j1+1)*end_ind:2]).astype(float),y2=np.array(quantiles[q2]['SAA_time'][(j1*end_ind):(j1+1)*end_ind:2]).astype(float),alpha=alpha, color = 'm')
 
     ax1.set_xlabel(r'Time step $(t)$')
     ax1.set_xscale("log")
@@ -98,8 +102,12 @@ def plot_eval_all(df, quantiles, df1=None, quantiles1=None,end_ind=61,j=(0,0,0),
     # DRO and SAA
     lines3, = ax2.plot(t_range, df1['SA_obj_values'][(j3*end_ind):(j3+1)*end_ind:2], 'g-', linewidth=1, label = "SAA", marker="o",ms=1.5)
     lines4, = ax2.plot(t_range, df1['DRO_obj_values'][(j3*end_ind):(j3+1)*end_ind:2], color ='black', linewidth=1, label = "DRO", marker="s",ms=1.5)
+    if 'SAA_obj_values' in df.columns:
+        lines_cluster, = ax2.plot(t_range, df['SAA_obj_values'][(j1*end_ind):(j1+1)*end_ind:2], color ='m', linewidth=1, label = "cluster SAA", marker="x",ms=1.5)
     ax2.fill_between(np.array(t_range),y1=np.array(quantiles1[q1]['DRO_obj_values'][(j3*end_ind):(j3+1)*end_ind:2]).astype(float),y2=np.array(quantiles1[q2]['DRO_obj_values'][(j3*end_ind):(j3+1)*end_ind:2]).astype(float),alpha=alpha, color = 'black')
     ax2.fill_between(np.array(t_range),y1=np.array(quantiles1[q1]['SA_obj_values'][(j3*end_ind):(j3+1)*end_ind:2]).astype(float),y2=np.array(quantiles1[q2]['SA_obj_values'][(j3*end_ind):(j3+1)*end_ind:2]).astype(float),alpha=alpha, color = 'g')
+    if 'SAA_obj_values' in quantiles[q1].columns:
+        ax2.fill_between(np.array(t_range),y1=np.array(quantiles[q1]['SAA_obj_values'][(j1*end_ind):(j1+1)*end_ind:2]).astype(float),y2=np.array(quantiles[q2]['SAA_obj_values'][(j1*end_ind):(j1+1)*end_ind:2]).astype(float),alpha=alpha, color = 'm')
 
     ax2.set_xlabel(r'Time step $(t)$')
     ax2.set_xscale("log")
@@ -116,6 +124,8 @@ def plot_eval_all(df, quantiles, df1=None, quantiles1=None,end_ind=61,j=(0,0,0),
     # DRO and SAA
     ax3.plot(t_range, df1['SA_satisfy1'][(j3*end_ind):(j3+1)*end_ind:2], 'g-', linewidth=1, label = "SAA",marker="o",ms=1.5)
     ax3.plot(t_range, df1['DRO_satisfy1'][(j3*end_ind):(j3+1)*end_ind:2], color ='black', linewidth=1, label = "DRO",marker="s",ms=1.5)
+    if 'SAA_satisfy1' in df.columns:
+        ax3.plot(t_range, df['SAA_satisfy1'][(j1*end_ind):(j1+1)*end_ind:2], color ='m', linewidth=1, label = "cluster SAA",marker="x",ms=1.5)
     ax3.set_xlabel(r'Time step $(t)$')
     # ax3.set_xscale("log")
 
@@ -124,7 +134,11 @@ def plot_eval_all(df, quantiles, df1=None, quantiles1=None,end_ind=61,j=(0,0,0),
     
     # Create a shared legend beneath the plots
     # lines = [lines1,lines2, lines3, lines4]
-    lines = [lines1,lines2]
+    lines = [lines1, lines2, lines3, lines4]
+    try:
+        lines.append(lines_cluster)
+    except NameError:
+        pass
     labels = [line.get_label() for line in lines]
     if legend:
         legend = fig.legend(lines, labels, loc='lower center', bbox_to_anchor=(0.5, -0.1), ncol=5)
@@ -463,15 +477,20 @@ def plot_eval(df, quantiles, df1=None, quantiles1=None,end_ind=61,j=(0,0,0), q =
 
     plt.plot(t_range, df1['SA_eval2'][(j3*end_ind):(j3+1)*end_ind:2], 'g-', linewidth=1, label = "SAA", marker="o",ms=1.5)
     plt.fill_between(np.array(t_range),y1=np.array(quantiles1[q1]['SA_eval2'][(j3*end_ind):(j3+1)*end_ind:2]).astype(float),y2=np.array(quantiles1[q2]['SA_eval2'][(j3*end_ind):(j3+1)*end_ind:2]).astype(float),alpha=alpha, color='g')
+
+    if 'SAA_eval1' in df.columns:
+        plt.plot(t_range, df['SAA_eval1'][(j1*end_ind):(j1+1)*end_ind:2], color ='m', linewidth=1, label = "cluster SAA",marker="x",ms=1.5)
+        if 'SAA_eval1' in quantiles[q1].columns:
+            plt.fill_between(np.array(t_range),y1=np.array(quantiles[q1]['SAA_eval1'][(j1*end_ind):(j1+1)*end_ind:2]).astype(float),y2=np.array(quantiles[q2]['SAA_eval1'][(j1*end_ind):(j1+1)*end_ind:2]).astype(float),alpha=alpha, color = 'm')
+
     plt.xscale("log")
-    plt.ylim([0.008,0.04])
+    # plt.ylim([0.008,0.04])
     if legend:
         plt.legend()
     plt.xlabel(r'Time step $(t)$')
     plt.title(f'Out-of-sample expected value, $K$ = {K}')
     plt.grid(True, alpha=alpha)
     plt.savefig(folderout+f'eval_analysis{K}.pdf', bbox_inches='tight', dpi=300)
-
 
 def plot_eval_compare(
     df,  quantiles,  df1, quantiles1,
@@ -703,7 +722,7 @@ def plot_regret_new(df, quantiles, df1=None, quantiles1=None,end_ind=61,j=(0,0,0
     # plt.plot(t_range, np.array([np.sum((np.array(df['worst_values_regret'][(j1*end_ind+1):(j1+1)*end_ind:2])-np.array(df1['DRO_obj_values'][(j3*end_ind+1):(j3+1)*end_ind:2]))[:i+1])/(i) for i in range(1,int((end_ind)/2)+1)]), 'b-', linewidth=1, label = "online clustering", marker="v",ms=1.5)
 
 
-    plt.plot(t_range, 5*df['MRO_regret_bound'][(j2*end_ind+1):(j2+1)*end_ind:2]+ np.array([5*np.sum(df['MRO_sig_val'][(j2*end_ind+1):(j2+1)*end_ind:2][:i+1])/(i) for i in range(1,int((end_ind)/2)+1)])  - 5*np.array([2*np.sum(radius[:i+1])/(i) +2*radius[i]/(i)  for i in range(1,int((end_ind)/2)+1)]), color='cornflowerblue', linestyle = ":", linewidth=1, label = "reclustering UB", marker="D",ms=1.5)
+    plt.plot(t_range, 5*df['MRO_regret_bound'][(j2*end_ind+1):(j2+1)*end_ind:2]+ np.array([5*np.sum(df['MRO_sig_val'][(j2*end_ind+1):(j2+1)*end_ind:2][:i+1])/(i) for i in range(1,int((end_ind)/2)+1)]), color='cornflowerblue', linestyle = ":", linewidth=1, label = "reclustering UB", marker="D",ms=1.5)
 
     # plt.plot(t_range, 5*np.array(df['MRO_sig_val'][(j2*end_ind+1):(j2+1)*end_ind:2]), 'r--',label = r"reclustering $\Phi^K_t$" , linewidth = 0.5)
 
@@ -722,7 +741,7 @@ def plot_regret_new(df, quantiles, df1=None, quantiles1=None,end_ind=61,j=(0,0,0
     # plt.fill_between(np.array(t_range),y1=np.array(5*quantiles[q1]['regret_bound'][(j1*end_ind+1):(j1+1)*end_ind:2])+ np.array([5*np.sum(quantiles[q1]['sig_val'][(j1*end_ind+1):(j1+1)*end_ind:2][:i+1])/(i) for i in  range(1,int((end_ind)/2)+1)]) ,y2=np.array(5*quantiles[q2]['regret_bound'][(j1*end_ind+1):(j1+1)*end_ind:2])+np.array([5*np.sum(quantiles[q2]['sig_val'][(j1*end_ind+1):(j1+1)*end_ind:2][:i+1])/(i) for i in range(1,int((end_ind)/2)+1)]) ,alpha=alpha, color = 'b')
 
     
-    plt.fill_between(np.array(t_range),y1=np.array(5*quantiles[q1]['MRO_regret_bound'][(j2*end_ind+1):(j2+1)*end_ind:2])+ np.array([5*np.sum(quantiles[q1]['MRO_sig_val'][(j2*end_ind+1):(j2+1)*end_ind:2][:i+1])/(i) for i in  range(1,int((end_ind)/2)+1)]) - 5*np.array([2*np.sum(radius[:i+1])/(i) +2*radius[i]/(i)  for i in range(1,int((end_ind)/2)+1)]) ,y2=np.array(5*quantiles[q2]['MRO_regret_bound'][(j2*end_ind+1):(j2+1)*end_ind:2])+np.array([5*np.sum(quantiles[q2]['MRO_sig_val'][(j2*end_ind+1):(j2+1)*end_ind:2][:i+1])/(i) for i in range(1,int((end_ind)/2)+1)]) - 5*np.array([2*np.sum(radius[:i+1])/(i) +2*radius[i]/(i)  for i in range(1,int((end_ind)/2)+1)]),alpha=alpha, color = 'cornflowerblue')
+    plt.fill_between(np.array(t_range),y1=np.array(5*quantiles[q1]['MRO_regret_bound'][(j2*end_ind+1):(j2+1)*end_ind:2])+ np.array([5*np.sum(quantiles[q1]['MRO_sig_val'][(j2*end_ind+1):(j2+1)*end_ind:2][:i+1])/(i) for i in  range(1,int((end_ind)/2)+1)]) ,y2=np.array(5*quantiles[q2]['MRO_regret_bound'][(j2*end_ind+1):(j2+1)*end_ind:2])+np.array([5*np.sum(quantiles[q2]['MRO_sig_val'][(j2*end_ind+1):(j2+1)*end_ind:2][:i+1])/(i) for i in range(1,int((end_ind)/2)+1)]),alpha=alpha, color = 'cornflowerblue')
 
 
     plt.legend(ncol = 2)
@@ -897,9 +916,9 @@ def infer_end_ind(df_dict, K=None, t_col='t'):
 # preamble = "/Users/irina.wang/Desktop/Princeton/Project2/mro_mpc/"
 preamble = "/scratch/gpfs/BSTELLATO/iywang/low_rank/online_mro/"
 
-foldername_orig = preamble + 'port_new/results/orig/p1/4/T'+str(T-1)+'R'+str(R)+'/'
+foldername_orig = preamble + 'port_new/results/orig/p1/10/T'+str(T-1)+'R'+str(R)+'/'
 
-folderout_orig = preamble + 'port_new/plots_new/orig/4/T'+str(T-1)+'R'+str(R)+'/'
+folderout_orig = preamble + 'port_new/plots_new/orig/10/T'+str(T-1)+'R'+str(R)+'/'
 
 os.makedirs(folderout_orig, exist_ok=True)
 
@@ -921,7 +940,7 @@ folderout_new_dro = preamble + 'port_new/plots_new/new/8/T'+str(T-1)+'R'+str(R)+
 
 os.makedirs(folderout_new_dro, exist_ok=True)
 
-folderout = preamble + 'port_new/plots_new/comp/4_redo/T'+str(T-1)+'R'+str(R)+'/'
+folderout = preamble + 'port_new/plots_new/comp/4_redo_2/T'+str(T-1)+'R'+str(R)+'/'
 
 os.makedirs(folderout, exist_ok=True)
 
@@ -940,9 +959,9 @@ end_ind_orig = infer_end_ind(df_orig, K=25)
 end_ind_new = 0
 # end_ind_new = infer_end_ind(df_new, K = 25)
 
-plot_eval_all(df_orig,quantiles_orig,df_orig_dro,quantiles_orig_dro,j=(0,2,5),K=25,q=(25,75),ylim=[0.004,0.02],legend = True,val2=2.3, end_ind=end_ind_orig)
+plot_eval_all(df_orig,quantiles_orig,df_orig_dro,quantiles_orig_dro,j=(1,3,5),K=15,q=(25,75),ylim=[0.004,0.02],legend = True,val2=2.3, end_ind=end_ind_orig)
 
-plot_eval(df_orig,quantiles_orig,df_orig_dro,quantiles_orig_dro,j=(0,2,5),K=25,q=(25,75),end_ind=end_ind_orig,legend = True)
+plot_eval(df_orig,quantiles_orig,df_orig_dro,quantiles_orig_dro,j=(1,3,5),K=15,q=(25,75),end_ind=end_ind_orig,legend = True)
 
 
 # plot_eval_all_compare(
@@ -959,4 +978,4 @@ plot_eval_compare(
     end_ind=end_ind_orig, end_ind_grad= end_ind_new, legend=True,
 )
 
-plot_regret_new(df_orig,quantiles_orig,df_orig_dro[0],quantiles_orig_dro[0],j=(0,2,5),K=25,q=(25,75),end_ind = end_ind_orig,ylim=[0.0005,1])
+plot_regret_new(df_orig,quantiles_orig,df_orig_dro[0],quantiles_orig_dro[0],j=(3,3,5),K=25,q=(25,75),end_ind = end_ind_orig,ylim=[0.0005,1])

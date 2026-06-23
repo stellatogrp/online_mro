@@ -19,7 +19,7 @@ module purge
 module load anaconda3/2024.2
 conda activate lropt_rev
 
-python port_new/port_orig.py --foldername port_new/results/orig/p1/5/ --R 5 --T 2001 --fixed_time 2001 --interval 10 --Q 500 --K 15 --N_init 5 --r_start 0 --m 150 --rmse_mult 1
+python port_new/port_orig.py --foldername port_new/results/orig/p1/11/ --R 10 --T 2001 --fixed_time 2001 --interval 10 --Q 500 --K 15 --N_init 5 --r_start 0 --m 150 --rmse_mult 1.75
 
 # python port_new/port.py --foldername port_new/results/new/p1/14/ --R 5 --T 2001 --fixed_time 2001 --interval 1 --Q 1000 --K 15 --N_init 5 --r_start 0 --m 150 --eta_0 0.001
 
