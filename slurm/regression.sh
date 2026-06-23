@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --job-name=portfoliotest
+#SBATCH --job-name=regtest
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=35

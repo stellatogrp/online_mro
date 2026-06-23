@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --job-name=portfoliotest
+#SBATCH --job-name=portfoliotime
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=35
@@ -17,6 +17,6 @@ module purge
 module load anaconda3/2024.2
 conda activate lropt_rev
 
-# python portfolio_time/portMIP.py --foldername portfolio_time/results/2/ --R 5 --T 2001 --fixed_time 2001 --interval 50 --Q 500 --K 15 --N_init 5 --r_start 0 --m 50 --rmse_mult 1.5
+# python portfolio_time/portMIP.py --foldername portfolio_time/results/3/ --R 5 --T 2001 --fixed_time 2001 --interval 50 --Q 500 --K 15 --N_init 5 --r_start 5 --m 50 --rmse_mult 1.25
 
-python portfolio_time/portMIP_DRO.py --foldername portfolio_time/results/0/ --R 5 --T 2001 --interval 100  --interval_SAA 100  --N_init 5 --r_start 5 --m 50
+python portfolio_time/portMIP_DRO.py --foldername portfolio_time/results/3/ --R 5 --T 2001 --interval 100  --interval_SAA 100  --N_init 5 --r_start 5 --m 50
