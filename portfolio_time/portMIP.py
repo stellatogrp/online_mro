@@ -431,9 +431,8 @@ if __name__ == '__main__':
     print(newfoldername)
     script_dir = os.path.dirname(os.path.abspath(__file__))
     datname = os.path.join(script_dir, 'synthetic_200_1.csv')
-    if not os.path.exists(datname):
-        datname = '/scratch/gpfs/iywang/mro_mpc/synthetic/synthetic_200_1.csv'
-    synthetic_returns = pd.read_csv(datname).to_numpy()[:, 1:][:, :m]
+    synthetic_returns = pd.read_csv(datname
+                                    ).to_numpy()[:, 1:][:,:m]
     init_ind = 0
     njobs = get_n_processes(100)
     eps_init = [0.0045, 0.004, 0.0035, 0.003, 0.0025, 0.002, 0.0015]

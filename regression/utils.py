@@ -57,9 +57,6 @@ from scipy.spatial.distance import cdist
 from sklearn.cluster import KMeans
 
 
-# --------------------------------------------------------------------------- #
-# Generic bookkeeping / solver helpers (identical to port_new/utils.py)
-# --------------------------------------------------------------------------- #
 def save_run_metadata(metadata, paths):
     """Write a run-metadata JSON + human-readable .txt into one or more dirs.
 

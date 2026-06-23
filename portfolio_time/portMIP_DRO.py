@@ -197,10 +197,8 @@ if __name__ == '__main__':
     print(foldername)
     script_dir = os.path.dirname(os.path.abspath(__file__))
     datname = os.path.join(script_dir, 'synthetic_200_1.csv')
-    if not os.path.exists(datname):
-        datname = '/scratch/gpfs/iywang/mro_mpc/synthetic/synthetic_200_1.csv'
-    synthetic_returns = pd.read_csv(datname).to_numpy()[:, 1:][:, :m]
-
+    synthetic_returns = pd.read_csv(datname
+                                    ).to_numpy()[:, 1:][:,:m]
     init_ind = 0
     njobs = get_n_processes(100)
     if T >= 10000:
