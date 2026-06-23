@@ -21,6 +21,7 @@ from utils_p1 import (
     fixed_cluster,
     generate_classification_data,
     get_n_processes,
+    label_aware_kmeans,
     MOSEK_PARAMS,
     save_run_metadata,
     w2_dist,
@@ -153,13 +154,11 @@ def reg_experiments(r_input, K, T, N_init, synthetic_data, r_start):
                     if t <= fixed_time:
                         start_time = time.time()
                         cur_K = int(np.minimum(K, num_dat))
-                        if new_k_dict is not None and (num_dat > (interval + N_init)) and new_k_dict['d'].shape[0] == cur_K:
-                            kmeans = KMeans(n_clusters=cur_K, init=new_k_dict['d'], n_init=1).fit(running_samples)
-                        else:
-                            print("restart kmeans", cur_K, num_dat)
-                            kmeans = KMeans(n_clusters=cur_K, init="k-means++", n_init=1).fit(running_samples)
-                        new_centers = kmeans.cluster_centers_
-                        wk = np.bincount(kmeans.labels_) / num_dat
+                        # label-pure batch k-means: the cur_K budget is split
+                        # across the two labels, each clustered separately, so
+                        # every centroid is label-pure and the total is cur_K.
+                        new_centers, klabels, wk = label_aware_kmeans(running_samples, cur_K, dim)
+                        cur_K = new_centers.shape[0]
                         cluster_time = (time.time() - start_time) if K < num_dat else 0.0
                         new_k_dict = {}
                         new_k_dict['K'] = cur_K
@@ -168,7 +167,7 @@ def reg_experiments(r_input, K, T, N_init, synthetic_data, r_start):
                         new_k_dict['d'] = new_centers
                         new_k_dict['w'] = wk
                         for kk in range(cur_K):
-                            new_k_dict['data'][kk] = running_samples[kmeans.labels_ == kk]
+                            new_k_dict['data'][kk] = running_samples[klabels == kk]
 
                     cur_K_mro = new_k_dict['d'].shape[0]
                     MRO_problem, MRO_x, MRO_z, MRO_data_train, MRO_eps_train, MRO_w_train = createproblem_hingeMIO(cur_K_mro, m, k)

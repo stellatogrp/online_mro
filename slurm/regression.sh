@@ -19,8 +19,8 @@ module purge
 module load anaconda3/2024.2
 conda activate lropt_rev
 
-python regression/reg_orig.py --foldername regression/results/p2/9/ --R 5 --T 2001 --fixed_time 2001 --interval 100 --Q 500 --K 10 --N_init 5 --r_start 5 --m 50 --noise 5 --rmse_mult 1 --k 5 --k_true 5
+python regression/reg_orig_p1.py --foldername regression/results/p1/0/ --R 5 --T 2001 --fixed_time 2001 --interval 100 --Q 500 --K 10 --N_init 5 --r_start 5 --m 20 --noise 3 --rmse_mult 1.25 --k 5 --k_true 5
 
-# python regression/reg_DRO_orig.py --foldername regression/results/p2/9/ --R 5 --T 2001 --interval 100 --interval_SAA 100 --N_init 5 --r_start 0 --m 50 --noise 5  --k 5 --k_true 5
+# python regression/reg_DRO_orig_p1.py --foldername regression/results/p1/0/ --R 5 --T 2001 --interval 100 --interval_SAA 100 --N_init 5 --r_start 0 --m 20 --noise 3  --k 5 --k_true 5
 
 

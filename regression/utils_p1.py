@@ -47,32 +47,44 @@ Data layout
 -----------
 Every sample / cluster centroid is stored as a single row of length ``m + 1``:
 the first ``m`` entries are the covariates x, the last entry is the label y.
-The generic clustering helpers therefore operate in dimension ``m + 1``, while
-the SVM problem builders take the covariate dimension ``m`` and split each row
-internally.  Clustering is done in the joint (x, y) space exactly as in the
-regression code, so the generic machinery is reused unchanged.
+The clustering helpers therefore operate in dimension ``m + 1``, while the SVM
+problem builders take the covariate dimension ``m`` and split each row
+internally.
+
+Label-pure clustering
+---------------------
+Unlike the regression code (which clusters the joint (x, y) freely, producing
+fractional centroid labels), this module enforces **label-pure** clusters: every
+micro-cluster and macro-cluster contains points of a single label, so each
+centroid label y_k^c is exactly +-1.  The two labels *share* the total budgets:
+the number of macro-clusters never exceeds ``K`` and the number of
+micro-clusters never exceeds ``Q``, with each budget split across the two labels
+in proportion to their counts (``_split_budget``).  Concretely this is done by
+clustering each label group separately into its allotted share and concatenating
+the results; the online absorption / spawn / merge rules are restricted to
+same-label clusters.  This replaces the loss-agnostic clustering stack of
+``utils.py`` (the rest of which -- metadata, MOSEK options, distances, regret
+bookkeeping -- is still reused unchanged).
 """
+import time
+
 import numpy as np
 import cvxpy as cp
 import ot
+from scipy.spatial import distance
+from scipy.spatial.distance import cdist
+from sklearn.cluster import KMeans
 
-# Reuse the problem-agnostic machinery from the regression utilities verbatim:
-# metadata / process helpers, MOSEK options, and the entire online-clustering
-# stack (which operates in the joint (x, y) space and is loss-independent).
+# Reuse the genuinely problem- and label-agnostic helpers from utils.py.
 from utils import (  # noqa: F401  (re-exported for the drivers)
     save_run_metadata,
     get_n_processes,
     MOSEK_PARAMS,
     MOSEK_TIME_LIMIT,
-    find_min_pairwise_distance,
-    fixed_cluster,
     calc_rmse,
     project_simplex,
     w2_dist,
     wasserstein,
-    cluster_k_online,
-    online_cluster_init_online,
-    online_cluster_update_online,
 )
 
 
@@ -226,6 +238,346 @@ def generate_classification_data(n_total, m, k_true, noise_std=3.0, rho=0.5,
     y[y == 0] = 1.0
     data = np.column_stack([X, y])
     return data, beta_true
+
+
+# --------------------------------------------------------------------------- #
+# Label-pure clustering machinery (shared K / Q budget across the two labels)
+# --------------------------------------------------------------------------- #
+def _split_budget(total, counts):
+    """Split an integer budget ``total`` across groups with sizes ``counts``.
+
+    Returns an integer allocation ``alloc`` with ``sum(alloc) = min(total,
+    sum(counts))``, ``alloc[g] <= counts[g]``, and ``alloc[g] >= 1`` for every
+    non-empty group whenever the budget allows.  Roughly proportional to
+    ``counts`` (largest-remainder), so the two labels share the total cluster /
+    micro-cluster budget in proportion to how many points each has.
+    """
+    counts = np.asarray(counts, dtype=int)
+    G = len(counts)
+    avail = int(min(int(total), int(counts.sum())))
+    if avail <= 0:
+        return np.zeros(G, dtype=int)
+    # Largest-remainder apportionment: floor of the proportional ideal, then
+    # hand out the leftover units to the largest fractional parts (capacity-aware).
+    ideal = avail * counts / counts.sum()
+    base = np.minimum(np.floor(ideal).astype(int), counts)
+    remaining = avail - int(base.sum())
+    frac = ideal - np.floor(ideal)
+    pref = np.argsort(-frac)
+    i = 0
+    while remaining > 0 and i < 100000:
+        g = pref[i % G]
+        if base[g] < counts[g]:
+            base[g] += 1
+            remaining -= 1
+        i += 1
+    # Guarantee every non-empty group at least one cluster (so both labels are
+    # represented) whenever the budget can cover one per non-empty group.
+    active = np.where(counts > 0)[0]
+    if avail >= active.size:
+        for g in active:
+            if base[g] == 0:
+                donor = int(np.argmax(base))
+                if base[donor] > 1:
+                    base[donor] -= 1
+                    base[g] += 1
+    return base.astype(int)
+
+
+def _row_labels(rows, m):
+    """Integer labels (+-1) read from the last coordinate of joint (x, y) rows."""
+    return np.round(np.asarray(rows)[..., m - 1]).astype(int)
+
+
+def _min_pair_same_label(centers, m):
+    """Closest pair of rows sharing a label (indices into ``centers``).
+
+    Used by the micro-cluster merge step so that merging never mixes labels.
+    """
+    lab = _row_labels(centers, m)
+    D = distance.cdist(centers, centers)
+    np.fill_diagonal(D, np.inf)
+    D[lab[:, None] != lab[None, :]] = np.inf
+    return np.unravel_index(np.argmin(D), D.shape)
+
+
+def cluster_k_online(K, q_dict, k_dict, init=False):
+    """Re-cluster the micro-centers into <= K label-pure macro-clusters.
+
+    Splits the macro budget ``cur_K = min(K, cur_Q)`` across the labels present
+    among the micro-clusters (``_split_budget``) and runs k-means within each
+    label group, so every macro-cluster is label-pure and the total count is
+    ``cur_K``.  Macro slots are laid out label-group by label-group.
+    """
+    start_time = time.time()
+    cur_Q = q_dict['cur_Q']
+    m = q_dict['d'].shape[1]
+    cur_K = int(np.minimum(K, cur_Q))
+
+    micro_d = q_dict['d'][:cur_Q]
+    micro_lab = _row_labels(micro_d, m)
+    uniq = sorted(set(micro_lab.tolist()))
+    counts = [int(np.sum(micro_lab == lab)) for lab in uniq]
+    alloc = _split_budget(cur_K, counts)
+
+    # Clear any previous macro -> micro index assignments (integer keys only).
+    for key in [kk for kk in k_dict if isinstance(kk, (int, np.integer))]:
+        del k_dict[key]
+    k_dict['data'] = {}
+    a_list = []
+    gk = 0
+    for gi, lab in enumerate(uniq):
+        kg = int(alloc[gi])
+        if kg <= 0:
+            continue
+        grp = np.where(micro_lab == lab)[0]           # global micro indices
+        grp_d = q_dict['d'][grp]
+        if init or (grp.size <= kg):
+            kmeans = KMeans(n_clusters=kg, init='k-means++', n_init=1).fit(grp_d)
+        else:
+            kmeans = KMeans(n_clusters=kg, init='k-means++', n_init=1).fit(grp_d)
+        for j in range(kg):
+            sel = grp[kmeans.labels_ == j]            # global micro indices
+            k_dict[gk] = sel
+            w_cur = q_dict['w'][sel]
+            total_w = np.sum(w_cur)
+            k_dict['w'][gk] = total_w
+            if total_w > 0:
+                w_norm = w_cur / total_w
+            else:
+                w_norm = np.ones_like(w_cur) / max(len(w_cur), 1)
+            k_dict['d'][gk] = np.sum(q_dict['d'][sel] * w_norm[:, np.newaxis], axis=0)
+            a_list.append(kmeans.cluster_centers_[j])
+            gk += 1
+    k_dict['K'] = gk
+    k_dict['a'] = np.array(a_list)
+    for k in range(gk):
+        k_dict['data'][k] = np.vstack([q_dict['data'][q] for q in k_dict[k]])
+    total_time = time.time() - start_time
+    return k_dict, total_time
+
+
+def online_cluster_init_online(K, Q, data, m):
+    """Initialize label-pure micro- (<= Q) and macro- (<= K) clusters.
+
+    Each label group is k-means clustered into its share of the Q micro-cluster
+    budget (``_split_budget``); the macro layer is then built by
+    ``cluster_k_online``.  Mirrors the regression initializer but per label.
+    """
+    start_time = time.time()
+    init_num = data.shape[0]
+    lab_all = _row_labels(data, m)
+    uniq = sorted(set(lab_all.tolist()))
+    counts = [int(np.sum(lab_all == lab)) for lab in uniq]
+    total_micro = int(np.minimum(Q, init_num))
+    qalloc = _split_budget(total_micro, counts)
+
+    q_dict = {}
+    q_dict['a'] = np.zeros((Q + 1, m))
+    q_dict['d'] = np.zeros((Q + 1, m))
+    q_dict['w'] = np.zeros(Q + 1)
+    q_dict['rmse'] = np.zeros(Q + 1)
+    q_dict['data'] = {}
+
+    slot = 0
+    centers_for_floor = []
+    for gi, lab in enumerate(uniq):
+        qg = int(qalloc[gi])
+        if qg <= 0:
+            continue
+        idx = np.where(lab_all == lab)[0]
+        gdata = data[idx]
+        qmeans = KMeans(n_clusters=qg, n_init=1).fit(gdata)
+        for j in range(qg):
+            cluster_data = gdata[qmeans.labels_ == j]
+            q_dict['a'][slot] = qmeans.cluster_centers_[j]
+            q_dict['d'][slot] = qmeans.cluster_centers_[j]
+            q_dict['w'][slot] = cluster_data.shape[0] / init_num
+            q_dict['data'][slot] = cluster_data
+            centers_for_floor.append(qmeans.cluster_centers_[j])
+            slot += 1
+    cur_Q = slot
+    q_dict['cur_Q'] = cur_Q
+
+    # Data-adaptive singleton-radius floor (see utils.online_cluster_init_online):
+    # 0.3 * median nearest-neighbour distance of the init centroids (any label).
+    C = np.array(centers_for_floor)
+    if C.shape[0] > 1:
+        _dd = cdist(C, C)
+        np.fill_diagonal(_dd, np.inf)
+        rmse_floor = 0.3 * np.median(_dd.min(axis=1))
+    else:
+        rmse_floor = 0.02
+    if not np.isfinite(rmse_floor) or rmse_floor <= 1e-6:
+        rmse_floor = 0.02
+
+    for q in range(cur_Q):
+        rmse = np.sqrt(calc_rmse(q_dict['data'][q], np.reshape(q_dict['d'][q], (1, m))))
+        if rmse <= 1e-6:
+            rmse = rmse_floor
+        q_dict['rmse'][q] = rmse
+    total_time = time.time() - start_time
+
+    k_dict = {}
+    k_dict['a'] = np.zeros((K, m))
+    k_dict['w'] = np.zeros(K)
+    k_dict['d'] = np.zeros((K, m))
+    k_dict['data'] = {}
+    k_dict['K'] = int(np.minimum(K, cur_Q))
+    k_dict, t_time = cluster_k_online(K, q_dict, k_dict, init=True)
+    return q_dict, k_dict, total_time + t_time
+
+
+def online_cluster_update_online(K, new_dat, q_dict, k_dict, num_dat, t, fix_time, m, Q, rmse_mult=2):
+    """Ingest one new (x, y) point into the label-pure online clustering.
+
+    Absorption and spawning are restricted to the new point's own label: the
+    nearest *same-label* micro-cluster is considered for absorption, a spawn
+    creates a new micro-cluster of that label, and an over-budget merge combines
+    the closest *same-label* micro-pair (so the shared Q budget is respected
+    while every micro-cluster stays label-pure).
+    """
+    cur_K = k_dict['K']
+    new_dat = np.reshape(new_dat, (1, m))
+    lab = int(_row_labels(new_dat, m)[0])
+    if t >= fix_time:
+        k_dict, total_time = fixed_cluster(k_dict, new_dat, num_dat, m)
+        return q_dict, k_dict, total_time
+    cur_Q = q_dict['cur_Q']
+    start_time = time.time()
+
+    # nearest micro-cluster of the *same* label (for the absorption decision)
+    micro_lab = _row_labels(q_dict['d'][:cur_Q], m)
+    same = np.where(micro_lab == lab)[0]
+    if same.size > 0:
+        dsame = cdist(new_dat, q_dict['d'][same])
+        jloc = int(np.argmin(dsame))
+        min_dist = float(dsame[0, jloc])
+        min_ind = int(same[jloc])
+    else:
+        min_dist = np.inf
+        min_ind = -1
+    # nearest micro-cluster of *any* label (only used to seed a new singleton's
+    # radius, mirroring the regression code's spawn rmse)
+    global_min = float(np.min(cdist(new_dat, q_dict['d'][:cur_Q])))
+
+    if min_ind >= 0 and min_dist <= rmse_mult * q_dict['rmse'][min_ind] and cur_K == K:
+        # ---- absorb into same-label micro-cluster min_ind ----
+        q_dict['d'][min_ind] = (q_dict['d'][min_ind] * q_dict['w'][min_ind] * num_dat + new_dat) / (q_dict['w'][min_ind] * num_dat + 1)
+        q_dict['rmse'][min_ind] = np.sqrt((q_dict['rmse'][min_ind] ** 2 * q_dict['w'][min_ind] * num_dat + np.linalg.norm(new_dat - q_dict['d'][min_ind], 2) ** 2) / (q_dict['w'][min_ind] * num_dat + 1))
+        w_q_temp = q_dict['w'][:cur_Q] * num_dat / (num_dat + 1)
+        increased_w = (q_dict['w'][min_ind] * num_dat + 1) / (num_dat + 1)
+        q_dict['w'][:cur_Q] = w_q_temp
+        q_dict['w'][min_ind] = increased_w
+        for k in range(cur_K):
+            if min_ind in k_dict[k]:
+                k_dict['d'][k] = (k_dict['d'][k] * k_dict['w'][k] * num_dat + new_dat) / (k_dict['w'][k] * num_dat + 1)
+                k_dict['w'][k] = (k_dict['w'][k] * num_dat + 1) / (num_dat + 1)
+            else:
+                k_dict['w'][k] = (k_dict['w'][k] * num_dat) / (num_dat + 1)
+        total_time = time.time() - start_time
+        q_dict['data'][min_ind] = np.vstack([q_dict['data'][min_ind], new_dat])
+        for k in range(cur_K):
+            if min_ind in k_dict[k]:
+                k_dict['data'][k] = np.vstack([k_dict['data'][k], new_dat])
+    else:
+        # ---- spawn a new same-label micro-cluster ----
+        start_time = time.time()
+        cur_Q = q_dict['cur_Q'] + 1
+        q_dict['cur_Q'] = cur_Q
+        q_dict['a'][cur_Q - 1] = new_dat
+        q_dict['d'][cur_Q - 1] = new_dat
+        q_dict['rmse'][cur_Q - 1] = global_min
+        q_dict['w'][:cur_Q - 1] = (q_dict['w'][:cur_Q - 1] * num_dat) / (num_dat + 1)
+        q_dict['w'][cur_Q - 1] = 1 / (num_dat + 1)
+        total_time = time.time() - start_time
+        q_dict['data'][cur_Q - 1] = new_dat
+        if cur_Q > Q:
+            # over budget: merge the closest *same-label* micro-pair, then
+            # compact the freed slot with the last active micro-cluster.
+            start_time = time.time()
+            q_dict['cur_Q'] = Q
+            i, j = _min_pair_same_label(q_dict['a'][:cur_Q], m)
+            i, j = (int(i), int(j)) if i < j else (int(j), int(i))
+            merged_weight = q_dict['w'][i] + q_dict['w'][j]
+            merged_center = (q_dict['a'][i] * q_dict['w'][i] + q_dict['a'][j] * q_dict['w'][j]) / merged_weight
+            merged_centroid = (q_dict['d'][i] * q_dict['w'][i] + q_dict['d'][j] * q_dict['w'][j]) / merged_weight
+            merged_rmse = np.sqrt((q_dict['rmse'][i] ** 2 * q_dict['w'][i] + q_dict['rmse'][j] ** 2 * q_dict['w'][j]) / merged_weight + (q_dict['w'][i] * np.linalg.norm(q_dict['d'][i] - merged_centroid) ** 2 + q_dict['w'][j] * np.linalg.norm(q_dict['d'][j] - merged_centroid) ** 2) / merged_weight)
+            merged_data = np.vstack([q_dict['data'][i], q_dict['data'][j]])
+            q_dict['a'][i] = merged_center
+            q_dict['d'][i] = merged_centroid
+            q_dict['w'][i] = merged_weight
+            q_dict['rmse'][i] = merged_rmse
+            q_dict['data'][i] = merged_data
+            last = cur_Q - 1            # last active slot before compaction
+            if j != last:
+                q_dict['a'][j] = q_dict['a'][last]
+                q_dict['d'][j] = q_dict['d'][last]
+                q_dict['w'][j] = q_dict['w'][last]
+                q_dict['rmse'][j] = q_dict['rmse'][last]
+                q_dict['data'][j] = q_dict['data'][last]
+            total_time += time.time() - start_time
+        k_dict, time_temp = cluster_k_online(K, q_dict, k_dict)
+        total_time += time_temp
+    return q_dict, k_dict, total_time
+
+
+def fixed_cluster(k_dict, new_dat, num_dat, m):
+    """Assign a new point to its nearest *same-label* (frozen) macro-cluster."""
+    new_dat = np.reshape(new_dat, (1, m))
+    lab = int(_row_labels(new_dat, m)[0])
+    start_time = time.time()
+    macro_lab = _row_labels(k_dict['a'], m)
+    same = np.where(macro_lab == lab)[0]
+    if same.size > 0:
+        dists = cdist(new_dat, k_dict['a'][same])
+        min_ind = int(same[int(np.argmin(dists))])
+    else:
+        # No macro-cluster of this label exists (should not happen once both
+        # labels are present); fall back to the globally nearest centroid.
+        dists = cdist(new_dat, k_dict['a'])
+        min_ind = int(np.argmin(dists))
+    k_dict['d'][min_ind] = (k_dict['d'][min_ind] * k_dict['w'][min_ind] * num_dat + new_dat) / (k_dict['w'][min_ind] * num_dat + 1)
+    w_k_temp = k_dict['w'] * num_dat / (num_dat + 1)
+    increased_w = (k_dict['w'][min_ind] * num_dat + 1) / (num_dat + 1)
+    k_dict['w'] = w_k_temp
+    k_dict['w'][min_ind] = increased_w
+    total_time = time.time() - start_time
+    k_dict['data'][min_ind] = np.vstack([k_dict['data'][min_ind], new_dat])
+    return k_dict, total_time
+
+
+def label_aware_kmeans(samples, K, m):
+    """Batch label-pure k-means into <= K clusters sharing the budget by label.
+
+    Used by the batch-MRO branch of ``reg_orig_p1.py`` in place of a single
+    joint k-means.  Returns ``(centers, labels, weights)`` where ``centers`` is
+    ``(cur_K, m)`` (cur_K = min(K, n)), ``labels`` are global cluster ids in
+    ``0..cur_K-1`` (label-group by label-group), and ``weights`` sum to 1.
+    """
+    n = samples.shape[0]
+    lab_all = _row_labels(samples, m)
+    uniq = sorted(set(lab_all.tolist()))
+    counts = [int(np.sum(lab_all == lab)) for lab in uniq]
+    cur_K = int(np.minimum(K, n))
+    alloc = _split_budget(cur_K, counts)
+
+    centers = []
+    global_labels = np.empty(n, dtype=int)
+    gk = 0
+    for gi, lab in enumerate(uniq):
+        kg = int(alloc[gi])
+        if kg <= 0:
+            continue
+        idx = np.where(lab_all == lab)[0]
+        kmeans = KMeans(n_clusters=kg, init='k-means++', n_init=1).fit(samples[idx])
+        centers.append(kmeans.cluster_centers_)
+        for j in range(kg):
+            global_labels[idx[kmeans.labels_ == j]] = gk + j
+        gk += kg
+    centers = np.vstack(centers)
+    weights = np.bincount(global_labels, minlength=centers.shape[0]) / n
+    return centers, global_labels, weights
 
 
 # --------------------------------------------------------------------------- #

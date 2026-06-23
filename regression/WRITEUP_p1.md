@@ -103,10 +103,14 @@ $$\min_{\beta:\;\|\beta\|_0\le k}\;\Big(\textstyle\sum_{k} w_k\,(1 - y_k^c\,\bet
 
 the same MILP with the $K$ centroids as data and the weights $w_k$ entering
 **linearly** (parameter `w` $=w$ — passed directly, *not* square-rooted as in
-the SOCP). Full-data DRO is the special case $K = n$, $w_k = 1/n$. Because
-clustering is performed in the joint $(x,y)$ space, a centroid label $y_k^c$ is a
-weighted average of $\pm1$ labels and may be fractional; the hinge surrogate uses
-it directly.
+the SOCP). Full-data DRO is the special case $K = n$, $w_k = 1/n$.
+
+Clustering is **label-pure**: every cluster contains points of a single label,
+so each centroid label $y_k^c$ is exactly $\pm1$ (not a fractional average). The
+two labels *share* the cluster budget — the number of macro-clusters never
+exceeds $K$ and is split across the labels in proportion to their counts — so
+each centroid is an unambiguous prototype of one class and the hinge surrogate
+$(1 - y_k^c\,\beta^\top x_k^c)_+$ behaves exactly like a per-class data point.
 
 ### 1.5 Worst-case evaluation
 
@@ -143,20 +147,30 @@ cardinality-constrained hinge minimization.
 ### 2.2 Online clustering
 
 [reg_orig_p1.py](reg_orig_p1.py) maintains the same two-layer online clustering
-as the regression code (the portfolio machinery, reused verbatim from
-[utils.py](utils.py) via [utils_p1.py](utils_p1.py)):
+as the regression code, but made **label-aware** in [utils_p1.py](utils_p1.py)
+(the loss-agnostic distance / regret machinery of [utils.py](utils.py) is still
+reused):
 
 * a fine layer of up to $Q$ micro-clusters (`q_dict`), updated point-by-point:
-  an incoming point is **absorbed** into the nearest micro-cluster when its
-  distance is $\le 2\,\mathrm{rmse}$, otherwise it **spawns** a new one (with
-  pairwise merging once $Q$ is exceeded);
-* a coarse layer of $K$ macro-clusters (`k_dict`) obtained by clustering the
-  micro-centers.
+  an incoming point is **absorbed** into the nearest *same-label* micro-cluster
+  when its distance is $\le 2\,\mathrm{rmse}$, otherwise it **spawns** a new one;
+  once $Q$ is exceeded the closest *same-label* micro-pair is merged;
+* a coarse layer of up to $K$ macro-clusters (`k_dict`) obtained by clustering
+  the micro-centers of each label separately.
+
+Crucially the two labels **share** both budgets: the total micro-cluster count
+never exceeds $Q$ and the total macro-cluster count never exceeds $K$, each split
+across the labels in proportion to their counts (`_split_budget`, largest-
+remainder apportionment with at least one cluster per present label). Because
+absorption, spawning, and merging are all restricted to a single label, every
+micro- and macro-cluster stays **label-pure**.
 
 The singleton-radius floor is data-adaptive ($0.3\times$ the median
 nearest-neighbour distance of the init centroids). After a fixed time the centers
-are frozen and only updated by nearest-centroid assignment (`fixed_cluster`).
-Batch MRO instead re-runs $k$-means (warm-started) each interval.
+are frozen and only updated by nearest *same-label* centroid assignment
+(`fixed_cluster`). Batch MRO instead re-runs label-pure $k$-means each interval
+(`label_aware_kmeans`: the $K$ budget split by label, each class clustered
+separately).
 
 ### 2.3 Radius schedule
 
