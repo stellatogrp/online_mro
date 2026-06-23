@@ -9,7 +9,6 @@ import cvxpy as cp
 import numpy as np
 import pandas as pd
 from joblib import Parallel, delayed
-from sklearn.cluster import KMeans
 from sklearn.model_selection import train_test_split
 import time
 import itertools
@@ -408,12 +407,17 @@ if __name__ == '__main__':
     init_ind = 0
     njobs = get_n_processes(100)
     # eps_init values are the delta prefactors; radius = delta = init_eps / sqrt(n).
-    # Range brackets the validity threshold (where the worst-case hinge objective
-    # becomes a valid upper bound on the out-of-sample hinge loss) up through the
-    # out-of-sample optimum; large init_eps over-shrinks beta (toward 0).
-    eps_init = [2.0, 1.5, 1.0, 0.7, 0.5, 0.3]
+    # Range brackets the out-of-sample optimum up through the validity threshold
+    # (where the worst-case hinge objective becomes a valid upper bound on the
+    # out-of-sample hinge loss); large init_eps over-shrinks beta (toward 0).
+    # Empirically for m=20, k=5 (see visualize_radius_p1.py): the OOS-hinge
+    # optimum sits at init_eps ~0.1-0.3 and the validity threshold runs from
+    # ~0.2 (large n) up to ~1.5 (small n), so the sweep is centred there.
+    eps_init = [1.5, 1.0, 0.7, 0.5, 0.3, 0.1]
     if T >= 5000:
-        eps_init = [2.0, 1.5, 1.0, 0.7]
+        # long horizon reaches large n, where both the optimum and the validity
+        # threshold are small; weight the sweep toward the low end.
+        eps_init = [1.0, 0.5, 0.3, 0.1]
     M = len(eps_init)
     list_inds = list(itertools.product(np.arange(R), np.arange(M)))
     t_list = [4, 5, 9, 10, 14, 15, 19, 20, 1249, 1250, 1499, 1500, 1749, 1750, 1999, 2000, 3000, 4000, 5000, 6000, 7000, 8000, 9000, 10000]
