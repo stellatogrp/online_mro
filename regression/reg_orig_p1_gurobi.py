@@ -5,7 +5,6 @@ import sys
 # Ensure local package imports work when run from SLURM
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-import cvxpy as cp
 import numpy as np
 import pandas as pd
 from joblib import Parallel, delayed
@@ -15,14 +14,12 @@ import itertools
 import copy
 
 from utils_p1 import (
-    createproblem_hingeMIO,
-    create_scenario_hinge,
     fixed_cluster,
     generate_classification_data,
     get_n_processes,
     label_aware_kmeans,
-    MOSEK_PARAMS,
     save_run_metadata,
+    solve_hinge_gurobi,
     w2_dist,
     wasserstein,
     worst_case_hinge,
@@ -36,19 +33,16 @@ from utils_p1 import online_cluster_update_online as online_cluster_update
 output_stream = sys.stdout
 
 
-def reg_experiments(r_input, K, T, N_init, synthetic_data, power,r_start):
+def reg_experiments(r_input, K, T, N_init, synthetic_data, power, r_start):
     """Online mean-robust DRO sparse-SVM vs. batch (kmeans) MRO-SVM (p = 1).
 
-    p = 1 hinge-loss sibling of ``reg_orig.py``.  The p=2 perturbed-covariates
-    DRO best-subset MI-SOCP is replaced by the p=1 DRO sparse-SVM mixed-integer
-    LP (``createproblem_hingeMIO``, solved with MOSEK).  Data points are the
-    joint (x, y) vectors of dimension ``m + 1`` (label y in {-1, +1}) clustered
-    online / by kmeans; the worst-case expected hinge loss of a fixed beta has
-    the p=1 closed form ``worst_case_hinge`` = empirical hinge + delta ||beta||_1.
-
-    A third method, ``cluster_SAA``, reuses the batch-MRO kmeans clusters but
-    solves the *non-robust* (delta=0) best subset on those weighted centroids,
-    so it isolates the effect of clustering from the distributional robustness.
+    Raw-Gurobi sibling of ``reg_orig_p1.py``: the cvxpy/MOSEK best-subset solves
+    (``createproblem_hingeMIO`` for the online and batch-MRO problems,
+    ``create_scenario_hinge`` for cluster-SAA) are replaced by the equivalent
+    MILP built and solved directly with gurobipy (``solve_hinge_gurobi``;
+    cluster-SAA is the ``delta = 0`` case).  The closed-form worst-case hinge
+    (``worst_case_hinge``), clustering, regret bookkeeping and CSV output are
+    unchanged.
     """
     try:
         r, epsnum = list_inds[r_input]
@@ -131,16 +125,8 @@ def reg_experiments(r_input, K, T, N_init, synthetic_data, power,r_start):
             if t % interval == 0 or ((t - 1) % interval == 0) or (t in t_list):
                 if t <= 8001 or (t in t_list):
                     cur_K = int(np.minimum(num_dat, K))
-                    online_problem, online_x, online_z, data_train, eps_train, w_train = createproblem_hingeMIO(cur_K, m, k)
-                    data_train.value = k_dict['d'][:cur_K]
-                    eps_train.value = radius
-                    w_train.value = k_dict['w'][:cur_K]
-
-                    online_problem.solve(solver=cp.MOSEK, ignore_dpp=True, verbose=False,
-                                         mosek_params=MOSEK_PARAMS)
-                    x_current = online_x.value
-                    min_obj = online_problem.objective.value
-                    min_time = online_problem.solver_stats.solve_time
+                    x_current, min_obj, min_time = solve_hinge_gurobi(
+                        k_dict['d'][:cur_K], m, k, delta=radius, weights=k_dict['w'][:cur_K])
 
                     history['online_computation_times']['min_problem'].append(min_time)
                     history['online_computation_times']['total_iteration'].append(min_time + weight_update_time)
@@ -169,25 +155,14 @@ def reg_experiments(r_input, K, T, N_init, synthetic_data, power,r_start):
                             new_k_dict['data'][kk] = running_samples[klabels == kk]
 
                     cur_K_mro = new_k_dict['d'].shape[0]
-                    MRO_problem, MRO_x, MRO_z, MRO_data_train, MRO_eps_train, MRO_w_train = createproblem_hingeMIO(cur_K_mro, m, k)
-                    MRO_data_train.value = new_k_dict['d']
-                    MRO_w_train.value = new_k_dict['w']
-                    MRO_eps_train.value = radius
-                    MRO_problem.solve(solver=cp.MOSEK, ignore_dpp=True, verbose=False,
-                                      mosek_params=MOSEK_PARAMS)
-                    MRO_x_current = MRO_x.value
-                    MRO_min_obj = MRO_problem.objective.value
-                    MRO_min_time = MRO_problem.solver_stats.solve_time
+                    MRO_x_current, MRO_min_obj, MRO_min_time = solve_hinge_gurobi(
+                        new_k_dict['d'], m, k, delta=radius, weights=new_k_dict['w'])
                     square_val_mro, sig_val_mro = calc_cluster_val(K, new_k_dict, num_dat, MRO_x_current, running_samples, m)[1:]
 
                     # cluster_SAA: non-robust BSS-SVM on the same weighted kmeans
                     # centroids (delta = 0), so it shares the clustering cost.
-                    cs_prob, cs_x, cs_z = create_scenario_hinge(new_k_dict['d'], m, num_dat, k, weights=new_k_dict['w'])
-                    cs_prob.solve(solver=cp.MOSEK, ignore_dpp=True, verbose=False,
-                                  mosek_params=MOSEK_PARAMS)
-                    cluster_SAA_x_current = cs_x.value
-                    cluster_SAA_obj = cs_prob.objective.value
-                    cluster_SAA_min_time = cs_prob.solver_stats.solve_time
+                    cluster_SAA_x_current, cluster_SAA_obj, cluster_SAA_min_time = solve_hinge_gurobi(
+                        new_k_dict['d'], m, k, delta=0.0, weights=new_k_dict['w'])
 
                     history['MRO_computation_times']['min_problem'].append(MRO_min_time)
                     history['MRO_computation_times']['total_iteration'].append(MRO_min_time + cluster_time)
@@ -395,7 +370,7 @@ if __name__ == '__main__':
     interval = arguments.interval
     N_init = arguments.N_init
     rmse_mult = arguments.rmse_mult
-    K_arr = [10,15,25]
+    K_arr = [10, 15, 25]
     K = K_arr[idx]
     newfoldername = foldername + 'K' + str(K) + '_R' + str(R) + '_T' + str(T - 1) + '/'
     os.makedirs(newfoldername, exist_ok=True)
@@ -409,20 +384,14 @@ if __name__ == '__main__':
     init_ind = 0
     njobs = get_n_processes(100)
     # eps_init values are the delta prefactors; radius = delta = init_eps / sqrt(n).
-    # Range brackets the out-of-sample optimum up through the validity threshold
-    # (where the worst-case hinge objective becomes a valid upper bound on the
-    # out-of-sample hinge loss); large init_eps over-shrinks beta (toward 0).
-    # Empirically for m=20, k=5 (see visualize_radius_p1.py): the OOS-hinge
-    # optimum sits at init_eps ~0.1-0.3 and the validity threshold runs from
-    # ~0.2 (large n) up to ~1.5 (small n), so the sweep is centred there.
-    eps_init = [1.5, 1.0, 0.7, 0.5,0.4, 0.3, 0.2, 0.1,0.05]
+    eps_init = [4, 3, 2.5, 2, 1.5, 1.0, 0.7, 0.5, 0.3, 0.1]
     if T >= 5000:
         # long horizon reaches large n, where both the optimum and the validity
         # threshold are small; weight the sweep toward the low end.
         eps_init = [1.0, 0.5, 0.3, 0.1]
     M = len(eps_init)
     list_inds = list(itertools.product(np.arange(R), np.arange(M)))
-    t_list = [4, 5, 9, 10, 14, 15, 19, 20, 29,30, 59,60, 1249, 1250, 1499, 1500, 1749, 1750, 1999, 2000, 3000, 4000, 5000, 6000, 7000, 8000, 9000, 10000]
+    t_list = [4, 5, 9, 10, 14, 15, 19, 20, 29, 30, 59, 60, 1249, 1250, 1499, 1500, 1749, 1750, 1999, 2000, 3000, 4000, 5000, 6000, 7000, 8000, 9000, 10000]
     newdatname = foldername + 'T' + str(T - 1) + 'R' + str(R) + '/'
 
     save_run_metadata(
@@ -439,7 +408,8 @@ if __name__ == '__main__':
             'num_random_seeds': R,
             'total_test_combinations': len(eps_init) * R,
             'beta_true': [float(b) for b in beta_true],
-            'power': power
+            'power': power,
+            'solver': 'gurobi',
         },
         [newfoldername, (newdatname, f'metadata_K{K}.json')],
     )

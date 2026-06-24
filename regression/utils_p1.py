@@ -206,6 +206,178 @@ def evaluate_misclassification_hinge(d_eval, m, beta):
 
 
 # --------------------------------------------------------------------------- #
+# Gurobi problem builders / solvers (p = 1)  -- raw gurobipy, no cvxpy
+# --------------------------------------------------------------------------- #
+# These solve the same DRO sparse-SVM best-subset MILP as ``createproblem_hingeMIO``
+#
+#   min_{beta, z}  sum_i w_i (1 - y_i beta^T x_i)_+ + delta ||beta||_1
+#   s.t.  -M z_j <= beta_j <= M z_j,  sum_j z_j <= k,  z in {0,1}^m,
+#
+# but build the model directly in gurobipy (epigraph form: hinge slacks s_i >= 0
+# with s_i >= 1 - y_i beta^T x_i, and ell_1 slacks u_j >= |beta_j|).  delta = 0
+# with uniform weights recovers the non-robust (SAA) best-subset SVM.
+#
+# gurobipy is imported lazily inside each entry point so that this module stays
+# importable for the MOSEK/cvxpy drivers on machines without a Gurobi install.
+GUROBI_TIME_LIMIT = 2000.0
+
+
+def solve_hinge_gurobi(dat, m, k, delta, weights=None, M_big=10.0,
+                       time_limit=GUROBI_TIME_LIMIT, threads=1, env=None):
+    """Solve the p = 1 DRO sparse-SVM best-subset MILP directly in Gurobi.
+
+    Parameters
+    ----------
+    dat : array (N, m+1)   rows are (covariates x | label y in {-1,+1}).
+    m, k : int             covariate dimension and cardinality budget.
+    delta : float          order-1 Wasserstein radius / ell_1 penalty coeff
+                           (pass 0.0 for the non-robust SAA problem).
+    weights : array (N,) or None   sample/cluster weights (sum to 1); ``None``
+                           uses the uniform 1/N weighting.
+    M_big : float          big-M bound on |beta_j|.
+    threads : int          Gurobi thread count (default 1 -- the drivers fan the
+                           epsilon/seed sweep out over processes with joblib, so
+                           one thread per solve avoids CPU oversubscription).
+
+    Returns ``(beta_opt, obj_val, solve_time)`` -- a drop-in for the
+    ``(x.value, problem.objective.value, solver_stats.solve_time)`` triple the
+    cvxpy/MOSEK drivers read off ``createproblem_hingeMIO``.
+    """
+    import gurobipy as gp
+    from gurobipy import GRB
+
+    dat = np.asarray(dat, dtype=float)
+    N = dat.shape[0]
+    X = dat[:, :m]
+    y = dat[:, m]
+    if weights is None:
+        weights = np.ones(N) / N
+    weights = np.asarray(weights, dtype=float)
+
+    model = gp.Model("hinge_dro", env=env) if env is not None else gp.Model("hinge_dro")
+    model.Params.OutputFlag = 0
+    model.Params.TimeLimit = time_limit
+    model.Params.Threads = threads
+
+    beta = model.addMVar(m, lb=-M_big, ub=M_big, name="beta")
+    z = model.addMVar(m, vtype=GRB.BINARY, name="z")
+    s = model.addMVar(N, lb=0.0, name="s")          # hinge epigraph
+    u = model.addMVar(m, lb=0.0, name="u")          # |beta_j| epigraph
+
+    A = y[:, None] * X                              # (N, m): margins = A @ beta
+    model.addConstr(s + A @ beta >= np.ones(N), name="hinge")
+    model.addConstr(u >= beta, name="l1p")
+    model.addConstr(u >= -beta, name="l1n")
+    model.addConstr(beta <= M_big * z, name="bigMp")
+    model.addConstr(beta >= -M_big * z, name="bigMn")
+    model.addConstr(z.sum() <= k, name="card")
+
+    model.setObjective(weights @ s + delta * u.sum(), GRB.MINIMIZE)
+    model.optimize()
+
+    return np.asarray(beta.X, dtype=float), float(model.ObjVal), float(model.Runtime)
+
+
+class HingeGurobiCG:
+    """Persistent Gurobi model for the p = 1 DRO sparse-SVM, grown by constraint
+    generation over the streamed samples.
+
+    The best-subset structure on ``(beta, z, u)`` -- big-M coupling, cardinality
+    budget, and the ell_1 epigraph -- is built **once**.  Each ingested data point
+    then contributes a single hinge epigraph constraint
+
+        s_i >= 1 - y_i beta^T x_i      (one new variable s_i + one new row),
+
+    appended incrementally rather than rebuilding the whole MILP from scratch at
+    every online iteration.  Because ``running_samples`` is a cumulative prefix of
+    the stream, row ``i``'s hinge constraint never changes; only the objective
+    coefficients move between solves (the sample weights w_i on the hinge slacks
+    and the radius delta on the ell_1 slacks).  Re-solving rewrites just those
+    coefficients and Gurobi warm-starts from the retained incumbent.
+
+    Usage
+    -----
+        cg = HingeGurobiCG(m, k)
+        for t in ...:
+            cg.ensure_rows(running_samples)            # add only the new tail rows
+            beta, obj, solve_time = cg.solve(weights, delta)
+    """
+
+    def __init__(self, m, k, M_big=10.0, time_limit=GUROBI_TIME_LIMIT,
+                 threads=1, env=None):
+        import gurobipy as gp
+        from gurobipy import GRB
+
+        self._gp = gp
+        self._GRB = GRB
+        self.m = m
+        self.M_big = M_big
+
+        model = gp.Model("hinge_dro_cg", env=env) if env is not None else gp.Model("hinge_dro_cg")
+        model.Params.OutputFlag = 0
+        model.Params.TimeLimit = time_limit
+        model.Params.Threads = threads
+        self.model = model
+
+        # Fixed-size best-subset structure (built once).
+        self.beta = model.addVars(m, lb=-M_big, ub=M_big, name="beta")
+        self.z = model.addVars(m, vtype=GRB.BINARY, name="z")
+        self.u = model.addVars(m, lb=0.0, name="u")        # |beta_j|
+        for j in range(m):
+            model.addConstr(self.u[j] >= self.beta[j])
+            model.addConstr(self.u[j] >= -self.beta[j])
+            model.addConstr(self.beta[j] <= M_big * self.z[j])
+            model.addConstr(self.beta[j] >= -M_big * self.z[j])
+        model.addConstr(gp.quicksum(self.z[j] for j in range(m)) <= k)
+        model.ModelSense = GRB.MINIMIZE
+
+        self.s = []        # hinge epigraph vars, one per ingested row
+        self.N = 0         # number of rows currently in the model
+
+    def add_samples(self, dat):
+        """Append hinge constraints/variables for new rows ``dat`` (n_new, m+1)."""
+        dat = np.asarray(dat, dtype=float)
+        gp = self._gp
+        m = self.m
+        for r in range(dat.shape[0]):
+            x = dat[r, :m]
+            yv = float(dat[r, m])
+            sv = self.model.addVar(lb=0.0, name=f"s{self.N}")
+            # s_i >= 1 - y_i beta^T x_i   <=>   s_i + y_i beta^T x_i >= 1
+            self.model.addConstr(
+                sv + yv * gp.quicksum(x[j] * self.beta[j] for j in range(m)) >= 1.0
+            )
+            self.s.append(sv)
+            self.N += 1
+
+    def ensure_rows(self, running_samples):
+        """Ensure the model has a hinge row for every sample in ``running_samples``
+        (a cumulative prefix); add only the newly arrived tail rows."""
+        running_samples = np.asarray(running_samples, dtype=float)
+        n_target = running_samples.shape[0]
+        if n_target > self.N:
+            self.add_samples(running_samples[self.N:n_target])
+
+    def solve(self, weights, delta):
+        """Set the objective (weights w_i on the hinge slacks, delta on the ell_1
+        slacks) and re-optimize the warm-started model.
+
+        Returns ``(beta_opt, obj_val, solve_time)``.
+        """
+        weights = np.asarray(weights, dtype=float)
+        if weights.shape[0] != self.N:
+            raise ValueError(
+                f"weights length {weights.shape[0]} != #rows in model {self.N}; "
+                "call ensure_rows(running_samples) first.")
+        self.model.setAttr("Obj", self.s, [float(wi) for wi in weights])
+        self.model.setAttr("Obj", [self.u[j] for j in range(self.m)],
+                           [float(delta)] * self.m)
+        self.model.optimize()
+        beta_opt = np.array([self.beta[j].X for j in range(self.m)], dtype=float)
+        return beta_opt, float(self.model.ObjVal), float(self.model.Runtime)
+
+
+# --------------------------------------------------------------------------- #
 # Synthetic classification data generation (analogue of generate_regression_data)
 # --------------------------------------------------------------------------- #
 def generate_classification_data(n_total, m, k_true, noise_std=3.0, rho=0.5,

@@ -5,7 +5,6 @@ import sys
 # Ensure local package imports work when run from SLURM
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-import cvxpy as cp
 import numpy as np
 import pandas as pd
 from joblib import Parallel, delayed
@@ -13,12 +12,10 @@ from sklearn.model_selection import train_test_split
 import itertools
 
 from utils_p1 import (
-    createproblem_hingeMIO,
-    create_scenario_hinge,
     generate_classification_data,
     get_n_processes,
-    MOSEK_PARAMS,
     save_run_metadata,
+    solve_hinge_gurobi,
 )
 from utils_p1 import compute_cumulative_regret_dro_hinge as compute_cumulative_regret
 
@@ -29,10 +26,11 @@ output_stream = sys.stdout
 def reg_experiments(r_input, T, N_init, synthetic_data, r_start):
     """Full-data DRO sparse-SVM vs. sample-average (SAA) SVM (p = 1, hinge loss).
 
-    p = 1 hinge-loss sibling of ``reg_DRO_orig.py``: the p=2 perturbed-covariates
-    DRO-BSS MI-SOCP is replaced by the p=1 DRO sparse-SVM mixed-integer LP
-    (``createproblem_hingeMIO``) solved with MOSEK, and SAA is the non-robust
-    cardinality-constrained hinge minimization (``create_scenario_hinge``).
+    Raw-Gurobi sibling of ``reg_DRO_orig_p1.py``: the cvxpy/MOSEK
+    ``createproblem_hingeMIO`` / ``create_scenario_hinge`` solves are replaced by
+    the equivalent best-subset MILP built and solved directly with gurobipy
+    (``solve_hinge_gurobi``).  SAA is recovered by passing ``delta = 0``.
+    Everything else (radius schedule, regret bookkeeping, CSV output) is unchanged.
     """
     try:
         r, epsnum = list_inds[r_input]
@@ -69,25 +67,17 @@ def reg_experiments(r_input, T, N_init, synthetic_data, r_start):
 
             if t % interval == 0 or ((t - 1) % interval == 0) or (t in t_list):
                 if t <= 2001 or (t in t_list):
-                    # solve full-data DRO sparse-SVM best subset (MILP via MOSEK)
-                    DRO_problem, DRO_x, DRO_z, DRO_data, DRO_eps, DRO_w = createproblem_hingeMIO(num_dat, m, k)
-                    DRO_data.value = running_samples
-                    DRO_w.value = (1 / num_dat) * np.ones(num_dat)
-                    DRO_eps.value = radius
-                    DRO_problem.solve(solver=cp.MOSEK, ignore_dpp=True, verbose=False,
-                                      mosek_params=MOSEK_PARAMS)
-                    DRO_x_current = DRO_x.value
-                    DRO_min_obj = DRO_problem.objective.value
-                    DRO_min_time = DRO_problem.solver_stats.solve_time
+                    # solve full-data DRO sparse-SVM best subset (MILP via Gurobi)
+                    DRO_x_current, DRO_min_obj, DRO_min_time = solve_hinge_gurobi(
+                        running_samples, m, k, delta=radius,
+                        weights=(1 / num_dat) * np.ones(num_dat))
 
             if t % interval_SAA == 0 or ((t - 1) % interval_SAA == 0) or (t in t_list):
                 if t <= 2001 or (t in t_list):
-                    s_prob, s_x, s_z = create_scenario_hinge(running_samples, m, num_dat, k)
-                    s_prob.solve(solver=cp.MOSEK, ignore_dpp=True, verbose=False,
-                                 mosek_params=MOSEK_PARAMS)
-                    SA_x_current = s_x.value
-                    SA_obj_current = s_prob.objective.value
-                    SA_time = s_prob.solver_stats.solve_time
+                    # non-robust SAA best subset = DRO with delta = 0
+                    SA_x_current, SA_obj_current, SA_time = solve_hinge_gurobi(
+                        running_samples, m, k, delta=0.0,
+                        weights=(1 / num_dat) * np.ones(num_dat))
 
                     history['DRO_computation_times']['total_iteration'].append(DRO_min_time)
                     history['DRO_x'].append(DRO_x_current)
@@ -199,19 +189,13 @@ if __name__ == '__main__':
     init_ind = 0
     njobs = get_n_processes(100)
     # eps_init values are the delta prefactors; radius = delta = init_eps / sqrt(n).
-    # Range brackets the out-of-sample optimum up through the validity threshold
-    # (where the worst-case hinge objective becomes a valid upper bound on the
-    # out-of-sample hinge loss); large init_eps over-shrinks beta (toward 0).
-    # Empirically for m=20, k=5 (see visualize_radius_p1.py): the OOS-hinge
-    # optimum sits at init_eps ~0.1-0.3 and the validity threshold runs from
-    # ~0.2 (large n) up to ~1.5 (small n), so the sweep is centred there.
     if T >= 10000:
         eps_init = [0.5]
     else:
         eps_init = [1.5, 1.0, 0.7, 0.5, 0.3, 0.1]
     M = len(eps_init)
     list_inds = list(itertools.product(np.arange(R), np.arange(M)))
-    t_list = [4, 5, 9, 10, 14, 15, 19, 20, 29,30, 59,60, 1249, 1250, 1499, 1500, 1749, 1750, 1999, 2000]
+    t_list = [4, 5, 9, 10, 14, 15, 19, 20, 29, 30, 59, 60, 1249, 1250, 1499, 1500, 1749, 1750, 1999, 2000]
     newdatname = foldername + 'T' + str(T - 1) + 'R' + str(R) + '/'
 
     save_run_metadata(
@@ -226,6 +210,7 @@ if __name__ == '__main__':
             'num_random_seeds': R,
             'total_test_combinations': len(eps_init) * R,
             'beta_true': [float(b) for b in beta_true],
+            'solver': 'gurobi',
         },
         [foldername, newdatname],
     )
