@@ -948,9 +948,9 @@ folderout_new = preamble + 'port_new/plots_new/new/4/T'+str(T-1)+'R'+str(R)+'/'
 
 os.makedirs(folderout_new, exist_ok=True)
 
-foldername_new_dro = preamble + 'port_new/results/old_runs/new/p1/8/T'+str(T-1)+'R'+str(R)+'/'
+foldername_new_dro = preamble + 'port_new/results/new/p1/0/T'+str(T-1)+'R'+str(R)+'/'
 
-folderout_new_dro = preamble + 'port_new/plots_new/new/8/T'+str(T-1)+'R'+str(R)+'/'
+folderout_new_dro = preamble + 'port_new/plots_new/new/0/T'+str(T-1)+'R'+str(R)+'/'
 
 os.makedirs(folderout_new_dro, exist_ok=True)
 
@@ -981,14 +981,14 @@ plot_eval(df_orig,quantiles_orig,df_orig_dro,quantiles_orig_dro,j=(1,3,5),K=15,q
 plot_eval_all_compare(
     df_orig, quantiles_orig, df_orig_dro, quantiles_orig_dro,
     df_new, quantiles_new, df_new_dro, quantiles_new_dro,
-    j=(4,4,5), j_grad=(0,0,0), K=25, q=(25,75),
+    j=(1,3,5), j_grad=(0,0,0), K=15, q=(25,75),
     end_ind=end_ind_orig, end_ind_grad= end_ind_new,val2=2.3, legend=True,
 )
 
 plot_eval_compare(
    df_orig, quantiles_orig, df_orig_dro, quantiles_orig_dro,
     df_new, quantiles_new, df_new_dro, quantiles_new_dro,
-    j=(4,4,5), j_grad=(0,0,0), K=25, q=(25,75),
+    j=(1,3,5), j_grad=(0,0,0), K=15, q=(25,75),
     end_ind=end_ind_orig, end_ind_grad= end_ind_new, legend=True,
 )
 

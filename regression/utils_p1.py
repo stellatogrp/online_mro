@@ -219,7 +219,7 @@ def evaluate_misclassification_hinge(d_eval, m, beta):
 #
 # gurobipy is imported lazily inside each entry point so that this module stays
 # importable for the MOSEK/cvxpy drivers on machines without a Gurobi install.
-GUROBI_TIME_LIMIT = 2000.0
+GUROBI_TIME_LIMIT = 1500.0
 
 
 def solve_hinge_gurobi(dat, m, k, delta, weights=None, M_big=10.0,
