@@ -1,6 +1,7 @@
 import argparse
 import os
 import sys
+import time
 
 # Ensure local package imports work when run from SLURM
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -144,14 +145,18 @@ def port_experiments(r_input,T,N_init,synthetic_returns,r_start):
                                     return np.inf
                                 return DRO_wc_problem.objective.value
 
+                            grad_start = time.time()
                             DRO_x_current, DRO_tau_current = gradient_step(
                                 DRO_x_current, DRO_tau_current, p_opt, z_opt, eta, a=a_const,
                                 line_search=line_search,
                                 inner_eval=_inner_eval_dro,
                                 F_curr=F_curr_dro,
                             )
+                            grad_time = time.time() - grad_start
                             DRO_min_obj = F_curr_dro
-                            DRO_min_time = DRO_wc_problem.solver_stats.solve_time
+                            # Worst-case update time = inner dual solve + subgradient
+                            # step (including any line-search re-solves).
+                            DRO_min_time = DRO_wc_problem.solver_stats.solve_time + grad_time
                         else:
                             DRO_min_obj = np.nan
                             DRO_min_time = np.nan

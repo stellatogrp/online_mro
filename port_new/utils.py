@@ -384,6 +384,71 @@ def gradient_step(x_curr, tau_curr, p_opt, z_opt, eta, a=-5,
         x_new, tau_new = _step(eta)
     return x_new, tau_new
 
+def dro_subgrad_step(x_curr, tau_curr, dat, w, eps, eta, a=-5,
+                     line_search=False, ls_alpha=1e-4, ls_shrink=0.5,
+                     ls_max_iters=20, eta_min=1e-12):
+    """One projected-subgradient step on the W1-DRO outer objective, using the
+    closed-form inner worst-case value/gradient (no CVXPY inner solve).
+
+    Strong duality collapses the (p, z) worst-case dual to a closed form, so
+    the inner max equals the primal DRO objective
+
+        F(x, tau) = tau + sum_i w_i * max(0, a*tau + a*d_i^T x) + eps*|a|*||x||_2
+
+    with worst-case dual optimisers  p_i = w_i if a*tau + a*d_i^T x > 0 else 0
+    and the transport budget eps loaded entirely onto the ||x|| direction.
+    The Danskin (sub)gradient is therefore
+
+        grad_x   = a * (w restricted to the active set) @ dat + eps*|a|*x/||x||
+        grad_tau = 1 + a * sum_{active} w_i
+
+    Optional Armijo backtracking is evaluated against the same closed form, so
+    the line search costs only cheap numpy re-evaluations rather than re-solves.
+
+    Returns
+    -------
+    (x_new, tau_new, F_curr) where F_curr = F(x_curr, tau_curr).
+    """
+    abs_a = abs(a)
+
+    def _F_and_grad(x, tau):
+        scores = a * tau + a * (dat @ x)          # (N,)
+        active = scores > 0
+        xnorm = float(np.linalg.norm(x))
+        F = tau + float(w @ np.where(active, scores, 0.0)) + eps * abs_a * xnorm
+        gx = a * ((w * active) @ dat)             # (m,)
+        if xnorm > 0:
+            gx = gx + eps * abs_a * x / xnorm
+        gtau = 1.0 + a * float(w @ active)
+        return F, gx, gtau
+
+    F_curr, grad_x, grad_tau = _F_and_grad(x_curr, tau_curr)
+
+    def _step(eta_val):
+        x_new = project_simplex(x_curr - eta_val * grad_x)   # x onto {x>=0, sum=1}
+        tau_new = tau_curr - eta_val * grad_tau              # tau unconstrained
+        return x_new, tau_new
+
+    if not line_search:
+        x_new, tau_new = _step(eta)
+        return x_new, tau_new, F_curr
+
+    grad_sq = float(grad_x @ grad_x + grad_tau ** 2)
+    if grad_sq == 0.0:
+        return x_curr, tau_curr, F_curr             # zero subgradient -> no move
+
+    x_new, tau_new = _step(eta)
+    for _ in range(ls_max_iters):
+        F_new, _, _ = _F_and_grad(x_new, tau_new)
+        if F_new <= F_curr - ls_alpha * eta * grad_sq:
+            break
+        eta *= ls_shrink
+        if eta < eta_min:
+            break
+        x_new, tau_new = _step(eta)
+    return x_new, tau_new, F_curr
+
+
 def project_simplex(v):
     """Euclidean projection onto {x >= 0, sum x = 1} (Duchi et al. 2008)."""
     n = v.size

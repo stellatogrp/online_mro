@@ -14,9 +14,9 @@ import copy
 
 from utils import (
     createproblem_portLP,
+    dro_subgrad_step,
     fixed_cluster,
     get_n_processes,
-    gradient_step,
     safe_solve,
     save_run_metadata,
     w2_dist,
@@ -25,7 +25,6 @@ from utils import (
 )
 from utils import calc_cluster_val_online as calc_cluster_val
 from utils import compute_cumulative_regret_online as compute_cumulative_regret
-from utils import createproblem_worstcase_p1_online as createproblem_worstcase_p1
 from utils import online_cluster_init_online as online_cluster_init
 from utils import online_cluster_update_online as online_cluster_update
 
@@ -71,13 +70,6 @@ def port_experiments(r_input,K,T,N_init,synthetic_returns,eta_0, r_start, newfol
         tau_current = 0.0
         MRO_x_current = np.ones(m) / m
         MRO_tau_current = 0.0
-
-        # Online worst-case dual (size tracks min(num_dat, K)).
-        wc_problem, p_var, z_var, x_star, tau_star, \
-            data_train, eps_train, w_train = createproblem_worstcase_p1(np.minimum(num_dat,K), m)
-        # MRO worst-case dual (size fixed at K once new_k_dict is built).
-        MRO_wc_problem, MRO_p_var, MRO_z_var, MRO_x_star, MRO_tau_star, \
-            MRO_data_train, MRO_eps_train, MRO_w_train = createproblem_worstcase_p1(K, m)
 
         # History for analysis
         history = {
@@ -138,22 +130,17 @@ def port_experiments(r_input,K,T,N_init,synthetic_returns,eta_0, r_start, newfol
 
             # solve online MRO problem
             if (t % interval == 0 or ((t-1) % interval == 0) or (t in t_list)) and (t <= 2001 or (t in t_list)):
-                if num_dat <= K or data_train.shape[0] < K:
-                    cur_K = np.minimum(num_dat,K)
-                    wc_problem, p_var, z_var, x_star, tau_star, \
-                        data_train, eps_train, w_train = createproblem_worstcase_p1(cur_K, m)
-                data_train.value = k_dict['d'][:num_dat]
-                eps_train.value = radius
-                w_train.value = k_dict['w'][:num_dat]
+                online_dat = k_dict['d'][:num_dat]      # at most K micro-clusters
+                online_w = k_dict['w'][:num_dat]
 
                 grad_time = 0.0
                 if t == 0:
                     # One LP warm-start (cardinality dropped) to seed (x, tau).
                     lp_problem, lp_x, lp_s, lp_tau, lp_lam, lp_dat, lp_eps, lp_w = \
-                        createproblem_portLP(data_train.shape[0], m)
-                    lp_dat.value = k_dict['d'][:num_dat]
+                        createproblem_portLP(online_dat.shape[0], m)
+                    lp_dat.value = online_dat
                     lp_eps.value = radius
-                    lp_w.value = k_dict['w'][:num_dat]
+                    lp_w.value = online_w
                     if safe_solve(lp_problem, name='lp_problem(online,t=0)', t=t,
                                   solver=cp.CLARABEL, verbose=False, time_limit=1500.0):
                         x_current = lp_x.value
@@ -165,42 +152,16 @@ def port_experiments(r_input,K,T,N_init,synthetic_returns,eta_0, r_start, newfol
                         min_obj = np.nan
                         min_time = np.nan
                 else:
-                    # Solve worst-case dual at current iterate, then one gradient step.
-                    x_star.value = x_current
-                    tau_star.value = tau_current
-                    if safe_solve(wc_problem, name='wc_problem(online)', t=t,
-                                  solver=cp.CLARABEL, verbose=False, time_limit=1500.0):
-                        p_opt = p_var.value
-                        z_opt = z_var.value
-                        eta = eta_0 / np.sqrt(t + 1)
-                        F_curr_online = wc_problem.objective.value
-
-                        def _inner_eval_online(x_val, tau_val):
-                            # Re-solve the inner max with a trial (x, tau) -- used
-                            # by the Armijo backtracking line search.  On solver
-                            # failure return +inf so Armijo rejects the trial
-                            # and shrinks eta.
-                            x_star.value = x_val
-                            tau_star.value = tau_val
-                            if not safe_solve(wc_problem, name='wc_problem(online,inner_eval)', t=t,
-                                              solver=cp.CLARABEL, verbose=False, time_limit=1500.0):
-                                return np.inf
-                            return wc_problem.objective.value
-
-                        grad_start = time.time()
-                        x_current, tau_current = gradient_step(
-                            x_current, tau_current, p_opt, z_opt, eta, a=a_const,
-                            line_search=line_search,
-                            inner_eval=_inner_eval_online,
-                            F_curr=F_curr_online,
-                        )
-                        grad_time = time.time() - grad_start
-                        min_obj = F_curr_online
-                        min_time = wc_problem.solver_stats.solve_time + grad_time
-                    else:
-                        # Worst-case solve failed; keep prior (x, tau) iterate.
-                        min_obj = np.nan
-                        min_time = np.nan
+                    # Closed-form worst-case value + Danskin (sub)gradient, then
+                    # one projected step (no inner CVXPY solve; strong duality).
+                    eta = eta_0 / np.sqrt(t + 1)
+                    grad_start = time.time()
+                    x_current, tau_current, min_obj = dro_subgrad_step(
+                        x_current, tau_current, online_dat, online_w, radius, eta,
+                        a=a_const, line_search=line_search,
+                    )
+                    grad_time = time.time() - grad_start
+                    min_time = grad_time
 
 
                 # Store timing information
@@ -233,15 +194,7 @@ def port_experiments(r_input,K,T,N_init,synthetic_returns,eta_0, r_start, newfol
                     new_k_dict['d'] = new_centers
 
 
-                # (Re)build MRO worst-case dual to match new_k_dict size.
                 cur_K_mro = new_k_dict['d'].shape[0]
-                if MRO_data_train.shape[0] != cur_K_mro:
-                    MRO_wc_problem, MRO_p_var, MRO_z_var, MRO_x_star, MRO_tau_star, \
-                        MRO_data_train, MRO_eps_train, MRO_w_train = createproblem_worstcase_p1(cur_K_mro, m)
-
-                MRO_data_train.value = new_k_dict['d']
-                MRO_eps_train.value = radius
-                MRO_w_train.value = new_k_dict['w']
 
                 MRO_grad_time = 0.0
                 if t == 0:
@@ -261,36 +214,16 @@ def port_experiments(r_input,K,T,N_init,synthetic_returns,eta_0, r_start, newfol
                         MRO_min_obj = np.nan
                         MRO_min_time = np.nan
                 else:
-                    MRO_x_star.value = MRO_x_current
-                    MRO_tau_star.value = MRO_tau_current
-                    if safe_solve(MRO_wc_problem, name='MRO_wc_problem', t=t,
-                                  solver=cp.CLARABEL, verbose=False, time_limit=1500.0):
-                        p_opt = MRO_p_var.value
-                        z_opt = MRO_z_var.value
-                        eta = eta_0 / np.sqrt(t + 1)
-                        F_curr_mro = MRO_wc_problem.objective.value
-
-                        def _inner_eval_mro(x_val, tau_val):
-                            MRO_x_star.value = x_val
-                            MRO_tau_star.value = tau_val
-                            if not safe_solve(MRO_wc_problem, name='MRO_wc_problem(inner_eval)', t=t,
-                                              solver=cp.CLARABEL, verbose=False, time_limit=1500.0):
-                                return np.inf
-                            return MRO_wc_problem.objective.value
-
-                        grad_start = time.time()
-                        MRO_x_current, MRO_tau_current = gradient_step(
-                            MRO_x_current, MRO_tau_current, p_opt, z_opt, eta, a=a_const,
-                            line_search=line_search,
-                            inner_eval=_inner_eval_mro,
-                            F_curr=F_curr_mro,
-                        )
-                        MRO_grad_time = time.time() - grad_start
-                        MRO_min_obj = F_curr_mro
-                        MRO_min_time = MRO_wc_problem.solver_stats.solve_time + MRO_grad_time
-                    else:
-                        MRO_min_obj = np.nan
-                        MRO_min_time = np.nan
+                    # Closed-form worst-case value + Danskin (sub)gradient, then
+                    # one projected step (no inner CVXPY solve; strong duality).
+                    eta = eta_0 / np.sqrt(t + 1)
+                    grad_start = time.time()
+                    MRO_x_current, MRO_tau_current, MRO_min_obj = dro_subgrad_step(
+                        MRO_x_current, MRO_tau_current, new_k_dict['d'], new_k_dict['w'],
+                        radius, eta, a=a_const, line_search=line_search,
+                    )
+                    MRO_grad_time = time.time() - grad_start
+                    MRO_min_time = MRO_grad_time
 
                 mean_val_mro, square_val_mro, sig_val_mro = calc_cluster_val(K, new_k_dict,num_dat,MRO_x_current,running_samples)
 

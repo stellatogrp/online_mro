@@ -1,6 +1,7 @@
 import argparse
 import os
 import sys
+import time
 
 # Ensure local package imports work when run from SLURM
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -12,10 +13,9 @@ from joblib import Parallel, delayed
 from sklearn.model_selection import train_test_split
 import itertools
 
-from utils import createproblem_portLP, get_n_processes, gradient_step, safe_solve, save_run_metadata
+from utils import createproblem_portLP, get_n_processes, dro_subgrad_step, safe_solve, save_run_metadata
 from utils import compute_cumulative_regret_dro as compute_cumulative_regret
 from utils import create_scenario_dro as create_scenario
-from utils import createproblem_worstcase_p1_dro as createproblem_worstcase_p1
 
 
 output_stream = sys.stdout
@@ -121,40 +121,17 @@ def port_experiments(r_input,T,N_init,synthetic_returns,eta_0,r_start):
                             DRO_min_obj = np.nan
                             DRO_min_time = np.nan
                     else:
-                        # Solve worst-case dual at current iterate, then one gradient step.
-                        DRO_wc_problem, DRO_p_var, DRO_z_var, DRO_x_star, DRO_tau_star, \
-                            DRO_wc_data, DRO_wc_eps, DRO_wc_w = createproblem_worstcase_p1(num_dat, m)
-                        DRO_wc_data.value = running_samples
-                        DRO_wc_eps.value = radius
-                        DRO_wc_w.value = (1/num_dat)*np.ones(num_dat)
-                        DRO_x_star.value = DRO_x_current
-                        DRO_tau_star.value = DRO_tau_current
-                        if safe_solve(DRO_wc_problem, name='DRO_wc_problem', t=t,
-                                      ignore_dpp=True, solver=cp.CLARABEL, verbose=False, time_limit=1500.0):
-                            p_opt = DRO_p_var.value
-                            z_opt = DRO_z_var.value
-                            eta = eta_0 / np.sqrt(t + 1)
-                            F_curr_dro = DRO_wc_problem.objective.value
-
-                            def _inner_eval_dro(x_val, tau_val):
-                                DRO_x_star.value = x_val
-                                DRO_tau_star.value = tau_val
-                                if not safe_solve(DRO_wc_problem, name='DRO_wc_problem(inner_eval)', t=t,
-                                                  ignore_dpp=True, solver=cp.CLARABEL, verbose=False, time_limit=1500.0):
-                                    return np.inf
-                                return DRO_wc_problem.objective.value
-
-                            DRO_x_current, DRO_tau_current = gradient_step(
-                                DRO_x_current, DRO_tau_current, p_opt, z_opt, eta, a=a_const,
-                                line_search=line_search,
-                                inner_eval=_inner_eval_dro,
-                                F_curr=F_curr_dro,
-                            )
-                            DRO_min_obj = F_curr_dro
-                            DRO_min_time = DRO_wc_problem.solver_stats.solve_time
-                        else:
-                            DRO_min_obj = np.nan
-                            DRO_min_time = np.nan
+                        # Closed-form worst-case value + Danskin (sub)gradient, then
+                        # one projected step. Strong duality reduces the (p, z) dual
+                        # to the primal DRO objective, so no inner CVXPY solve is needed.
+                        eta = eta_0 / np.sqrt(t + 1)
+                        w_unif = (1/num_dat)*np.ones(num_dat)
+                        _t0 = time.perf_counter()
+                        DRO_x_current, DRO_tau_current, DRO_min_obj = dro_subgrad_step(
+                            DRO_x_current, DRO_tau_current, running_samples, w_unif,
+                            radius, eta, a=a_const, line_search=line_search,
+                        )
+                        DRO_min_time = time.perf_counter() - _t0
 
 
             if t % interval_SAA == 0 or ((t-1) % interval_SAA == 0) or (t in t_list)  :

@@ -47,7 +47,8 @@ $-y\beta$ and $|y|=1$, so the $\|\cdot\|_q$-Lipschitz constant is the dual norm
 $\|\beta\|_p$). For a Lipschitz loss and an order-1 Wasserstein ball, the
 Wasserstein-DRO duality of Shafieezadeh-Abadeh–Kuhn–Esfahani (regularization via
 mass transportation), Gao–Kleywegt, and Blanchet–Kang–Murthy gives the exact
-closed form, with $\tfrac1p + \tfrac1q = 1$:
+closed form, with $\tfrac1p + \tfrac1q = 1$ (a self-contained proof is in
+[Appendix A](#appendix-a-proof-wasserstein-dro--empirical-risk--dual-norm-regularization)):
 
 $$\sup_{P \in \mathcal B_\delta(\hat P_n)} \mathbb E_P\big[(1 - y\,\beta^\top x)_+\big]
    \;=\; \frac1n\sum_{i=1}^n (1 - y_i\,\beta^\top x_i)_+ \;+\; \delta\,\|\beta\|_p .$$
@@ -276,3 +277,131 @@ raising it (or setting $k>k_{\text{true}}$) makes recovery harder.
 The streaming protocol, online/batch clustering, regret bookkeeping, CSV schema,
 and the five compared methods are otherwise identical, so the two notes can be
 plotted and compared with the same tooling.
+
+---
+
+## Appendix A. Proof: Wasserstein DRO = empirical risk + dual-norm regularization
+
+We prove the identity of §1.2,
+
+$$\sup_{P \in \mathcal B_\delta(\hat P_n)} \mathbb E_P\big[(1 - y\,\beta^\top x)_+\big]
+   \;=\; \frac1n\sum_{i=1}^n (1 - y_i\,\beta^\top x_i)_+ \;+\; \delta\,\|\beta\|_p ,
+   \qquad \tfrac1p+\tfrac1q = 1,$$
+
+from first principles (no external duality theorem is invoked — Steps 1 and 4
+reprove the strong duality we need for this cost). Fix $\beta$ and write
+$\xi=(x,y)$, $\hat\xi_i=(x_i,y_i)$, the loss $\ell_\beta(\xi)=(1-y\,\beta^\top x)_+$,
+and the transport cost $c(\xi,\xi')=\|x-x'\|_q+\infty\cdot\mathbf 1[y\neq y']$.
+Recall the dual-norm identity: for any vector $v$,
+
+$$\sup_{\|u\|_q \le t}\; v^\top u \;=\; t\,\|v\|_p \qquad (t\ge 0). \tag{$\ast$}$$
+
+### Step 1 — Weak duality (upper bound)
+
+Let $\lambda\ge 0$. For any $P\in\mathcal B_\delta(\hat P_n)$, let $\pi$ be the
+optimal coupling of $P$ and $\hat P_n$, so the $\xi$-marginal is $P$, the
+$\xi'$-marginal is $\hat P_n$, and $\int c\,d\pi = W_c(P,\hat P_n)\le\delta$. Then
+
+$$
+\mathbb E_P[\ell_\beta]
+= \int \ell_\beta(\xi)\,d\pi
+= \int \big[\ell_\beta(\xi)-\lambda c(\xi,\xi')\big]d\pi + \lambda\!\int c\,d\pi
+\le \int \sup_{\zeta}\big[\ell_\beta(\zeta)-\lambda c(\zeta,\xi')\big]d\pi + \lambda\delta .
+$$
+
+Since the $\xi'$-marginal of $\pi$ is $\hat P_n=\tfrac1n\sum_i\delta_{\hat\xi_i}$,
+
+$$
+\mathbb E_P[\ell_\beta] \;\le\; \lambda\delta + \frac1n\sum_{i=1}^n \Phi_i(\lambda),
+\qquad
+\Phi_i(\lambda) := \sup_{\zeta}\big[\ell_\beta(\zeta)-\lambda c(\zeta,\hat\xi_i)\big].
+$$
+
+The left side does not involve $\lambda$ and the right does not involve $P$, so
+
+$$
+\sup_{P\in\mathcal B_\delta(\hat P_n)} \mathbb E_P[\ell_\beta]
+\;\le\; \inf_{\lambda\ge 0}\Big\{\lambda\delta + \tfrac1n\textstyle\sum_i \Phi_i(\lambda)\Big\}. \tag{1}
+$$
+
+### Step 2 — The per-sample dual $\Phi_i$
+
+Because $c(\zeta,\hat\xi_i)=+\infty$ whenever $\zeta$'s label differs from $y_i$,
+the supremum forces $y=y_i$, leaving an unconstrained max over $x$:
+
+$$
+\Phi_i(\lambda)=\sup_{x\in\mathbb R^d}\Big[(1-y_i\,\beta^\top x)_+-\lambda\|x-x_i\|_q\Big].
+$$
+
+Substitute $x=x_i+u$ and set $a_i:=1-y_i\,\beta^\top x_i$ (the $i$-th hinge
+*argument*). Writing $t=\|u\|_q$ and optimizing the direction of $u$ via $(\ast)$
+with $v=-y_i\beta$ (note $\|y_i\beta\|_p=\|\beta\|_p$ since $|y_i|=1$, and $(\cdot)_+$
+is nondecreasing):
+
+$$
+\Phi_i(\lambda)=\sup_{t\ge 0}\Big[\big(a_i+\|\beta\|_p\,t\big)_+-\lambda t\Big].
+$$
+
+The bracket is convex and piecewise linear in $t$, with right-derivative
+$\|\beta\|_p-\lambda$ on the active region $\{a_i+\|\beta\|_p t>0\}$ and $-\lambda$
+on the inactive region. Hence
+
+$$
+\Phi_i(\lambda)=
+\begin{cases}
+(a_i)_+ = (1-y_i\,\beta^\top x_i)_+, & \lambda \ge \|\beta\|_p \quad(\text{slope}\le 0\ \text{everywhere, max at }t=0),\\[2pt]
++\infty, & \lambda < \|\beta\|_p \quad(\text{positive slope on the active region}).
+\end{cases}
+$$
+
+### Step 3 — Minimize the dual over $\lambda$
+
+The objective in (1) is $+\infty$ for $\lambda<\|\beta\|_p$ and equals
+$\lambda\delta+\tfrac1n\sum_i(1-y_i\beta^\top x_i)_+$ for $\lambda\ge\|\beta\|_p$;
+as $\delta\ge0$ this is nondecreasing in $\lambda$, so the infimum is at
+$\lambda=\|\beta\|_p$:
+
+$$
+\inf_{\lambda\ge 0}\Big\{\lambda\delta+\tfrac1n\textstyle\sum_i\Phi_i(\lambda)\Big\}
+= \frac1n\sum_{i=1}^n(1-y_i\,\beta^\top x_i)_+ + \delta\,\|\beta\|_p. \tag{2}
+$$
+
+Combining (1)–(2) gives the "$\le$" direction.
+
+### Step 4 — Tightness (matching lower bound)
+
+It remains to exhibit a feasible $P$ attaining the right side of (2). Suppose
+some sample has $a_{i_0}=1-y_{i_0}\beta^\top x_{i_0}\ge 0$ (generic; the
+degenerate case is handled below). By $(\ast)$ pick $u^\star$ with
+$\|u^\star\|_q=1$ and $-y_{i_0}\beta^\top u^\star=\|\beta\|_p$. Define $P_\delta$
+as $\hat P_n$ with the single atom $\hat\xi_{i_0}$ moved to
+$(x_{i_0}+n\delta\,u^\star,\;y_{i_0})$, all weights kept at $1/n$. Transporting
+only that atom costs $\tfrac1n\|n\delta\,u^\star\|_q=\delta$, so
+$W_c(P_\delta,\hat P_n)\le\delta$ and $P_\delta\in\mathcal B_\delta(\hat P_n)$.
+Its risk is
+
+$$
+\mathbb E_{P_\delta}[\ell_\beta]
+= \frac1n\sum_{i\ne i_0}(a_i)_+ + \frac1n\big(a_{i_0}+\|\beta\|_p\,n\delta\big)_+ .
+$$
+
+Since $a_{i_0}\ge 0$ and $\delta\ge0$, the moved term equals
+$a_{i_0}+\|\beta\|_p n\delta=(a_{i_0})_+ +\|\beta\|_p n\delta$, so
+
+$$
+\mathbb E_{P_\delta}[\ell_\beta]=\frac1n\sum_{i=1}^n(1-y_i\,\beta^\top x_i)_+ +\delta\,\|\beta\|_p,
+$$
+
+which matches the upper bound. Therefore the supremum is attained and equality
+holds. (If every sample has $a_i<0$, allocate the same budget so one atom is
+pushed across into the active region; the value approaches the bound, so the
+supremum still equals it.) $\blacksquare$
+
+**Specialization and scope.** With $p=1$ ($q=\infty$) the penalty is
+$\delta\|\beta\|_1$, the sparsity-promoting term of §1.2. The only properties of
+the hinge used are that $(\cdot)_+$ is convex, nondecreasing, and $1$-Lipschitz;
+the identical computation yields *empirical loss $+\ \delta\,L\,\|\beta\|_p$* for
+any loss of the form $\ell(1-y\beta^\top x)$ with $L$-Lipschitz $\ell$ (e.g. the
+logistic loss, $L=1$), which is the general "regularization via mass
+transportation" equivalence between order-1 Wasserstein DRO and norm
+regularization.
