@@ -4,7 +4,7 @@
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=35
 #SBATCH --mem-per-cpu=3G
-#SBATCH --time=1:00:00
+#SBATCH --time=10:00:00
 #SBATCH -o /scratch/gpfs/BSTELLATO/iywang/low_rank/online_mro/portfolio_test_p2_%A_.txt
 #SBATCH --mail-type=BEGIN,END,FAIL,TIME_LIMIT
 #SBATCH --mail-user=iabirina@hotmail.com
@@ -19,13 +19,13 @@ module purge
 module load anaconda3/2024.2
 conda activate lropt_rev
 
-python port_new/port_orig.py --foldername port_new/results/orig/p1/11/ --R 10 --T 2001 --fixed_time 2001 --interval 10 --Q 500 --K 15 --N_init 5 --r_start 0 --m 150 --rmse_mult 1.75
+# python port_new/port_orig.py --foldername port_new/results/orig/p1/11/ --R 10 --T 2001 --fixed_time 2001 --interval 10 --Q 500 --K 15 --N_init 5 --r_start 0 --m 150 --rmse_mult 1.75
 
-# python port_new/port.py --foldername port_new/results/new/p1/14/ --R 5 --T 2001 --fixed_time 2001 --interval 1 --Q 1000 --K 15 --N_init 5 --r_start 0 --m 150 --eta_0 0.001
+python port_new/port.py --foldername port_new/results/new/p1/2/ --R 5 --T 2001 --fixed_time 2001 --interval 1 --Q 500 --K 15 --N_init 5 --r_start 0 --m 150 --eta_0 1 --rmse_mult 1.25
 
 # python port_new/port_orig_pca.py --foldername port_new/results/orig/p1/pca5/ --R 5 --T 2001 --fixed_time 2001 --interval 10 --Q 1000 --K 15 --N_init 5 --r_start 5 --m 150 --lr_var_frac 0.95 --pca_interval 50 --pca_init_interval 5 --pca_init_timesteps 200
 
-# python port_new/port_DRO.py --foldername port_new/results/new/p1/16/ --R 2 --T 2001 --interval 1 --N_init 5 --r_start 0 --m 50 --eta_0 0.01 --no-line_search
+# python port_new/port_DRO.py --foldername port_new/results/new/p1/2/ --R 5 --T 2001 --interval 1 --N_init 5 --r_start 5 --m 150 --eta_0 1 
 
 # python port_new/port_DRO_orig.py --foldername port_new/results/orig/p1/4/ --R 2 --T 2001 --interval 10 --interval_SAA 10 --N_init 5 --r_start 8 --m 150
 

@@ -854,7 +854,7 @@ def online_cluster_init_online(K, Q, data, m):
     return q_dict, k_dict, total_time + t_time
 
 
-def online_cluster_update_online(K, new_dat, q_dict, k_dict, num_dat, t, fix_time, m, Q, rmse_mult=2):
+def online_cluster_update_online(K, new_dat, q_dict, k_dict, num_dat, t, fix_time, m, Q, rmse_mult=1.25):
     cur_K = k_dict['K']
     new_dat = np.reshape(new_dat,(1,m))
     if t >= fix_time:

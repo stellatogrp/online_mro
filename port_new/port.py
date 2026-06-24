@@ -481,7 +481,7 @@ if __name__ == '__main__':
     parser.add_argument('--fixed_time', type=int, default=1500)
     parser.add_argument('--interval', type=int, default=100)
     parser.add_argument('--N_init', type=int, default=50)
-    parser.add_argument('--rmse_mult', type=float, default=2)
+    parser.add_argument('--rmse_mult', type=float, default=1.25)
     parser.add_argument('--r_start', type=int, default=0)
     parser.add_argument('--line_search', action=argparse.BooleanOptionalAction,
                         default=True,
