@@ -36,7 +36,7 @@ from utils_p1 import online_cluster_update_online as online_cluster_update
 output_stream = sys.stdout
 
 
-def reg_experiments(r_input, K, T, N_init, synthetic_data, r_start):
+def reg_experiments(r_input, K, T, N_init, synthetic_data, power,r_start):
     """Online mean-robust DRO sparse-SVM vs. batch (kmeans) MRO-SVM (p = 1).
 
     p = 1 hinge-loss sibling of ``reg_orig.py``.  The p=2 perturbed-covariates
@@ -73,7 +73,7 @@ def reg_experiments(r_input, K, T, N_init, synthetic_data, r_start):
         x_current = np.zeros(m)
         MRO_x_current = np.zeros(m)
         cluster_SAA_x_current = np.zeros(m)
-        init_radius_val = init_eps * (1 / np.sqrt(num_dat))
+        init_radius_val = init_eps * (1 / (num_dat**(power)))
 
         history = {
             'x': [],
@@ -124,7 +124,7 @@ def reg_experiments(r_input, K, T, N_init, synthetic_data, r_start):
             print(f"\nTimestep {t+1}/{T}")
 
             # radius represents delta (order-1); RWPI: delta_n ~ 1/sqrt(n).
-            radius = init_eps * (1 / np.sqrt(num_dat))
+            radius = init_eps * (1 / (num_dat**(power)))
             running_samples = dat[init_ind:(init_ind + num_dat)]
 
             # ---- solve online MRO sparse-SVM best-subset problem ----
@@ -377,6 +377,7 @@ if __name__ == '__main__':
     parser.add_argument('--rmse_mult', type=float, default=2)
     parser.add_argument('--r_start', type=int, default=0)
     parser.add_argument('--noise', type=float, default=3.0)
+    parser.add_argument('--power', type=float, default=0.5)
 
     arguments = parser.parse_args()
     foldername = arguments.foldername
@@ -387,13 +388,14 @@ if __name__ == '__main__':
     k_true = arguments.k_true
     Q = arguments.Q
     T = arguments.T
+    power = arguments.power
     noise_std = arguments.noise
     r_start = arguments.r_start
     fixed_time = arguments.fixed_time
     interval = arguments.interval
     N_init = arguments.N_init
     rmse_mult = arguments.rmse_mult
-    K_arr = [10, 25]
+    K_arr = [10,15,25]
     K = K_arr[idx]
     newfoldername = foldername + 'K' + str(K) + '_R' + str(R) + '_T' + str(T - 1) + '/'
     os.makedirs(newfoldername, exist_ok=True)
@@ -413,14 +415,14 @@ if __name__ == '__main__':
     # Empirically for m=20, k=5 (see visualize_radius_p1.py): the OOS-hinge
     # optimum sits at init_eps ~0.1-0.3 and the validity threshold runs from
     # ~0.2 (large n) up to ~1.5 (small n), so the sweep is centred there.
-    eps_init = [1.5, 1.0, 0.7, 0.5, 0.3, 0.1]
+    eps_init = [4,3,2.5,2,1.5, 1.0, 0.7, 0.5, 0.3, 0.1]
     if T >= 5000:
         # long horizon reaches large n, where both the optimum and the validity
         # threshold are small; weight the sweep toward the low end.
         eps_init = [1.0, 0.5, 0.3, 0.1]
     M = len(eps_init)
     list_inds = list(itertools.product(np.arange(R), np.arange(M)))
-    t_list = [4, 5, 9, 10, 14, 15, 19, 20, 1249, 1250, 1499, 1500, 1749, 1750, 1999, 2000, 3000, 4000, 5000, 6000, 7000, 8000, 9000, 10000]
+    t_list = [4, 5, 9, 10, 14, 15, 19, 20, 29,30, 59,60, 1249, 1250, 1499, 1500, 1749, 1750, 1999, 2000, 3000, 4000, 5000, 6000, 7000, 8000, 9000, 10000]
     newdatname = foldername + 'T' + str(T - 1) + 'R' + str(R) + '/'
 
     save_run_metadata(
@@ -437,12 +439,13 @@ if __name__ == '__main__':
             'num_random_seeds': R,
             'total_test_combinations': len(eps_init) * R,
             'beta_true': [float(b) for b in beta_true],
+            'power': power
         },
         [newfoldername, (newdatname, f'metadata_K{K}.json')],
     )
 
     results = Parallel(n_jobs=njobs)(delayed(reg_experiments)(
-        r_input, K, T, N_init, synthetic_data, r_start) for r_input in range(len(list_inds)))
+        r_input, K, T, N_init, synthetic_data, power, r_start) for r_input in range(len(list_inds)))
 
     dfs = {}
     for r in range(R):

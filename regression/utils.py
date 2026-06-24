@@ -96,7 +96,7 @@ def get_n_processes(max_n=np.inf):
 # MOSEK solve options shared by every experiment solve: a hard 3000 s wall-clock
 # cap on both the continuous and mixed-integer optimizers (returns the best
 # incumbent found so far if the cap is hit).
-MOSEK_TIME_LIMIT = 3000.0
+MOSEK_TIME_LIMIT = 2000.0
 MOSEK_PARAMS = {
     'MSK_DPAR_OPTIMIZER_MAX_TIME': MOSEK_TIME_LIMIT,
     'MSK_DPAR_MIO_MAX_TIME': MOSEK_TIME_LIMIT,

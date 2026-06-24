@@ -931,9 +931,9 @@ def infer_end_ind(df_dict, K=None, t_col='t'):
 # preamble = "/Users/irina.wang/Desktop/Princeton/Project2/mro_mpc/"
 preamble = "/scratch/gpfs/BSTELLATO/iywang/low_rank/online_mro/"
 
-foldername_orig = preamble + 'portfolio_time/results/2/T'+str(T-1)+'R'+str(R)+'/'
+foldername_orig = preamble + 'portfolio_time/results/3/T'+str(T-1)+'R'+str(R)+'/'
 
-folderout_orig = preamble + 'portfolio_time/plots/2/T'+str(T-1)+'R'+str(R)+'/'
+folderout_orig = preamble + 'portfolio_time/plots/3/T'+str(T-1)+'R'+str(R)+'/'
 
 os.makedirs(folderout_orig, exist_ok=True)
 
@@ -944,7 +944,7 @@ folderout_orig_dro = preamble + 'portfolio_time/plots/1/T'+str(T-1)+'R'+str(R)+'
 os.makedirs(folderout_orig_dro, exist_ok=True)
 
 
-folderout = preamble + 'portfolio_time/plots/2/T'+str(T-1)+'R'+str(R)+'/'
+folderout = preamble + 'portfolio_time/plots/3/T'+str(T-1)+'R'+str(R)+'/'
 
 os.makedirs(folderout, exist_ok=True)
 

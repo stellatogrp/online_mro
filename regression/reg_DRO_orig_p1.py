@@ -211,7 +211,7 @@ if __name__ == '__main__':
         eps_init = [1.5, 1.0, 0.7, 0.5, 0.3, 0.1]
     M = len(eps_init)
     list_inds = list(itertools.product(np.arange(R), np.arange(M)))
-    t_list = [4, 5, 9, 10, 14, 15, 19, 20, 1249, 1250, 1499, 1500, 1749, 1750, 1999, 2000]
+    t_list = [4, 5, 9, 10, 14, 15, 19, 20, 29,30, 59,60, 1249, 1250, 1499, 1500, 1749, 1750, 1999, 2000]
     newdatname = foldername + 'T' + str(T - 1) + 'R' + str(R) + '/'
 
     save_run_metadata(

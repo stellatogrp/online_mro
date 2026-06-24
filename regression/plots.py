@@ -83,6 +83,7 @@ def plot_eval_all(df, quantiles, df1=None, quantiles1=None,end_ind=61,j=(0,0,0),
     ax1.set_xscale("log")
     ax1.set_title(r'Computation time per iteration (s)')
     ax1.grid(True, alpha=0.3)
+    # ax1.set_ylim([0,10])
     # ax1.set_ylim([1e-4,1e3])
     ax1.set_yscale("log")
     
@@ -486,7 +487,7 @@ def plot_eval(df, quantiles, df1=None, quantiles1=None,end_ind=61,j=(0,0,0), q =
     plt.xscale("log")
     # plt.ylim([0.008,0.04])
     if legend:
-        plt.legend()
+        plt.legend(loc='upper right')
     plt.xlabel(r'Time step $(t)$')
     plt.title(f'Out-of-sample expected value, $K$ = {K}')
     plt.grid(True, alpha=alpha)
@@ -748,7 +749,7 @@ def plot_regret_new(df, quantiles, df1=None, quantiles1=None,end_ind=61,j=(0,0,0
     plt.legend(ncol = 2)
     plt.xlabel(r'Time step $(t)$')
     plt.title(r'Dynamic regret')
-    plt.ylim(ylim)
+    # plt.ylim(ylim)
     plt.yscale('log')
     plt.xscale('log')
     plt.grid(True, alpha=alpha)
@@ -917,20 +918,20 @@ def infer_end_ind(df_dict, K=None, t_col='t'):
 # preamble = "/Users/irina.wang/Desktop/Princeton/Project2/mro_mpc/"
 preamble = "/scratch/gpfs/BSTELLATO/iywang/low_rank/online_mro/"
 
-foldername_orig = preamble + 'regression/results/p2/8/T'+str(T-1)+'R'+str(R)+'/'
+foldername_orig = preamble + 'regression/results/p1/4/T'+str(T-1)+'R'+str(R)+'/'
 
-folderout_orig = preamble + 'regression/plots/p2/8/T'+str(T-1)+'R'+str(R)+'/'
+folderout_orig = preamble + 'regression/plots/p1/4/T'+str(T-1)+'R'+str(R)+'/'
 
 os.makedirs(folderout_orig, exist_ok=True)
 
-foldername_orig_dro = preamble + 'regression/results/p2/8/T'+str(T-1)+'R'+str(R)+'/'
+foldername_orig_dro = preamble + 'regression/results/p1/4/T'+str(T-1)+'R'+str(R)+'/'
 
-folderout_orig_dro = preamble + 'regression/plots/p2/8/T'+str(T-1)+'R'+str(R)+'/'
+folderout_orig_dro = preamble + 'regression/plots/p1/4/T'+str(T-1)+'R'+str(R)+'/'
 
 os.makedirs(folderout_orig_dro, exist_ok=True)
 
 
-folderout = preamble + 'regression/plots/p2/8/T'+str(T-1)+'R'+str(R)+'/'
+folderout = preamble + 'regression/plots/p1/4/T'+str(T-1)+'R'+str(R)+'/'
 
 os.makedirs(folderout, exist_ok=True)
 
@@ -947,9 +948,9 @@ end_ind_orig = infer_end_ind(df_orig, K=25)
 end_ind_new = 0
 # end_ind_new = infer_end_ind(df_new, K = 25)
 
-plot_eval_all(df_orig,quantiles_orig,df_orig_dro,quantiles_orig_dro,j=(0,0,0),K=25,q=(25,75),ylim=None,legend = True,val2=2.3, end_ind=end_ind_orig)
+plot_eval_all(df_orig,quantiles_orig,df_orig_dro,quantiles_orig_dro,j=(0,0,5),K=25,q=(25,75),ylim=None,legend = True,val2=2.3, end_ind=end_ind_orig)
 
-plot_eval(df_orig,quantiles_orig,df_orig_dro,quantiles_orig_dro,j=(0,0,0),K=25,q=(25,75),end_ind=end_ind_orig,legend = True)
+plot_eval(df_orig,quantiles_orig,df_orig_dro,quantiles_orig_dro,j=(0,0,5),K=25,q=(25,75),end_ind=end_ind_orig,legend = True)
 
 
 # plot_eval_all_compare(
