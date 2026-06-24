@@ -178,3 +178,5 @@ port_new/results/
 
 regression/results
 portfolio_time/results/
+regression/plots
+port_new/plots

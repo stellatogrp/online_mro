@@ -415,7 +415,7 @@ if __name__ == '__main__':
     # Empirically for m=20, k=5 (see visualize_radius_p1.py): the OOS-hinge
     # optimum sits at init_eps ~0.1-0.3 and the validity threshold runs from
     # ~0.2 (large n) up to ~1.5 (small n), so the sweep is centred there.
-    eps_init = [4,3,2.5,2,1.5, 1.0, 0.7, 0.5, 0.3, 0.1]
+    eps_init = [1.5, 1.0, 0.7, 0.5,0.4, 0.3, 0.2, 0.1,0.05]
     if T >= 5000:
         # long horizon reaches large n, where both the optimum and the validity
         # threshold are small; weight the sweep toward the low end.

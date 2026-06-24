@@ -918,9 +918,9 @@ def infer_end_ind(df_dict, K=None, t_col='t'):
 # preamble = "/Users/irina.wang/Desktop/Princeton/Project2/mro_mpc/"
 preamble = "/scratch/gpfs/BSTELLATO/iywang/low_rank/online_mro/"
 
-foldername_orig = preamble + 'regression/results/p1/8/T'+str(T-1)+'R'+str(R)+'/'
+foldername_orig = preamble + 'regression/results/p1/13/T'+str(T-1)+'R'+str(R)+'/'
 
-folderout_orig = preamble + 'regression/plots/p1/8/T'+str(T-1)+'R'+str(R)+'/'
+folderout_orig = preamble + 'regression/plots/p1/13/T'+str(T-1)+'R'+str(R)+'/'
 
 os.makedirs(folderout_orig, exist_ok=True)
 
@@ -931,7 +931,7 @@ folderout_orig_dro = preamble + 'regression/plots/p1/7/T'+str(T-1)+'R'+str(R)+'/
 os.makedirs(folderout_orig_dro, exist_ok=True)
 
 
-folderout = preamble + 'regression/plots/p1/8/T'+str(T-1)+'R'+str(R)+'/'
+folderout = preamble + 'regression/plots/p1/13/T'+str(T-1)+'R'+str(R)+'/'
 
 os.makedirs(folderout, exist_ok=True)
 
@@ -948,9 +948,9 @@ end_ind_orig = infer_end_ind(df_orig, K=25)
 end_ind_new = 0
 # end_ind_new = infer_end_ind(df_new, K = 25)
 
-plot_eval_all(df_orig,quantiles_orig,df_orig_dro,quantiles_orig_dro,j=(8,8,5),K=25,q=(25,75),ylim=None,legend = True,val2=2.3, end_ind=end_ind_orig)
+plot_eval_all(df_orig,quantiles_orig,df_orig_dro,quantiles_orig_dro,j=(9,9,5),K=15,q=(25,75),ylim=None,legend = True,val2=2.3, end_ind=end_ind_orig)
 
-plot_eval(df_orig,quantiles_orig,df_orig_dro,quantiles_orig_dro,j=(8,8,5),K=25,q=(25,75),end_ind=end_ind_orig,legend = True)
+plot_eval(df_orig,quantiles_orig,df_orig_dro,quantiles_orig_dro,j=(9,9,5),K=15,q=(25,75),end_ind=end_ind_orig,legend = True)
 
 
 # plot_eval_all_compare(
@@ -967,4 +967,4 @@ plot_eval(df_orig,quantiles_orig,df_orig_dro,quantiles_orig_dro,j=(8,8,5),K=25,q
 #     end_ind=end_ind_orig, end_ind_grad= end_ind_new, legend=True,
 # )
 
-plot_regret_new(df_orig,quantiles_orig,df_orig_dro[0],quantiles_orig_dro[0],j=(8,8,5),K=25,q=(25,75),end_ind = end_ind_orig,ylim=[0.0005,1])
+plot_regret_new(df_orig,quantiles_orig,df_orig_dro[0],quantiles_orig_dro[0],j=(9,9,5),K=25,q=(25,75),end_ind = end_ind_orig,ylim=[0.0005,1])
