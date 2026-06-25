@@ -20,7 +20,7 @@ module load gurobi/13.0.0
 module load anaconda3/2024.2
 conda activate lropt_rev
 
-# python regression/reg_orig_p1.py --foldername regression/results/p1/23/ --R 10 --T 2001 --fixed_time 2001 --interval 100 --Q 500 --K 10 --N_init 5 --r_start 0 --m 100 --noise 5 --rmse_mult 1.2 --k 5 --k_true 5 --power 0.03333
+# python regression/reg_orig_p1.py --foldername regression/results/p1/26/ --R 10 --T 2001 --fixed_time 2001 --interval 100 --Q 500 --K 10 --N_init 5 --r_start 0 --m 50 --noise 8 --rmse_mult 1.25 --k 5 --k_true 5 --power 0.03333
 
-python regression/reg_DRO_orig_p1.py --foldername regression/results/p1/14/ --R 5 --T 2001 --interval 150 --interval_SAA 150 --N_init 5 --r_start 5 --m 200 --noise 10 --k 10 --k_true 10
+python regression/reg_DRO_orig_p1.py --foldername regression/results/p1/26/ --R 5 --T 2001 --interval 100 --interval_SAA 100 --N_init 5 --r_start 0 --m 50 --noise 8 --k 5 --k_true 5
 

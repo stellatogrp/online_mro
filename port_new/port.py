@@ -21,7 +21,7 @@ from utils import (
     save_run_metadata,
     w2_dist,
     wasserstein,
-    worst_case,
+    worst_case_value,
 )
 from utils import calc_cluster_val_online as calc_cluster_val
 from utils import compute_cumulative_regret_online as compute_cumulative_regret
@@ -236,39 +236,20 @@ def port_experiments(r_input,K,T,N_init,synthetic_returns,eta_0, r_start, newfol
 
             if (t % interval == 0 or ((t-1) % interval == 0) or (t in t_list)) and (t <= 2001 or (t in t_list)):
                 # compute online MRO worst value (wrt non clustered data)
-
-                new_problem, s_d, lam_d, x_d, tau_d, eps_d, w_d =  worst_case(num_dat,m,running_samples)
-                w_d.value = (1/num_dat)*np.ones(num_dat)
-                eps_d.value = radius
-                x_d.value = x_current
-                tau_d.value = tau_current
-                if safe_solve(new_problem, name='worst_case(online)', t=t,
-                              solver=cp.CLARABEL, verbose=False, time_limit=1500.0):
-                    new_worst = new_problem.objective.value
-                    worst_time = new_problem.solver_stats.solve_time
-                else:
-                    new_worst = np.nan
-                    worst_time = np.nan
+                uni_w = (1/num_dat)*np.ones(num_dat)
+                t0 = time.time()
+                new_worst = worst_case_value(x_current, tau_current, running_samples, uni_w, radius)
+                worst_time = time.time() - t0
 
                 history['worst_values'].append(new_worst)
                 history['worst_times'].append(worst_time)
 
             if (t % interval == 0 or ((t-1) % interval == 0) or (t in t_list)) and (t <= 2001 or (t in t_list)):
-                x_d.value = MRO_x_current
-                tau_d.value = MRO_tau_current
-                if safe_solve(new_problem, name='worst_case(MRO)', t=t,
-                              solver=cp.CLARABEL, verbose=False, time_limit=1500.0):
-                    new_worst_MRO = new_problem.objective.value
-                    MRO_worst_time = new_problem.solver_stats.solve_time
-                else:
-                    new_worst_MRO = np.nan
-                    MRO_worst_time = np.nan
+                t0 = time.time()
+                new_worst_MRO = worst_case_value(MRO_x_current, MRO_tau_current, running_samples, uni_w, radius)
+                MRO_worst_time = time.time() - t0
 
                 mean_val, square_val, sig_val = calc_cluster_val(K, k_dict,num_dat,x_current,running_samples)
-                # q_lens = [len(q_dict['data'][i]) for i in range(q_dict['cur_Q'])]
-                # k_lens = [len(k_dict['data'][i]) for i in range(k_dict['K'])]
-                # print("Q nums", q_lens, np.sum(q_lens), num_dat)
-                # print("K nums", k_lens, np.sum(k_lens), num_dat)
 
                 history['MRO_worst_values'].append(new_worst_MRO)
                 history['MRO_worst_times'].append(MRO_worst_time)
@@ -276,34 +257,17 @@ def port_experiments(r_input,K,T,N_init,synthetic_returns,eta_0, r_start, newfol
 
             if (t % interval == 0 or ((t-1) % interval == 0) or (t in t_list)) and (t <= 2001 or (t in t_list)):
                 # compute online worst value (wrt prev stage sols
-                x_d.value = x_prev
-                tau_d.value = tau_prev
-                if safe_solve(new_problem, name='worst_case(online,regret)', t=t,
-                              solver=cp.CLARABEL, verbose=False, time_limit=1500.0):
-                    new_worst = new_problem.objective.value
-                    worst_time = new_problem.solver_stats.solve_time
-                else:
-                    new_worst = np.nan
-                    worst_time = np.nan
+                t0 = time.time()
+                new_worst = worst_case_value(x_prev, tau_prev, running_samples, uni_w, radius)
+                worst_time = time.time() - t0
 
                 history['worst_values_regret'].append(new_worst)
                 history['worst_times_regret'].append(worst_time)
 
             if (t % interval == 0 or ((t-1) % interval == 0) or (t in t_list)) and (t <= 2001 or (t in t_list)):
-                x_d.value = MRO_x_prev
-                tau_d.value = MRO_tau_prev
-                if safe_solve(new_problem, name='worst_case(MRO,regret)', t=t,
-                              solver=cp.CLARABEL, verbose=False, time_limit=1500.0):
-                    new_worst_MRO = new_problem.objective.value
-                    MRO_worst_time = new_problem.solver_stats.solve_time
-                else:
-                    new_worst_MRO = np.nan
-                    MRO_worst_time = np.nan
-
-                # q_lens = [len(q_dict['data'][i]) for i in range(q_dict['cur_Q'])]
-                # k_lens = [len(k_dict['data'][i]) for i in range(k_dict['K'])]
-                # print("Q nums", q_lens, np.sum(q_lens), num_dat)
-                # print("K nums", k_lens, np.sum(k_lens), num_dat)
+                t0 = time.time()
+                new_worst_MRO = worst_case_value(MRO_x_prev, MRO_tau_prev, running_samples, uni_w, radius)
+                MRO_worst_time = time.time() - t0
 
                 history['MRO_worst_values_regret'].append(new_worst_MRO)
                 history['MRO_worst_times_regret'].append(MRO_worst_time)

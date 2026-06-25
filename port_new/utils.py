@@ -501,6 +501,16 @@ def wasserstein(samples_p, samples_q):
 
     return w_distance
 
+def worst_case_value(x, tau, dat, w, eps, a=-5):
+    """Closed-form optimal value of the worst_case LP (x, tau frozen).
+
+    The LP has a trivially tight dual: s_i* = max(0, a*tau + a*dat_i@x)
+    and lam* = |a|*||x||_2, giving this O(N) expression.
+    """
+    scores = a * tau + a * (dat @ x)
+    return tau + float(w @ np.maximum(scores, 0.0)) + eps * abs(a) * np.linalg.norm(x)
+
+
 def worst_case(N,m,dat):
     # PARAMETERS #
     eps = cp.Parameter()
