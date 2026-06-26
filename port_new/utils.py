@@ -633,6 +633,40 @@ def cluster_k_online(K,q_dict, k_dict, init=False):
     return k_dict, total_time
 
 
+def assign_k_online(K, q_dict, k_dict):
+    """Cheap macro-cluster update used between full KMeans re-clusters when
+    ``cluster_interval > 1``.
+
+    Keeps the existing macro centers ``k_dict['a']`` (from the last full
+    re-cluster) fixed and assigns each micro-cluster centroid to its nearest
+    macro center, then recomputes the macro weights / centroids / membership.
+    This is a single assignment step -- O(cur_Q * K) -- instead of a full
+    Lloyd's iteration, and is only invoked once there are more micro-clusters
+    than macro-clusters (cur_Q > K), so ``k_dict['a']`` is already populated.
+    """
+    start_time = time.time()
+    cur_Q = q_dict['cur_Q']
+    cur_K = int(np.minimum(K, cur_Q))
+    k_dict['K'] = cur_K
+    micro = q_dict['d'][:cur_Q]
+    labels = np.argmin(cdist(micro, k_dict['a'][:cur_K]), axis=1)
+    for k in range(cur_K):
+        k_dict[k] = np.where(labels == k)[0]
+        w_cur = q_dict['w'][:cur_Q][k_dict[k]]
+        k_dict['w'][k] = np.sum(w_cur)
+        if k_dict['w'][k] > 0:
+            w_cur_norm = w_cur / k_dict['w'][k]
+            k_dict['d'][k] = np.sum(micro[k_dict[k]] * w_cur_norm[:, np.newaxis], axis=0)
+    total_time = time.time() - start_time
+    k_dict['idx'] = {}
+    for k in range(cur_K):
+        idx_k = []
+        for q in k_dict[k]:
+            idx_k.extend(q_dict['idx'][int(q)])
+        k_dict['idx'][k] = idx_k
+    return k_dict, total_time
+
+
 def compute_cumulative_regret_online(history, dateval, m):
     """
     Compute cumulative regret by comparing online decisions against optimal DRO solution in hindsight.
@@ -899,7 +933,7 @@ def online_cluster_init_online(K, Q, data, m):
     return q_dict, k_dict, total_time + t_time
 
 
-def online_cluster_update_online(K, new_dat, q_dict, k_dict, num_dat, t, fix_time, m, Q, rmse_mult=1.25):
+def online_cluster_update_online(K, new_dat, q_dict, k_dict, num_dat, t, fix_time, m, Q, rmse_mult=1.25, cluster_interval=1):
     cur_K = k_dict['K']
     new_dat = np.reshape(new_dat,(1,m))
     if t >= fix_time:
@@ -978,7 +1012,14 @@ def online_cluster_update_online(K, new_dat, q_dict, k_dict, num_dat, t, fix_tim
             # vacated slot (mirrors the centroid/weight bookkeeping above)
             q_dict['idx'][min_pair[0]] = list(q_dict['idx'][min_pair[0]]) + list(q_dict['idx'][min_pair[1]])
             q_dict['idx'][min_pair[1]] = q_dict['idx'][Q]
-        k_dict, time_temp = cluster_k_online(K,q_dict,k_dict)
+        # Macro re-cluster: a full KMeans every ``cluster_interval`` steps,
+        # otherwise a cheap nearest-macro-center assignment of the micro-clusters
+        # (keeping the last full re-cluster's centers).  cluster_interval=1 (the
+        # default) reproduces the original every-spawn full re-cluster.
+        if q_dict['cur_Q'] <= K or (t % cluster_interval == 0):
+            k_dict, time_temp = cluster_k_online(K, q_dict, k_dict)
+        else:
+            k_dict, time_temp = assign_k_online(K, q_dict, k_dict)
         total_time += time_temp
     return q_dict, k_dict, total_time
 

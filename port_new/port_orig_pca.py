@@ -11,6 +11,7 @@ import pandas as pd
 from joblib import Parallel, delayed
 from sklearn.cluster import KMeans
 from sklearn.model_selection import train_test_split
+from scipy.spatial.distance import cdist
 import time
 import itertools
 import copy
@@ -194,13 +195,20 @@ def port_experiments(r_input,K,T,N_init,synthetic_returns,r_start):
                     if t <= fixed_time:
                         start_time = time.time()
                         cur_K = np.minimum(K,num_dat)
-                        if new_k_dict is not None and (num_dat > (interval+N_init)) and new_k_dict['d'].shape[0] == cur_K:
-                            kmeans = KMeans(n_clusters=cur_K, init=new_k_dict['d'],n_init=1).fit(running_samples)
+                        do_full = (new_k_dict is None) or (t % cluster_interval == 0) \
+                            or (new_k_dict['d'].shape[0] != cur_K)
+                        if do_full:
+                            if new_k_dict is not None and (num_dat > (interval+N_init)) and new_k_dict['d'].shape[0] == cur_K:
+                                kmeans = KMeans(n_clusters=cur_K, init=new_k_dict['d'],n_init=1).fit(running_samples)
+                            else:
+                                print("restart kmeans", cur_K, num_dat)
+                                kmeans = KMeans(n_clusters=cur_K,init="k-means++", n_init=1).fit(running_samples)
+                            new_centers = kmeans.cluster_centers_
+                            labels = kmeans.labels_
                         else:
-                            print("restart kmeans", cur_K, num_dat)
-                            kmeans = KMeans(n_clusters=cur_K,init="k-means++", n_init=1).fit(running_samples)
-                        new_centers = kmeans.cluster_centers_
-                        wk = np.bincount(kmeans.labels_) / num_dat
+                            new_centers = new_k_dict['d']
+                            labels = np.argmin(cdist(running_samples, new_centers), axis=1)
+                        wk = np.bincount(labels, minlength=new_centers.shape[0]) / num_dat
                         # Only count clustering time when K < num_dat -- otherwise
                         # cur_K = num_dat and the kmeans call is a trivial pass-through.
                         cluster_time = (time.time() - start_time) if K < num_dat else 0.0
@@ -210,8 +218,8 @@ def port_experiments(r_input,K,T,N_init,synthetic_returns,r_start):
                         new_k_dict['a'] = new_centers
                         new_k_dict['d'] = new_centers
                         new_k_dict['w'] = wk
-                        for k in range(K):
-                            new_k_dict['data'][k] = running_samples[kmeans.labels_==k]
+                        for k in range(new_centers.shape[0]):
+                            new_k_dict['data'][k] = running_samples[labels==k]
                         new_k_dict['d'] = new_centers
 
 
@@ -328,7 +336,7 @@ def port_experiments(r_input,K,T,N_init,synthetic_returns,r_start):
 
             # New sample
             new_sample = dat[init_ind+num_dat]
-            q_dict, k_dict, weight_update_time = online_cluster_update(K, new_sample, q_dict, k_dict, num_dat, t, fixed_time, m, Q, rmse_mult)
+            q_dict, k_dict, weight_update_time = online_cluster_update(K, new_sample, q_dict, k_dict, num_dat, t, fixed_time, m, Q, rmse_mult, cluster_interval=cluster_interval)
             if t >= fixed_time:
                 new_k_dict, cluster_time = fixed_cluster(new_k_dict, new_sample, num_dat=num_dat, m=m)
             num_dat += 1
@@ -503,6 +511,11 @@ if __name__ == '__main__':
     parser.add_argument('--interval', type=int, default=100)
     parser.add_argument('--N_init', type=int, default=50)
     parser.add_argument('--rmse_mult', type=float, default=2)
+    parser.add_argument('--cluster_interval', type=int, default=1,
+                        help='Full re-cluster every this many steps for both the '
+                             'online (micro->macro) and batch-MRO (kmeans) methods; '
+                             'between full re-clusters a cheap nearest-center '
+                             'assignment is used. Default 1 = re-cluster every step.')
     parser.add_argument('--r_start', type=int, default=0)
     parser.add_argument('--lr_k', type=int, default=None,
                         help='Explicit low-rank PCA dim for createproblem_portLP_lr. '
@@ -532,6 +545,7 @@ if __name__ == '__main__':
     interval = arguments.interval
     N_init = arguments.N_init
     rmse_mult = arguments.rmse_mult
+    cluster_interval = arguments.cluster_interval
     # Either a fixed int (explicit --lr_k) or a float variance fraction
     # consumed by pca() to auto-pick the rank each fit.
     lr_k = arguments.lr_k if arguments.lr_k is not None else float(arguments.lr_var_frac)
@@ -568,7 +582,7 @@ if __name__ == '__main__':
             'filename': os.path.basename(__file__),
             'K': K, 'T': T, 'R': R, 'm': m, 'Q': Q,
             'fixed_time': fixed_time, 'interval': interval, 'N_init': N_init,
-            'rmse_mult': rmse_mult,
+            'rmse_mult': rmse_mult, 'cluster_interval': cluster_interval,
             'r_start': r_start,
             'epsilon_values': [float(e) for e in eps_init],
             'num_epsilon_values': len(eps_init),
