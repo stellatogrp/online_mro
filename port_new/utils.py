@@ -242,7 +242,13 @@ def fixed_cluster(k_dict, new_dat, num_dat, m):
     k_dict['w'] = w_k_temp
     k_dict['w'][min_ind] = increased_w
     total_time = time.time() - start_time
-    k_dict['data'][min_ind] = np.vstack([k_dict['data'][min_ind],new_dat])
+    # Membership bookkeeping. The online clusters store row *indices* into the
+    # running sample array ('idx', O(1) append); the batch clusters built in the
+    # drivers still store the raw rows ('data', vstack). Branch on which exists.
+    if 'idx' in k_dict:
+        k_dict['idx'][min_ind].append(num_dat)
+    else:
+        k_dict['data'][min_ind] = np.vstack([k_dict['data'][min_ind], new_dat])
     return k_dict, total_time
 
 
@@ -569,18 +575,27 @@ def worst_case_p2(N, m, dat):
     return problem, s, lam, x, tau, eps2, w
 
 def calc_cluster_val_online(K,k_dict, num_dat,x,running_samples):
-    mean_val = 0
-    square_val = 0
-    sig_val = 0
-    cur_K = np.minimum(K,num_dat)
+    square_val = 0.0
+    sig_val = 0.0
+    cur_K = int(np.minimum(K,num_dat))
+    # Online clusters store row indices ('idx') into running_samples; batch
+    # clusters store the raw rows ('data'). Either way, gather the member rows
+    # per macro-cluster and vectorize the squared-distance / hinge-gap sums.
+    use_idx = 'idx' in k_dict
     for k in range(cur_K):
         centroid = k_dict['d'][k]
-        for dat in k_dict['data'][k]:
-            cur_val = np.linalg.norm(dat-centroid,2)
-            # mean_val += cur_val
-            square_val += cur_val**2
-            #sig_val = np.maximum(sig_val,(dat-centroid)@x)
-            sig_val += max(0,(dat-centroid)@x)
+        if use_idx:
+            members = np.asarray(k_dict['idx'][k], dtype=int)
+            if members.size == 0:
+                continue
+            pts = running_samples[members]
+        else:
+            pts = np.asarray(k_dict['data'][k])
+            if pts.shape[0] == 0:
+                continue
+        diff = pts - centroid                                   # (n_k, m)
+        square_val += float(np.einsum('ij,ij->i', diff, diff).sum())
+        sig_val += float(np.maximum(0.0, diff @ x).sum())
     cost_matrix = ot.dist(running_samples, k_dict['d'][:cur_K], metric='euclidean')
     w_distance = ot.emd2(np.ones(num_dat)/num_dat, k_dict['w'][:cur_K], cost_matrix)
     return w_distance, square_val/num_dat, sig_val/num_dat
@@ -607,8 +622,14 @@ def cluster_k_online(K,q_dict, k_dict, init=False):
         w_cur_norm = w_cur/(k_dict['w'][k])
         k_dict['d'][k] = np.sum(d_cur*w_cur_norm[:,np.newaxis],axis=0)
     total_time = time.time() - start_time
+    # Macro-cluster membership as concatenated micro-cluster index lists (cheap
+    # int concatenation, no row copies). Excluded from total_time as before.
+    k_dict['idx'] = {}
     for k in range(cur_K):
-        k_dict['data'][k] = np.vstack([q_dict['data'][q] for q in k_dict[k]])
+        idx_k = []
+        for q in k_dict[k]:
+            idx_k.extend(q_dict['idx'][int(q)])
+        k_dict['idx'][k] = idx_k
     return k_dict, total_time
 
 
@@ -846,19 +867,33 @@ def online_cluster_init_online(K, Q, data, m):
     if not np.isfinite(rmse_floor) or rmse_floor <= 1e-6:
         rmse_floor = 0.02
     total_time = time.time() - start_time
-    q_dict['data'] = {}
+    # Micro-cluster membership stored as row *indices* into the running sample
+    # array (positions 0..init_num-1 here), not copied rows, so absorption is an
+    # O(1) list append instead of an O(cluster_size) vstack.
+    q_dict['idx'] = {}
     for q in range(q_dict['cur_Q']):
-        cluster_data = data[qmeans.labels_ == q]
-        q_dict['data'][q] = cluster_data
+        members = np.where(qmeans.labels_ == q)[0]
+        q_dict['idx'][q] = list(members)
+        cluster_data = data[members]
         rmse = np.sqrt(calc_rmse(cluster_data,np.reshape(q_dict['d'][q],(1,m))))
         if rmse <= 1e-6:
             rmse = rmse_floor
         q_dict['rmse'][q] = rmse
+    # Persistent pairwise-distance matrix between the micro-cluster anchors
+    # q_dict['a'] (diagonal/inactive slots = inf).  The anchors only change on
+    # spawn (one new row) and merge (two rows), so this is patched incrementally
+    # instead of recomputing the full Q x Q matrix every merge.
+    cq = q_dict['cur_Q']
+    q_dict['D'] = np.full((Q + 1, Q + 1), np.inf)
+    if cq > 1:
+        sub = cdist(q_dict['a'][:cq], q_dict['a'][:cq])
+        np.fill_diagonal(sub, np.inf)
+        q_dict['D'][:cq, :cq] = sub
     k_dict = {}
     k_dict['a'] = np.zeros((K,m))
     k_dict['w'] = np.zeros(K)
     k_dict['d'] = np.zeros((K,m))
-    k_dict['data'] = {}
+    k_dict['idx'] = {}
     k_dict['K'] = np.minimum(K,init_num)
     k_dict, t_time = cluster_k_online(K,q_dict, k_dict, init=True)
     return q_dict, k_dict, total_time + t_time
@@ -886,13 +921,12 @@ def online_cluster_update_online(K, new_dat, q_dict, k_dict, num_dat, t, fix_tim
             if min_ind in k_dict[k]:
                 k_dict['d'][k] = (k_dict['d'][k]*k_dict['w'][k]*num_dat + new_dat)/(k_dict['w'][k]*num_dat + 1)
                 k_dict['w'][k] = (k_dict['w'][k]*num_dat + 1)/(num_dat + 1)
+                # absorb into this macro-cluster's membership (O(1) append)
+                k_dict['idx'][k].append(num_dat)
             else:
                 k_dict['w'][k] = (k_dict['w'][k]*num_dat)/(num_dat + 1)
         total_time = time.time() - start_time
-        q_dict['data'][min_ind] = np.vstack([q_dict['data'][min_ind],new_dat])
-        for k in range(cur_K):
-            if min_ind in k_dict[k]:
-                k_dict['data'][k] = np.vstack([k_dict['data'][k],new_dat])
+        q_dict['idx'][min_ind].append(num_dat)
     else:
         start_time = time.time()
         cur_Q = q_dict['cur_Q'] + 1
@@ -902,12 +936,21 @@ def online_cluster_update_online(K, new_dat, q_dict, k_dict, num_dat, t, fix_tim
         q_dict['rmse'][cur_Q-1] = min_dist
         q_dict['w'][:cur_Q-1] = (q_dict['w'][:cur_Q-1]*num_dat)/(num_dat+1)
         q_dict['w'][cur_Q-1] = 1/(num_dat+1)
+        # patch the new anchor's distances into D (row/col cur_Q-1)
+        ni = cur_Q - 1
+        if ni > 0:
+            row = cdist(q_dict['a'][ni:ni+1], q_dict['a'][:ni]).ravel()
+            q_dict['D'][ni, :ni] = row
+            q_dict['D'][:ni, ni] = row
+        q_dict['D'][ni, ni] = np.inf
         total_time = time.time() - start_time
-        q_dict['data'][cur_Q-1] = new_dat
+        q_dict['idx'][cur_Q-1] = [num_dat]
         if cur_Q > Q:
             start_time = time.time()
             q_dict['cur_Q'] = Q
-            min_pair = find_min_pairwise_distance(q_dict['a'])
+            # closest active pair from the maintained matrix (all Q+1 slots are
+            # active at this point), replacing the full O(Q^2) cdist recompute.
+            min_pair = np.unravel_index(np.argmin(q_dict['D']), q_dict['D'].shape)
             merged_weight = np.sum(q_dict['w'][min_pair[0]]+q_dict['w'][min_pair[1]])
             merged_center = (q_dict['a'][min_pair[0]]*q_dict['w'][min_pair[0]] + q_dict['a'][min_pair[1]]*q_dict['w'][min_pair[1]])/merged_weight
             merged_centroid = (q_dict['d'][min_pair[0]]*q_dict['w'][min_pair[0]] + q_dict['d'][min_pair[1]]*q_dict['w'][min_pair[1]])/merged_weight
@@ -920,10 +963,21 @@ def online_cluster_update_online(K, new_dat, q_dict, k_dict, num_dat, t, fix_tim
             q_dict['d'][min_pair[1]] = q_dict['d'][Q]
             q_dict['w'][min_pair[1]] = q_dict['w'][Q]
             q_dict['rmse'][min_pair[1]] = q_dict['rmse'][Q]
+            # patch D: slot min_pair[0] holds the merged anchor and slot
+            # min_pair[1] now holds the (moved) slot-Q anchor, so recompute those
+            # two rows against the active set 0..Q-1; blank the freed slot Q.
+            for s in (min_pair[0], min_pair[1]):
+                drow = cdist(q_dict['a'][s:s+1], q_dict['a'][:Q]).ravel()
+                q_dict['D'][s, :Q] = drow
+                q_dict['D'][:Q, s] = drow
+                q_dict['D'][s, s] = np.inf
+            q_dict['D'][Q, :] = np.inf
+            q_dict['D'][:, Q] = np.inf
             total_time += time.time() - start_time
-            merged_data = np.vstack([q_dict['data'][q] for q in min_pair])
-            q_dict['data'][min_pair[0]] = merged_data
-            q_dict['data'][min_pair[1]] = q_dict['data'][Q]
+            # merge the two micro-clusters' index lists; move slot Q into the
+            # vacated slot (mirrors the centroid/weight bookkeeping above)
+            q_dict['idx'][min_pair[0]] = list(q_dict['idx'][min_pair[0]]) + list(q_dict['idx'][min_pair[1]])
+            q_dict['idx'][min_pair[1]] = q_dict['idx'][Q]
         k_dict, time_temp = cluster_k_online(K,q_dict,k_dict)
         total_time += time_temp
     return q_dict, k_dict, total_time
