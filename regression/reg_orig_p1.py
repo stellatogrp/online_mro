@@ -10,6 +10,7 @@ import numpy as np
 import pandas as pd
 from joblib import Parallel, delayed
 from sklearn.model_selection import train_test_split
+from scipy.spatial.distance import cdist
 import time
 import itertools
 import copy
@@ -156,7 +157,19 @@ def reg_experiments(r_input, K, T, N_init, synthetic_data, power,p,r_start):
                         # label-pure batch k-means: the cur_K budget is split
                         # across the two labels, each clustered separately, so
                         # every centroid is label-pure and the total is cur_K.
-                        new_centers, klabels, wk = label_aware_kmeans(running_samples, cur_K, dim)
+                        if (new_k_dict is None) or (t % cluster_interval == 0) \
+                                or (new_k_dict['d'].shape[0] != cur_K):
+                            new_centers, klabels, wk = label_aware_kmeans(running_samples, cur_K, dim)
+                        else:
+                            # cheap update: assign each datapoint to its nearest
+                            # same-label center from the last full re-cluster.
+                            new_centers = new_k_dict['d']
+                            samp_lab = np.round(running_samples[:, dim - 1]).astype(int)
+                            cen_lab = np.round(new_centers[:, dim - 1]).astype(int)
+                            Dd = cdist(running_samples, new_centers)
+                            Dd = np.where(samp_lab[:, None] != cen_lab[None, :], np.inf, Dd)
+                            klabels = np.argmin(Dd, axis=1)
+                            wk = np.bincount(klabels, minlength=new_centers.shape[0]) / num_dat
                         cur_K = new_centers.shape[0]
                         cluster_time = (time.time() - start_time) if K < num_dat else 0.0
                         new_k_dict = {}
@@ -236,7 +249,7 @@ def reg_experiments(r_input, K, T, N_init, synthetic_data, power,p,r_start):
 
             # ---- ingest new sample, update clusters ----
             new_sample = dat[init_ind + num_dat]
-            q_dict, k_dict, weight_update_time = online_cluster_update(K, new_sample, q_dict, k_dict, num_dat, t, fixed_time, dim, Q, rmse_mult)
+            q_dict, k_dict, weight_update_time = online_cluster_update(K, new_sample, q_dict, k_dict, num_dat, t, fixed_time, dim, Q, rmse_mult, cluster_interval=cluster_interval)
             if t >= fixed_time:
                 new_k_dict, cluster_time = fixed_cluster(new_k_dict, new_sample, num_dat=num_dat, m=dim)
             num_dat += 1
@@ -375,6 +388,11 @@ if __name__ == '__main__':
     parser.add_argument('--interval', type=int, default=100)
     parser.add_argument('--N_init', type=int, default=50)
     parser.add_argument('--rmse_mult', type=float, default=2)
+    parser.add_argument('--cluster_interval', type=int, default=1,
+                        help='Full re-cluster every this many steps for both the '
+                             'online (micro->macro) and batch-MRO methods; between '
+                             'full re-clusters a cheap nearest-center assignment is '
+                             'used. Default 1 = re-cluster every step.')
     parser.add_argument('--r_start', type=int, default=0)
     parser.add_argument('--noise', type=float, default=3.0)
     parser.add_argument('--power', type=float, default=0.5)
@@ -398,6 +416,7 @@ if __name__ == '__main__':
     interval = arguments.interval
     N_init = arguments.N_init
     rmse_mult = arguments.rmse_mult
+    cluster_interval = arguments.cluster_interval
     K_arr = [10,15,25]
     K = K_arr[idx]
     newfoldername = foldername + 'K' + str(K) + '_R' + str(R) + '_T' + str(T - 1) + '/'
@@ -435,7 +454,7 @@ if __name__ == '__main__':
             'noise_std': noise_std,
             'Q': Q,
             'fixed_time': fixed_time, 'interval': interval, 'N_init': N_init,
-            'rmse_mult': rmse_mult,
+            'rmse_mult': rmse_mult, 'cluster_interval': cluster_interval,
             'r_start': r_start,
             'epsilon_values': [float(e) for e in eps_init],
             'num_epsilon_values': len(eps_init),

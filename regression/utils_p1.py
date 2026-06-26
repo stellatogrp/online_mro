@@ -495,7 +495,7 @@ def cluster_k_online(K, q_dict, k_dict, init=False):
     # Clear any previous macro -> micro index assignments (integer keys only).
     for key in [kk for kk in k_dict if isinstance(kk, (int, np.integer))]:
         del k_dict[key]
-    k_dict['data'] = {}
+    k_dict['idx'] = {}
     a_list = []
     gk = 0
     for gi, lab in enumerate(uniq):
@@ -524,7 +524,10 @@ def cluster_k_online(K, q_dict, k_dict, init=False):
     k_dict['K'] = gk
     k_dict['a'] = np.array(a_list)
     for k in range(gk):
-        k_dict['data'][k] = np.vstack([q_dict['data'][q] for q in k_dict[k]])
+        idx_k = []
+        for q in k_dict[k]:
+            idx_k.extend(q_dict['idx'][int(q)])
+        k_dict['idx'][k] = idx_k
     total_time = time.time() - start_time
     return k_dict, total_time
 
@@ -549,7 +552,7 @@ def online_cluster_init_online(K, Q, data, m):
     q_dict['d'] = np.zeros((Q + 1, m))
     q_dict['w'] = np.zeros(Q + 1)
     q_dict['rmse'] = np.zeros(Q + 1)
-    q_dict['data'] = {}
+    q_dict['idx'] = {}
 
     slot = 0
     centers_for_floor = []
@@ -565,7 +568,7 @@ def online_cluster_init_online(K, Q, data, m):
             q_dict['a'][slot] = qmeans.cluster_centers_[j]
             q_dict['d'][slot] = qmeans.cluster_centers_[j]
             q_dict['w'][slot] = cluster_data.shape[0] / init_num
-            q_dict['data'][slot] = cluster_data
+            q_dict['idx'][slot] = list(idx[qmeans.labels_ == j])
             centers_for_floor.append(qmeans.cluster_centers_[j])
             slot += 1
     cur_Q = slot
@@ -584,23 +587,69 @@ def online_cluster_init_online(K, Q, data, m):
         rmse_floor = 0.02
 
     for q in range(cur_Q):
-        rmse = np.sqrt(calc_rmse(q_dict['data'][q], np.reshape(q_dict['d'][q], (1, m))))
+        rmse = np.sqrt(calc_rmse(data[np.asarray(q_dict['idx'][q], dtype=int)], np.reshape(q_dict['d'][q], (1, m))))
         if rmse <= 1e-6:
             rmse = rmse_floor
         q_dict['rmse'][q] = rmse
     total_time = time.time() - start_time
 
+    cq = q_dict['cur_Q']
+    q_dict['D'] = np.full((Q + 1, Q + 1), np.inf)
+    if cq > 1:
+        sub = cdist(q_dict['a'][:cq], q_dict['a'][:cq])
+        np.fill_diagonal(sub, np.inf)
+        q_dict['D'][:cq, :cq] = sub
     k_dict = {}
     k_dict['a'] = np.zeros((K, m))
     k_dict['w'] = np.zeros(K)
     k_dict['d'] = np.zeros((K, m))
-    k_dict['data'] = {}
+    k_dict['idx'] = {}
     k_dict['K'] = int(np.minimum(K, cur_Q))
     k_dict, t_time = cluster_k_online(K, q_dict, k_dict, init=True)
     return q_dict, k_dict, total_time + t_time
 
 
-def online_cluster_update_online(K, new_dat, q_dict, k_dict, num_dat, t, fix_time, m, Q, rmse_mult=2):
+def assign_k_online(K, q_dict, k_dict):
+    """Cheap label-pure macro-cluster update used between full KMeans re-clusters
+    when ``cluster_interval > 1``: keep the existing macro centers ``k_dict['a']``
+    fixed and assign each micro-cluster centroid to its nearest *same-label* macro
+    center, recomputing weights / centroids / data (one assignment step)."""
+    start_time = time.time()
+    cur_Q = q_dict['cur_Q']
+    m = q_dict['d'].shape[1]
+    cur_K = k_dict['K']
+    centers = k_dict['a']
+    micro_d = q_dict['d'][:cur_Q]
+    micro_lab = _row_labels(micro_d, m)
+    macro_lab = _row_labels(centers, m)
+    D = cdist(micro_d, centers)
+    D_masked = np.where(micro_lab[:, None] != macro_lab[None, :], np.inf, D)
+    labels = np.argmin(D_masked, axis=1)
+    no_macro = np.isinf(D_masked.min(axis=1))     # micro with no same-label macro
+    if no_macro.any():
+        labels[no_macro] = np.argmin(D[no_macro], axis=1)
+    for key in [kk for kk in k_dict if isinstance(kk, (int, np.integer))]:
+        del k_dict[key]
+    k_dict['idx'] = {}
+    for k in range(cur_K):
+        sel = np.where(labels == k)[0]
+        k_dict[k] = sel
+        w_cur = q_dict['w'][sel]
+        total_w = np.sum(w_cur)
+        k_dict['w'][k] = total_w
+        if total_w > 0:
+            w_norm = w_cur / total_w
+            k_dict['d'][k] = np.sum(q_dict['d'][sel] * w_norm[:, np.newaxis], axis=0)
+        idx_k = []
+        for q in sel:
+            idx_k.extend(q_dict['idx'][int(q)])
+        k_dict['idx'][k] = idx_k
+    k_dict['K'] = cur_K
+    total_time = time.time() - start_time
+    return k_dict, total_time
+
+
+def online_cluster_update_online(K, new_dat, q_dict, k_dict, num_dat, t, fix_time, m, Q, rmse_mult=2, cluster_interval=1):
     """Ingest one new (x, y) point into the label-pure online clustering.
 
     Absorption and spawning are restricted to the new point's own label: the
@@ -645,13 +694,11 @@ def online_cluster_update_online(K, new_dat, q_dict, k_dict, num_dat, t, fix_tim
             if min_ind in k_dict[k]:
                 k_dict['d'][k] = (k_dict['d'][k] * k_dict['w'][k] * num_dat + new_dat) / (k_dict['w'][k] * num_dat + 1)
                 k_dict['w'][k] = (k_dict['w'][k] * num_dat + 1) / (num_dat + 1)
+                k_dict['idx'][k].append(num_dat)
             else:
                 k_dict['w'][k] = (k_dict['w'][k] * num_dat) / (num_dat + 1)
         total_time = time.time() - start_time
-        q_dict['data'][min_ind] = np.vstack([q_dict['data'][min_ind], new_dat])
-        for k in range(cur_K):
-            if min_ind in k_dict[k]:
-                k_dict['data'][k] = np.vstack([k_dict['data'][k], new_dat])
+        q_dict['idx'][min_ind].append(num_dat)
     else:
         # ---- spawn a new same-label micro-cluster ----
         start_time = time.time()
@@ -662,34 +709,60 @@ def online_cluster_update_online(K, new_dat, q_dict, k_dict, num_dat, t, fix_tim
         q_dict['rmse'][cur_Q - 1] = global_min
         q_dict['w'][:cur_Q - 1] = (q_dict['w'][:cur_Q - 1] * num_dat) / (num_dat + 1)
         q_dict['w'][cur_Q - 1] = 1 / (num_dat + 1)
+        ni = cur_Q - 1
+        if ni > 0:
+            row = cdist(q_dict['a'][ni:ni + 1], q_dict['a'][:ni]).ravel()
+            q_dict['D'][ni, :ni] = row
+            q_dict['D'][:ni, ni] = row
+        q_dict['D'][ni, ni] = np.inf
         total_time = time.time() - start_time
-        q_dict['data'][cur_Q - 1] = new_dat
+        q_dict['idx'][cur_Q - 1] = [num_dat]
         if cur_Q > Q:
             # over budget: merge the closest *same-label* micro-pair, then
             # compact the freed slot with the last active micro-cluster.
             start_time = time.time()
             q_dict['cur_Q'] = Q
-            i, j = _min_pair_same_label(q_dict['a'][:cur_Q], m)
+            # closest same-label micro-pair from the maintained distance matrix
+            # (label-masked argmin; replaces the full O(Q^2 m) cdist recompute).
+            labs = np.round(q_dict['a'][:cur_Q, m - 1]).astype(int)
+            Dsub = q_dict['D'][:cur_Q, :cur_Q].copy()
+            Dsub[labs[:, None] != labs[None, :]] = np.inf
+            i, j = np.unravel_index(np.argmin(Dsub), Dsub.shape)
             i, j = (int(i), int(j)) if i < j else (int(j), int(i))
             merged_weight = q_dict['w'][i] + q_dict['w'][j]
             merged_center = (q_dict['a'][i] * q_dict['w'][i] + q_dict['a'][j] * q_dict['w'][j]) / merged_weight
             merged_centroid = (q_dict['d'][i] * q_dict['w'][i] + q_dict['d'][j] * q_dict['w'][j]) / merged_weight
             merged_rmse = np.sqrt((q_dict['rmse'][i] ** 2 * q_dict['w'][i] + q_dict['rmse'][j] ** 2 * q_dict['w'][j]) / merged_weight + (q_dict['w'][i] * np.linalg.norm(q_dict['d'][i] - merged_centroid) ** 2 + q_dict['w'][j] * np.linalg.norm(q_dict['d'][j] - merged_centroid) ** 2) / merged_weight)
-            merged_data = np.vstack([q_dict['data'][i], q_dict['data'][j]])
+            merged_idx = list(q_dict['idx'][i]) + list(q_dict['idx'][j])
             q_dict['a'][i] = merged_center
             q_dict['d'][i] = merged_centroid
             q_dict['w'][i] = merged_weight
             q_dict['rmse'][i] = merged_rmse
-            q_dict['data'][i] = merged_data
+            q_dict['idx'][i] = merged_idx
             last = cur_Q - 1            # last active slot before compaction
             if j != last:
                 q_dict['a'][j] = q_dict['a'][last]
                 q_dict['d'][j] = q_dict['d'][last]
                 q_dict['w'][j] = q_dict['w'][last]
                 q_dict['rmse'][j] = q_dict['rmse'][last]
-                q_dict['data'][j] = q_dict['data'][last]
+                q_dict['idx'][j] = q_dict['idx'][last]
+            # patch D: rows i (merged) and j (moved 'last') over active 0..Q-1;
+            # blank the freed slot Q.
+            for sk in (i, j):
+                drow = cdist(q_dict['a'][sk:sk + 1], q_dict['a'][:Q]).ravel()
+                q_dict['D'][sk, :Q] = drow
+                q_dict['D'][:Q, sk] = drow
+                q_dict['D'][sk, sk] = np.inf
+            q_dict['D'][Q, :] = np.inf
+            q_dict['D'][:, Q] = np.inf
             total_time += time.time() - start_time
-        k_dict, time_temp = cluster_k_online(K, q_dict, k_dict)
+        # Macro re-cluster: full KMeans every cluster_interval steps, otherwise a
+        # cheap nearest-(same-label-)center assignment of the micro-clusters
+        # (cluster_interval=1, the default, reproduces every-spawn full KMeans).
+        if q_dict['cur_Q'] <= K or (t % cluster_interval == 0):
+            k_dict, time_temp = cluster_k_online(K, q_dict, k_dict)
+        else:
+            k_dict, time_temp = assign_k_online(K, q_dict, k_dict)
         total_time += time_temp
     return q_dict, k_dict, total_time
 
@@ -715,7 +788,10 @@ def fixed_cluster(k_dict, new_dat, num_dat, m):
     k_dict['w'] = w_k_temp
     k_dict['w'][min_ind] = increased_w
     total_time = time.time() - start_time
-    k_dict['data'][min_ind] = np.vstack([k_dict['data'][min_ind], new_dat])
+    if 'idx' in k_dict:
+        k_dict['idx'][min_ind].append(num_dat)
+    else:
+        k_dict['data'][min_ind] = np.vstack([k_dict['data'][min_ind], new_dat])
     return k_dict, total_time
 
 
@@ -769,15 +845,25 @@ def calc_cluster_val_hinge(K, k_dict, num_dat, beta, running_samples, m):
     square_val = 0.0
     sig_val = 0.0
     cur_K = int(np.minimum(K, num_dat))
+    use_idx = 'idx' in k_dict
     for kk in range(cur_K):
         centroid = k_dict['d'][kk]
         cx = centroid[:m]
         cy = centroid[m]
         loss_c = max(0.0, 1.0 - cy * (cx @ beta))
-        for dat in k_dict['data'][kk]:
-            square_val += np.linalg.norm(dat - centroid, 2) ** 2
-            loss_i = max(0.0, 1.0 - dat[m] * (dat[:m] @ beta))
-            sig_val += max(0.0, loss_i - loss_c)
+        if use_idx:
+            members = np.asarray(k_dict['idx'][kk], dtype=int)
+            if members.size == 0:
+                continue
+            pts = running_samples[members]
+        else:
+            pts = np.asarray(k_dict['data'][kk])
+            if pts.shape[0] == 0:
+                continue
+        diff = pts - centroid
+        square_val += float(np.einsum('ij,ij->i', diff, diff).sum())
+        loss_i = np.maximum(0.0, 1.0 - pts[:, m] * (pts[:, :m] @ beta))
+        sig_val += float(np.maximum(0.0, loss_i - loss_c).sum())
     cost_matrix = ot.dist(running_samples, k_dict['d'][:cur_K], metric='euclidean')
     w_distance = ot.emd2(np.ones(num_dat) / num_dat, k_dict['w'][:cur_K], cost_matrix)
     return w_distance, square_val / num_dat, sig_val / num_dat

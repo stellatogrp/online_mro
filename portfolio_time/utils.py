@@ -203,7 +203,12 @@ def fixed_cluster(k_dict, new_dat, num_dat, m):
     k_dict['w'] = w_k_temp
     k_dict['w'][min_ind] = increased_w
     total_time = time.time() - start_time
-    k_dict['data'][min_ind] = np.vstack([k_dict['data'][min_ind], new_dat])
+    # Membership: online clusters store row indices ('idx', O(1) append); batch
+    # clusters built in the drivers keep raw rows ('data', vstack).
+    if 'idx' in k_dict:
+        k_dict['idx'][min_ind].append(num_dat)
+    else:
+        k_dict['data'][min_ind] = np.vstack([k_dict['data'][min_ind], new_dat])
     return k_dict, total_time
 
 
@@ -252,11 +257,21 @@ def calc_cluster_val(K, k_dict, num_dat, x, running_samples):
     square_val = 0.0
     sig_val = 0.0
     cur_K = int(np.minimum(K, num_dat))
+    use_idx = 'idx' in k_dict
     for kk in range(cur_K):
         centroid = k_dict['d'][kk]
-        for dat in k_dict['data'][kk]:
-            square_val += np.linalg.norm(dat - centroid, 2) ** 2
-            sig_val += max(0.0, (dat - centroid) @ x)
+        if use_idx:
+            members = np.asarray(k_dict['idx'][kk], dtype=int)
+            if members.size == 0:
+                continue
+            pts = running_samples[members]
+        else:
+            pts = np.asarray(k_dict['data'][kk])
+            if pts.shape[0] == 0:
+                continue
+        diff = pts - centroid
+        square_val += float(np.einsum('ij,ij->i', diff, diff).sum())
+        sig_val += float(np.maximum(0.0, diff @ x).sum())
     cost_matrix = ot.dist(running_samples, k_dict['d'][:cur_K], metric='euclidean')
     w_distance = ot.emd2(np.ones(num_dat) / num_dat, k_dict['w'][:cur_K], cost_matrix)
     return w_distance, square_val / num_dat, sig_val / num_dat
@@ -280,8 +295,12 @@ def cluster_k_online(K, q_dict, k_dict, init=False):
         w_cur_norm = w_cur / (k_dict['w'][k])
         k_dict['d'][k] = np.sum(d_cur * w_cur_norm[:, np.newaxis], axis=0)
     total_time = time.time() - start_time
+    k_dict['idx'] = {}
     for k in range(cur_K):
-        k_dict['data'][k] = np.vstack([q_dict['data'][q] for q in k_dict[k]])
+        idx_k = []
+        for q in k_dict[k]:
+            idx_k.extend(q_dict['idx'][int(q)])
+        k_dict['idx'][k] = idx_k
     return k_dict, total_time
 
 
@@ -315,25 +334,64 @@ def online_cluster_init_online(K, Q, data, m):
     if not np.isfinite(rmse_floor) or rmse_floor <= 1e-6:
         rmse_floor = 0.02
     total_time = time.time() - start_time
-    q_dict['data'] = {}
+    q_dict['idx'] = {}
     for q in range(q_dict['cur_Q']):
-        cluster_data = data[qmeans.labels_ == q]
-        q_dict['data'][q] = cluster_data
+        members = np.where(qmeans.labels_ == q)[0]
+        q_dict['idx'][q] = list(members)
+        cluster_data = data[members]
         rmse = np.sqrt(calc_rmse(cluster_data, np.reshape(q_dict['d'][q], (1, m))))
         if rmse <= 1e-6:
             rmse = rmse_floor
         q_dict['rmse'][q] = rmse
+    # Persistent pairwise-distance matrix between micro-cluster anchors (patched
+    # incrementally on spawn/merge instead of a full Q x Q recompute).
+    cq = q_dict['cur_Q']
+    q_dict['D'] = np.full((Q + 1, Q + 1), np.inf)
+    if cq > 1:
+        sub = cdist(q_dict['a'][:cq], q_dict['a'][:cq])
+        np.fill_diagonal(sub, np.inf)
+        q_dict['D'][:cq, :cq] = sub
     k_dict = {}
     k_dict['a'] = np.zeros((K, m))
     k_dict['w'] = np.zeros(K)
     k_dict['d'] = np.zeros((K, m))
-    k_dict['data'] = {}
+    k_dict['idx'] = {}
     k_dict['K'] = np.minimum(K, init_num)
     k_dict, t_time = cluster_k_online(K, q_dict, k_dict, init=True)
     return q_dict, k_dict, total_time + t_time
 
 
-def online_cluster_update_online(K, new_dat, q_dict, k_dict, num_dat, t, fix_time, m, Q, rmse_mult=2):
+def assign_k_online(K, q_dict, k_dict):
+    """Cheap macro-cluster update used between full KMeans re-clusters when
+    ``cluster_interval > 1``: keep the existing macro centers ``k_dict['a']``
+    fixed and assign each micro-cluster centroid to its nearest macro center,
+    recomputing the macro weights / centroids / data.  One assignment step
+    instead of a full Lloyd's iteration."""
+    start_time = time.time()
+    cur_Q = q_dict['cur_Q']
+    cur_K = int(np.minimum(K, cur_Q))
+    m = q_dict['d'].shape[1]
+    k_dict['K'] = cur_K
+    micro = q_dict['d'][:cur_Q]
+    labels = np.argmin(cdist(micro, k_dict['a'][:cur_K]), axis=1)
+    for k in range(cur_K):
+        k_dict[k] = np.where(labels == k)[0]
+        w_cur = q_dict['w'][:cur_Q][k_dict[k]]
+        k_dict['w'][k] = np.sum(w_cur)
+        if k_dict['w'][k] > 0:
+            w_cur_norm = w_cur / k_dict['w'][k]
+            k_dict['d'][k] = np.sum(micro[k_dict[k]] * w_cur_norm[:, np.newaxis], axis=0)
+    total_time = time.time() - start_time
+    k_dict['idx'] = {}
+    for k in range(cur_K):
+        idx_k = []
+        for q in k_dict[k]:
+            idx_k.extend(q_dict['idx'][int(q)])
+        k_dict['idx'][k] = idx_k
+    return k_dict, total_time
+
+
+def online_cluster_update_online(K, new_dat, q_dict, k_dict, num_dat, t, fix_time, m, Q, rmse_mult=2, cluster_interval=1):
     cur_K = k_dict['K']
     new_dat = np.reshape(new_dat, (1, m))
     if t >= fix_time:
@@ -355,13 +413,11 @@ def online_cluster_update_online(K, new_dat, q_dict, k_dict, num_dat, t, fix_tim
             if min_ind in k_dict[k]:
                 k_dict['d'][k] = (k_dict['d'][k] * k_dict['w'][k] * num_dat + new_dat) / (k_dict['w'][k] * num_dat + 1)
                 k_dict['w'][k] = (k_dict['w'][k] * num_dat + 1) / (num_dat + 1)
+                k_dict['idx'][k].append(num_dat)
             else:
                 k_dict['w'][k] = (k_dict['w'][k] * num_dat) / (num_dat + 1)
         total_time = time.time() - start_time
-        q_dict['data'][min_ind] = np.vstack([q_dict['data'][min_ind], new_dat])
-        for k in range(cur_K):
-            if min_ind in k_dict[k]:
-                k_dict['data'][k] = np.vstack([k_dict['data'][k], new_dat])
+        q_dict['idx'][min_ind].append(num_dat)
     else:
         start_time = time.time()
         cur_Q = q_dict['cur_Q'] + 1
@@ -371,12 +427,18 @@ def online_cluster_update_online(K, new_dat, q_dict, k_dict, num_dat, t, fix_tim
         q_dict['rmse'][cur_Q - 1] = min_dist
         q_dict['w'][:cur_Q - 1] = (q_dict['w'][:cur_Q - 1] * num_dat) / (num_dat + 1)
         q_dict['w'][cur_Q - 1] = 1 / (num_dat + 1)
+        ni = cur_Q - 1
+        if ni > 0:
+            row = cdist(q_dict['a'][ni:ni + 1], q_dict['a'][:ni]).ravel()
+            q_dict['D'][ni, :ni] = row
+            q_dict['D'][:ni, ni] = row
+        q_dict['D'][ni, ni] = np.inf
         total_time = time.time() - start_time
-        q_dict['data'][cur_Q - 1] = new_dat
+        q_dict['idx'][cur_Q - 1] = [num_dat]
         if cur_Q > Q:
             start_time = time.time()
             q_dict['cur_Q'] = Q
-            min_pair = find_min_pairwise_distance(q_dict['a'])
+            min_pair = np.unravel_index(np.argmin(q_dict['D']), q_dict['D'].shape)
             merged_weight = np.sum(q_dict['w'][min_pair[0]] + q_dict['w'][min_pair[1]])
             merged_center = (q_dict['a'][min_pair[0]] * q_dict['w'][min_pair[0]] + q_dict['a'][min_pair[1]] * q_dict['w'][min_pair[1]]) / merged_weight
             merged_centroid = (q_dict['d'][min_pair[0]] * q_dict['w'][min_pair[0]] + q_dict['d'][min_pair[1]] * q_dict['w'][min_pair[1]]) / merged_weight
@@ -389,11 +451,23 @@ def online_cluster_update_online(K, new_dat, q_dict, k_dict, num_dat, t, fix_tim
             q_dict['d'][min_pair[1]] = q_dict['d'][Q]
             q_dict['w'][min_pair[1]] = q_dict['w'][Q]
             q_dict['rmse'][min_pair[1]] = q_dict['rmse'][Q]
+            for s in (min_pair[0], min_pair[1]):
+                drow = cdist(q_dict['a'][s:s + 1], q_dict['a'][:Q]).ravel()
+                q_dict['D'][s, :Q] = drow
+                q_dict['D'][:Q, s] = drow
+                q_dict['D'][s, s] = np.inf
+            q_dict['D'][Q, :] = np.inf
+            q_dict['D'][:, Q] = np.inf
             total_time += time.time() - start_time
-            merged_data = np.vstack([q_dict['data'][q] for q in min_pair])
-            q_dict['data'][min_pair[0]] = merged_data
-            q_dict['data'][min_pair[1]] = q_dict['data'][Q]
-        k_dict, time_temp = cluster_k_online(K, q_dict, k_dict)
+            q_dict['idx'][min_pair[0]] = list(q_dict['idx'][min_pair[0]]) + list(q_dict['idx'][min_pair[1]])
+            q_dict['idx'][min_pair[1]] = q_dict['idx'][Q]
+        # Macro re-cluster: full KMeans every cluster_interval steps, otherwise a
+        # cheap nearest-(same-label-)center assignment of the micro-clusters
+        # (cluster_interval=1, the default, reproduces every-spawn full KMeans).
+        if q_dict['cur_Q'] <= K or (t % cluster_interval == 0):
+            k_dict, time_temp = cluster_k_online(K, q_dict, k_dict)
+        else:
+            k_dict, time_temp = assign_k_online(K, q_dict, k_dict)
         total_time += time_temp
     return q_dict, k_dict, total_time
 
