@@ -174,7 +174,7 @@ def port_experiments(r_input,K,T,N_init,synthetic_returns,r_start):
                             kmeans = KMeans(n_clusters=cur_K,init="k-means++", n_init=1).fit(running_samples)
                         new_centers = kmeans.cluster_centers_
                         wk = np.bincount(kmeans.labels_) / num_dat
-                        cluster_time = time.time()-start_time
+                        cluster_time = (time.time() - start_time) if K < num_dat else 0.0
                         new_k_dict = {}
                         new_k_dict['K'] = cur_K
                         new_k_dict['data'] = {}

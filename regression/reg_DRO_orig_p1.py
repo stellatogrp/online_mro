@@ -26,7 +26,7 @@ from utils_p1 import compute_cumulative_regret_dro_hinge as compute_cumulative_r
 output_stream = sys.stdout
 
 
-def reg_experiments(r_input, T, N_init, synthetic_data, r_start):
+def reg_experiments(r_input, T, N_init, synthetic_data, r_start,p):
     """Full-data DRO sparse-SVM vs. sample-average (SAA) SVM (p = 1, hinge loss).
 
     p = 1 hinge-loss sibling of ``reg_DRO_orig.py``: the p=2 perturbed-covariates
@@ -70,7 +70,7 @@ def reg_experiments(r_input, T, N_init, synthetic_data, r_start):
             if t % interval == 0 or ((t - 1) % interval == 0) or (t in t_list):
                 if t <= 2001 or (t in t_list):
                     # solve full-data DRO sparse-SVM best subset (MILP via MOSEK)
-                    DRO_problem, DRO_x, DRO_z, DRO_data, DRO_eps, DRO_w = createproblem_hingeMIO(num_dat, m, k)
+                    DRO_problem, DRO_x, DRO_z, DRO_data, DRO_eps, DRO_w = createproblem_hingeMIO(num_dat, m, k,p)
                     DRO_data.value = running_samples
                     DRO_w.value = (1 / num_dat) * np.ones(num_dat)
                     DRO_eps.value = radius
@@ -173,9 +173,11 @@ if __name__ == '__main__':
     parser.add_argument('--N_init', type=int, default=50)
     parser.add_argument('--r_start', type=int, default=0)
     parser.add_argument('--noise', type=float, default=3.0)
+    parser.add_argument('--p', type=int, default=1)
 
     arguments = parser.parse_args()
     foldername = arguments.foldername
+    p = arguments.p
     R = arguments.R
     m = arguments.m
     k = arguments.k
@@ -226,12 +228,13 @@ if __name__ == '__main__':
             'num_random_seeds': R,
             'total_test_combinations': len(eps_init) * R,
             'beta_true': [float(b) for b in beta_true],
+            'p':p
         },
         [foldername, newdatname],
     )
 
     results = Parallel(n_jobs=njobs)(delayed(reg_experiments)(
-        r_input, T, N_init, synthetic_data, r_start) for r_input in range(len(list_inds)))
+        r_input, T, N_init, synthetic_data, p,r_start) for r_input in range(len(list_inds)))
 
     dfs = {}
     for r in range(R):

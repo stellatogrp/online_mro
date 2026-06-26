@@ -299,7 +299,7 @@ if __name__ == '__main__':
     parser.add_argument('--R', type=int, default=5)
     parser.add_argument('--m', type=int, default=30)
     parser.add_argument('--interval', type=int, default=100)
-    parser.add_argument('--interval_SAA', type=int, default=100)
+    parser.add_argument('--interval_SAA', type=int, default=500)
 
     parser.add_argument('--N_init', type=int, default=50)
     parser.add_argument('--r_start', type=int, default=0)

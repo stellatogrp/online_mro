@@ -495,6 +495,7 @@ def plot_eval(df, quantiles, df1=None, quantiles1=None,end_ind=61,end_ind_dro=No
     if legend:
         plt.legend(loc='upper right')
     plt.xlabel(r'Time step $(t)$')
+    plt.yscale("log")
     plt.title(f'Out-of-sample expected value, $K$ = {K}')
     plt.grid(True, alpha=alpha)
     plt.savefig(folderout+f'eval_analysis{K}.pdf', bbox_inches='tight', dpi=300)
@@ -924,20 +925,22 @@ def infer_end_ind(df_dict, K=None, t_col='t'):
 # preamble = "/Users/irina.wang/Desktop/Princeton/Project2/mro_mpc/"
 preamble = "/scratch/gpfs/BSTELLATO/iywang/low_rank/online_mro/"
 
-foldername_orig = preamble + 'regression/results/p1/18/T'+str(T-1)+'R'+str(R)+'/'
+ind = 24
+ind1 = 18
+foldername_orig = preamble + f'regression/results/p1/{ind}/T'+str(T-1)+'R'+str(R)+'/'
 
-folderout_orig = preamble + 'regression/plots/p1/18/T'+str(T-1)+'R'+str(R)+'/'
+folderout_orig = preamble + f'regression/plots/p1/{ind}/T'+str(T-1)+'R'+str(R)+'/'
 
 os.makedirs(folderout_orig, exist_ok=True)
 
-foldername_orig_dro = preamble + 'regression/results/p1/4/T'+str(T-1)+'R'+str(R)+'/'
+foldername_orig_dro = preamble + f'regression/results/p1/{ind1}/T'+str(T-1)+'R'+str(R)+'/'
 
-folderout_orig_dro = preamble + 'regression/plots/p1/4/T'+str(T-1)+'R'+str(R)+'/'
+folderout_orig_dro = preamble + f'regression/plots/p1/{ind1}/T'+str(T-1)+'R'+str(R)+'/'
 
 os.makedirs(folderout_orig_dro, exist_ok=True)
 
 
-folderout = preamble + 'regression/plots/p1/18/T'+str(T-1)+'R'+str(R)+'/'
+folderout = preamble + f'regression/plots/p1/{ind}/T'+str(T-1)+'R'+str(R)+'/'
 
 os.makedirs(folderout, exist_ok=True)
 
@@ -954,9 +957,9 @@ end_ind_orig = infer_end_ind(df_orig, K=25)
 end_ind_new = 0
 end_ind_dro = infer_end_ind(df_orig_dro, K = 25)
 
-plot_eval_all(df_orig,quantiles_orig,df_orig_dro,quantiles_orig_dro,j=(6,6,5),K=25,q=(25,75),ylim=None,legend = True,val2=2.3, end_ind=end_ind_orig, end_ind_dro=end_ind_dro)
+plot_eval_all(df_orig,quantiles_orig,df_orig_dro,quantiles_orig_dro,j=(4,5,3),K=25,q=(25,75),ylim=None,legend = True,val2=2.3, end_ind=end_ind_orig, end_ind_dro=end_ind_dro)
 
-plot_eval(df_orig,quantiles_orig,df_orig_dro,quantiles_orig_dro,j=(6,6,5),K=25,q=(25,75),end_ind=end_ind_orig,legend = True,end_ind_dro=end_ind_dro)
+plot_eval(df_orig,quantiles_orig,df_orig_dro,quantiles_orig_dro,j=(4,5,3),K=25,q=(25,75),end_ind=end_ind_orig,legend = True,end_ind_dro=end_ind_dro)
 
 
 # plot_eval_all_compare(

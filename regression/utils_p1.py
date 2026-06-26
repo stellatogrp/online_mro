@@ -91,7 +91,7 @@ from utils import (  # noqa: F401  (re-exported for the drivers)
 # --------------------------------------------------------------------------- #
 # Hinge-loss problem builders (p = 1)
 # --------------------------------------------------------------------------- #
-def createproblem_hingeMIO(N, m, k, M_big=10.0):
+def createproblem_hingeMIO(N, m, k, M_big=10.0, p=1):
     """DRO sparse-SVM best-subset selection as a mixed-integer LP (p = 1).
 
     Parameters
@@ -128,7 +128,7 @@ def createproblem_hingeMIO(N, m, k, M_big=10.0):
     hinge = cp.pos(1 - margins)
 
     # OBJECTIVE #  worst-case expected hinge = weighted hinge + delta ||beta||_1
-    objective = w @ hinge + eps * cp.norm(beta, 1)
+    objective = w @ hinge + eps * cp.norm(beta, p)
 
     # CONSTRAINTS #
     constraints = [
@@ -166,7 +166,7 @@ def create_scenario_hinge(dat, m, num_dat, k, M_big=10.0, weights=None):
     return problem, beta, z
 
 
-def worst_case_hinge(dat, m, beta, delta, weights=None):
+def worst_case_hinge(dat, m, beta, delta, weights=None, p=1):
     """Closed-form worst-case expected hinge loss of a fixed ``beta``.
 
     worst hinge = sum_i w_i (1 - y_i beta^T x_i)_+  +  delta ||beta||_1.
@@ -181,7 +181,7 @@ def worst_case_hinge(dat, m, beta, delta, weights=None):
         weights = np.ones(n) / n
     margins = y * (X @ beta)
     emp_hinge = np.sum(weights * np.maximum(0.0, 1.0 - margins))
-    return float(emp_hinge + delta * np.linalg.norm(beta, 1))
+    return float(emp_hinge + delta * np.linalg.norm(beta, p))
 
 
 def evaluate_expected_cost_hinge(d_eval, m, beta):

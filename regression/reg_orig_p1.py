@@ -36,7 +36,7 @@ from utils_p1 import online_cluster_update_online as online_cluster_update
 output_stream = sys.stdout
 
 
-def reg_experiments(r_input, K, T, N_init, synthetic_data, power,r_start):
+def reg_experiments(r_input, K, T, N_init, synthetic_data, power,p,r_start):
     """Online mean-robust DRO sparse-SVM vs. batch (kmeans) MRO-SVM (p = 1).
 
     p = 1 hinge-loss sibling of ``reg_orig.py``.  The p=2 perturbed-covariates
@@ -131,7 +131,7 @@ def reg_experiments(r_input, K, T, N_init, synthetic_data, power,r_start):
             if t % interval == 0 or ((t - 1) % interval == 0) or (t in t_list):
                 if t <= 8001 or (t in t_list):
                     cur_K = int(np.minimum(num_dat, K))
-                    online_problem, online_x, online_z, data_train, eps_train, w_train = createproblem_hingeMIO(cur_K, m, k)
+                    online_problem, online_x, online_z, data_train, eps_train, w_train = createproblem_hingeMIO(cur_K, m, k,p)
                     data_train.value = k_dict['d'][:cur_K]
                     eps_train.value = radius
                     w_train.value = k_dict['w'][:cur_K]
@@ -169,7 +169,7 @@ def reg_experiments(r_input, K, T, N_init, synthetic_data, power,r_start):
                             new_k_dict['data'][kk] = running_samples[klabels == kk]
 
                     cur_K_mro = new_k_dict['d'].shape[0]
-                    MRO_problem, MRO_x, MRO_z, MRO_data_train, MRO_eps_train, MRO_w_train = createproblem_hingeMIO(cur_K_mro, m, k)
+                    MRO_problem, MRO_x, MRO_z, MRO_data_train, MRO_eps_train, MRO_w_train = createproblem_hingeMIO(cur_K_mro, m, k,p)
                     MRO_data_train.value = new_k_dict['d']
                     MRO_w_train.value = new_k_dict['w']
                     MRO_eps_train.value = radius
@@ -199,14 +199,14 @@ def reg_experiments(r_input, K, T, N_init, synthetic_data, power,r_start):
             if t % interval == 0 or ((t - 1) % interval == 0) or (t in t_list):
                 if t <= 8001 or (t in t_list):
                     wc_start = time.time()
-                    new_worst = worst_case_hinge(running_samples, m, x_current, radius)
+                    new_worst = worst_case_hinge(running_samples, m, x_current, radius,p)
                     worst_time = time.time() - wc_start
                     history['worst_values'].append(new_worst)
                     history['worst_times'].append(worst_time)
 
                     if t <= 8001 or (t in t_list):
                         wc_start = time.time()
-                        new_worst_MRO = worst_case_hinge(running_samples, m, MRO_x_current, radius)
+                        new_worst_MRO = worst_case_hinge(running_samples, m, MRO_x_current, radius,p)
                         MRO_worst_time = time.time() - wc_start
 
                         square_val, sig_val = calc_cluster_val(K, k_dict, num_dat, x_current, running_samples, m)[1:]
@@ -218,7 +218,7 @@ def reg_experiments(r_input, K, T, N_init, synthetic_data, power,r_start):
             if t % interval == 0 or ((t - 1) % interval == 0) or (t in t_list):
                 if t <= 8001 or (t in t_list):
                     wc_start = time.time()
-                    new_worst = worst_case_hinge(running_samples, m, x_prev, radius)
+                    new_worst = worst_case_hinge(running_samples, m, x_prev, radius,p)
                     worst_time = time.time() - wc_start
                     history['worst_values_regret'].append(new_worst)
                     history['worst_times_regret'].append(worst_time)
@@ -226,7 +226,7 @@ def reg_experiments(r_input, K, T, N_init, synthetic_data, power,r_start):
             if t % interval == 0 or ((t - 1) % interval == 0) or (t in t_list):
                 if t <= 8001 or (t in t_list):
                     wc_start = time.time()
-                    new_worst_MRO = worst_case_hinge(running_samples, m, MRO_x_prev, radius)
+                    new_worst_MRO = worst_case_hinge(running_samples, m, MRO_x_prev, radius,p)
                     MRO_worst_time = time.time() - wc_start
                     history['MRO_worst_values_regret'].append(new_worst_MRO)
                     history['MRO_worst_times_regret'].append(MRO_worst_time)
@@ -378,6 +378,8 @@ if __name__ == '__main__':
     parser.add_argument('--r_start', type=int, default=0)
     parser.add_argument('--noise', type=float, default=3.0)
     parser.add_argument('--power', type=float, default=0.5)
+    parser.add_argument('--p', type=int, default=1)
+
 
     arguments = parser.parse_args()
     foldername = arguments.foldername
@@ -388,6 +390,7 @@ if __name__ == '__main__':
     k_true = arguments.k_true
     Q = arguments.Q
     T = arguments.T
+    p = arguments.p
     power = arguments.power
     noise_std = arguments.noise
     r_start = arguments.r_start
@@ -439,13 +442,14 @@ if __name__ == '__main__':
             'num_random_seeds': R,
             'total_test_combinations': len(eps_init) * R,
             'beta_true': [float(b) for b in beta_true],
-            'power': power
+            'power': power,
+            'p':p
         },
         [newfoldername, (newdatname, f'metadata_K{K}.json')],
     )
 
     results = Parallel(n_jobs=njobs)(delayed(reg_experiments)(
-        r_input, K, T, N_init, synthetic_data, power, r_start) for r_input in range(len(list_inds)))
+        r_input, K, T, N_init, synthetic_data, power,p, r_start) for r_input in range(len(list_inds)))
 
     dfs = {}
     for r in range(R):
