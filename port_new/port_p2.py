@@ -37,7 +37,7 @@ from utils import online_cluster_update_online as online_cluster_update
 output_stream = sys.stdout
 
 
-def port_experiments(r_input,K,T,N_init,synthetic_returns,r_start, newfoldername):
+def port_experiments(r_input,K,T,N_init,synthetic_returns,eta_0,r_start, newfoldername):
     try:
         r,epsnum = list_inds[r_input]
         np.random.seed(r_start+r)
@@ -70,7 +70,6 @@ def port_experiments(r_input,K,T,N_init,synthetic_returns,r_start, newfoldername
         R = np.linalg.norm(dateval, axis=1).mean()
         L_x = abs(a_const) * R
         # eta_0 = D_x / L_x
-        eta_0 = 0.01
 
 
         x_current = np.ones(m) / m
@@ -561,6 +560,7 @@ if __name__ == '__main__':
                              'online (micro->macro) and batch-MRO (kmeans) methods; '
                              'between full re-clusters a cheap nearest-center '
                              'assignment is used. Default 1 = re-cluster every step.')
+    parser.add_argument('--eta_0', type=float, default=0.01)
     parser.add_argument('--r_start', type=int, default=0)
     parser.add_argument('--line_search', action=argparse.BooleanOptionalAction,
                         default=True,
@@ -580,6 +580,7 @@ if __name__ == '__main__':
     rmse_mult = arguments.rmse_mult
     cluster_interval = arguments.cluster_interval
     line_search = arguments.line_search
+    eta_0 = arguments.eta_0
     K_arr = [15,25,50,2000]
     K = K_arr[idx]
     newfoldername = foldername + 'K'+str(K)+'_R'+str(R)+'_T'+str(T-1)+'/'
@@ -613,7 +614,7 @@ if __name__ == '__main__':
             'fixed_time': fixed_time, 'interval': interval, 'N_init': N_init,
             'rmse_mult': rmse_mult, 'cluster_interval': cluster_interval,
             'r_start': r_start, 'line_search': line_search,
-            'eta_0': 0.01,
+            'eta_0': eta_0,
             'epsilon_values': [float(e) for e in eps_init],
             'num_epsilon_values': len(eps_init),
             'num_random_seeds': R,
@@ -623,7 +624,7 @@ if __name__ == '__main__':
     )
 
     results = Parallel(n_jobs=njobs)(delayed(port_experiments)(
-        r_input,K,T,N_init,synthetic_returns,r_start, newfoldername) for r_input in range(len(list_inds)))
+        r_input,K,T,N_init,synthetic_returns,eta_0,r_start, newfoldername) for r_input in range(len(list_inds)))
 
     dfs = {}
     for r in range(R):

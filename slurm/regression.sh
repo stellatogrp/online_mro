@@ -22,5 +22,5 @@ conda activate lropt_rev
 
 # python regression/reg_orig_p1.py --foldername regression/results/p2/5/ --R 10 --T 2001 --fixed_time 2001 --interval 100 --Q 500 --K 10 --N_init 5 --r_start 0 --m 80 --noise 3 --rmse_mult 1.1 --k 5 --k_true 5 --power 0.03333 --p 2
 
-python regression/reg_DRO_orig_p1.py --foldername regression/results/p2/3/ --R 5 --T 2001 --interval 100 --interval_SAA 100 --N_init 5 --r_start 0 --m 80 --noise 3 --k 5 --k_true 5 --p 2
+python regression/reg_DRO_orig_p1.py --foldername regression/results/p2/2/ --R 5 --T 2001 --interval 100 --interval_SAA 100 --N_init 5 --r_start 0 --m 50 --noise 3 --k 5 --k_true 5 --p 2 --power 0.25
 

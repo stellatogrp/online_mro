@@ -21,7 +21,7 @@ from utils import create_scenario_dro as create_scenario
 output_stream = sys.stdout
 
 
-def port_experiments(r_input,T,N_init,synthetic_returns,r_start):
+def port_experiments(r_input,T,N_init,synthetic_returns,eta_0,r_start):
     try:
         r,epsnum = list_inds[r_input]
         np.random.seed(r_start+r)
@@ -41,7 +41,6 @@ def port_experiments(r_input,T,N_init,synthetic_returns,r_start):
         R = np.linalg.norm(dateval, axis=1).mean()
         L_x = abs(a_const) * R
         # eta_0 = D_x / L_x
-        eta_0 = 0.01
         DRO_x_current = np.ones(m) / m
         DRO_tau_current = 0.0
         # Pre-seed SAA iterate so a solver failure doesn't leave it unbound.
@@ -303,6 +302,7 @@ if __name__ == '__main__':
 
     parser.add_argument('--N_init', type=int, default=50)
     parser.add_argument('--r_start', type=int, default=0)
+    parser.add_argument('--eta_0', type=float, default=0.01)
     parser.add_argument('--line_search', action=argparse.BooleanOptionalAction,
                         default=True,
                         help='Armijo backtracking line search inside gradient_step (default: on; pass --no-line_search to disable).')
@@ -319,6 +319,7 @@ if __name__ == '__main__':
     interval_SAA = arguments.interval_SAA
     N_init = arguments.N_init
     line_search = arguments.line_search
+    eta_0 = arguments.eta_0
     K_arr = [5,15]
     foldername = foldername +'R'+str(R)+'_T'+str(T-1)+'/'
     os.makedirs(foldername, exist_ok=True)
@@ -352,7 +353,7 @@ if __name__ == '__main__':
             'T': T, 'R': R, 'm': m,
             'interval': interval, 'interval_SAA': interval_SAA, 'N_init': N_init,
             'r_start': r_start, 'line_search': line_search,
-            'eta_0': 0.01,
+            'eta_0': eta_0,
             'epsilon_values': [float(e) for e in eps_init],
             'num_epsilon_values': len(eps_init),
             'num_random_seeds': R,
@@ -362,7 +363,7 @@ if __name__ == '__main__':
     )
 
     results = Parallel(n_jobs=njobs)(delayed(port_experiments)(
-        r_input,T,N_init,synthetic_returns,r_start) for r_input in range(len(list_inds)))
+        r_input,T,N_init,synthetic_returns,eta_0,r_start) for r_input in range(len(list_inds)))
 
     dfs = {}
     for r in range(R):

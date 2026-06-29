@@ -26,7 +26,7 @@ from utils_p1 import compute_cumulative_regret_dro_hinge as compute_cumulative_r
 output_stream = sys.stdout
 
 
-def reg_experiments(r_input, T, N_init, synthetic_data, r_start,p):
+def reg_experiments(r_input, T, N_init, synthetic_data, power, r_start, p):
     """Full-data DRO sparse-SVM vs. sample-average (SAA) SVM (p = 1, hinge loss).
 
     p = 1 hinge-loss sibling of ``reg_DRO_orig.py``: the p=2 perturbed-covariates
@@ -64,7 +64,7 @@ def reg_experiments(r_input, T, N_init, synthetic_data, r_start,p):
 
             # radius represents delta (order-1); RWPI picks delta_n ~ 1/sqrt(n)
             # so the induced ell_1 penalty is statistically principled.
-            radius = init_eps * (1 / np.sqrt(num_dat))
+            radius = init_eps * (1 / (num_dat**power))
             running_samples = dat[init_ind:(init_ind + num_dat)]
 
             if t % interval == 0 or ((t - 1) % interval == 0) or (t in t_list):
@@ -173,11 +173,13 @@ if __name__ == '__main__':
     parser.add_argument('--N_init', type=int, default=50)
     parser.add_argument('--r_start', type=int, default=0)
     parser.add_argument('--noise', type=float, default=3.0)
+    parser.add_argument('--power', type=float, default=0.5)
     parser.add_argument('--p', type=int, default=1)
 
     arguments = parser.parse_args()
     foldername = arguments.foldername
     p = arguments.p
+    power = arguments.power
     R = arguments.R
     m = arguments.m
     k = arguments.k
@@ -210,7 +212,7 @@ if __name__ == '__main__':
     if T >= 10000:
         eps_init = [0.5]
     else:
-        eps_init = [1.5, 1.0, 0.7, 0.5, 0.3, 0.1]
+        eps_init = [0.7, 0.5, 0.3, 0.1,0.08,0.05,0.03]
     M = len(eps_init)
     list_inds = list(itertools.product(np.arange(R), np.arange(M)))
     t_list = [4, 5, 9, 10, 14, 15, 19, 20, 29,30, 59,60, 1249, 1250, 1499, 1500, 1749, 1750, 1999, 2000]
@@ -223,6 +225,7 @@ if __name__ == '__main__':
             'noise_std': noise_std,
             'interval': interval, 'interval_SAA': interval_SAA, 'N_init': N_init,
             'r_start': r_start,
+            'power': power,
             'epsilon_values': [float(e) for e in eps_init],
             'num_epsilon_values': len(eps_init),
             'num_random_seeds': R,
@@ -234,7 +237,7 @@ if __name__ == '__main__':
     )
 
     results = Parallel(n_jobs=njobs)(delayed(reg_experiments)(
-        r_input, T, N_init, synthetic_data, p,r_start) for r_input in range(len(list_inds)))
+        r_input, T, N_init, synthetic_data, power, r_start, p) for r_input in range(len(list_inds)))
 
     dfs = {}
     for r in range(R):

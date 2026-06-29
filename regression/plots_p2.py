@@ -11,8 +11,10 @@ import os
 from mpl_toolkits.axes_grid1.inset_locator import mark_inset, zoomed_inset_axes
 import pandas as pd
 
-def plot_eval_all(df, quantiles, df1=None, quantiles1=None,end_ind=61,j=(0,0,0), q = (40,60),K=5, alpha=0.1,ylim = [0.008,0.022], legend = True,val2 = 3):
+def plot_eval_all(df, quantiles, df1=None, quantiles1=None,end_ind=61,end_ind_dro=None,j=(0,0,0), q = (40,60),K=5, alpha=0.1,ylim = [0.008,0.022], legend = True,val2 = 3, xscale_log=False):
     j1,j4,j3 = j
+    if end_ind_dro is None:
+        end_ind_dro = end_ind
     # Set up LaTeX rendering
     df = df[K].copy()
     df1 = df1[0].copy()
@@ -33,18 +35,19 @@ def plot_eval_all(df, quantiles, df1=None, quantiles1=None,end_ind=61,j=(0,0,0),
     #     "legend.fontsize": 11
     # })
     t_range = np.array(df['t'])[(0*end_ind):(1)*end_ind:2]
+    t_range_dro = np.array(df1['t'])[(0*end_ind_dro):(1)*end_ind_dro:2]
     fig, (ax2,ax3,ax1) = plt.subplots(1, 3, figsize=(9, val2), dpi=300)
     
     # # online and reclustering
-    # ax1.plot(t_range, df['O_eval0'][(j1*end_ind)+1:(j1+1)*end_ind:2], 'b-', linewidth=1, label = "online clustering", marker="v",ms=0.01)
+    # ax1.plot(t_range, df['O_eval0'][(j1*end_ind)+1:(j1+1)*end_ind:2], 'b-', linewidth=1, label = "online clustering", marker="v",ms=1.5)
 
     # ax1.fill_between(np.array(t_range),y1=np.array(quantiles[q1]['O_eval0'][(j1*end_ind)+1:(j1+1)*end_ind:2]).astype(float),y2=np.array(quantiles[q2]['O_eval0'][(j1*end_ind)+1:(j1+1)*end_ind:2]).astype(float),alpha=alpha, color = 'b')
-    # ax1.plot(t_range, df['MRO_eval0'][(j2*end_ind)+1:(j2+1)*end_ind:2], 'r-', linewidth=1, label = "reclustering", marker="D",ms=0.01)
+    # ax1.plot(t_range, df['MRO_eval0'][(j2*end_ind)+1:(j2+1)*end_ind:2], 'r-', linewidth=1, label = "reclustering", marker="D",ms=1.5)
     # ax1.fill_between(np.array(t_range),y1=np.array(quantiles[q1]['MRO_eval0'][(j2*end_ind)+1:(j2+1)*end_ind:2]).astype(float),y2=np.array(quantiles[q2]['MRO_eval0'][(j2*end_ind)+1:(j2+1)*end_ind:2]).astype(float),alpha=alpha, color='r')
 
     # DRO and SAA
-    # ax1.plot(t_range, df1['SA_eval1'][(j3*end_ind):(j3+1)*end_ind:2], 'g-', linewidth=1, label = "SAA", marker="o",ms=0.01)
-    # ax1.plot(t_range, df1['DRO_eval1'][(j3*end_ind):(j3+1)*end_ind:2], color ='black', linewidth=1, label = "DRO", marker="s",ms=0.01)
+    # ax1.plot(t_range, df1['SA_eval1'][(j3*end_ind):(j3+1)*end_ind:2], 'g-', linewidth=1, label = "SAA", marker="o",ms=1.5)
+    # ax1.plot(t_range, df1['DRO_eval1'][(j3*end_ind):(j3+1)*end_ind:2], color ='black', linewidth=1, label = "DRO", marker="s",ms=1.5)
     # ax1.fill_between(np.array(t_range),y1=np.array(quantiles1[q1]['SA_eval1'][(j3*end_ind)+0:(j3+1)*end_ind:2]).astype(float),y2=np.array(quantiles1[q2]['SA_eval1'][(j3*end_ind)+0:(j3+1)*end_ind:2]).astype(float),alpha=alpha, color='g')
     # ax1.fill_between(np.array(t_range),y1=np.array(quantiles1[q1]['DRO_eval1'][(j3*end_ind)+0:(j3+1)*end_ind:2]).astype(float),y2=np.array(quantiles1[q2]['DRO_eval1'][(j3*end_ind)+0:(j3+1)*end_ind:2]).astype(float),alpha=alpha, color='black')
 
@@ -54,84 +57,88 @@ def plot_eval_all(df, quantiles, df1=None, quantiles1=None,end_ind=61,j=(0,0,0),
     # ax1.set_title(r'Out-of-sample expected value')
     # ax1.grid(True, alpha=0.3)
 
-    ax1.plot(t_range, df['online_time'][(j1*end_ind):(j1+1)*end_ind:2], 'b-', linewidth=1, label = "online clustering", marker="v",ms=0.01)
+    ax1.plot(t_range, df['online_time'][(j1*end_ind):(j1+1)*end_ind:2], 'b-', linewidth=1, label = "online clustering", marker="v",ms=1.5)
     
-    # ax1.plot(t_range, np.array(df['MRO_time'][(j2*end_ind):(j2+1)*end_ind:2])+np.array(df['MRO_worst_times'][(j1*end_ind):(j1+1)*end_ind:2]), 'r-', linewidth=1, label = "reclustering",marker="D",ms=0.01)
+    # ax1.plot(t_range, np.array(df['MRO_time'][(j2*end_ind):(j2+1)*end_ind:2])+np.array(df['MRO_worst_times'][(j1*end_ind):(j1+1)*end_ind:2]), 'r-', linewidth=1, label = "reclustering",marker="D",ms=1.5)
 
     ax1.fill_between(np.array(t_range),y1=np.array(quantiles[q1]['online_time'][(j1*end_ind):(j1+1)*end_ind:2]).astype(float),y2=np.array(quantiles[q2]['online_time'][(j1*end_ind):(j1+1)*end_ind:2]).astype(float),alpha=alpha, color = 'b')
     
     # ax1.fill_between(np.array(t_range),y1=np.array(quantiles[q1]['MRO_time'][(j4*end_ind):(j4+1)*end_ind:2]).astype(float),y2=np.array(quantiles[q2]['MRO_time'][(j4*end_ind):(j4+1)*end_ind:2]).astype(float),alpha=alpha, color = 'r')
 
     # reclustering worst
-    ax1.plot(t_range, df['MRO_time'][(j4*end_ind):(j4+1)*end_ind:2], 'r', linewidth=1, label = r"reclustering", marker="D",ms=0.01)
+    ax1.plot(t_range, df['MRO_time'][(j4*end_ind):(j4+1)*end_ind:2], 'r', linewidth=1, label = r"reclustering", marker="D",ms=1.5)
     
-    # ax1.plot(t_range, quantiles[50]['MRO_time'][(j4*end_ind)+0:(j4+1)*end_ind:2], 'r:', linewidth=1, label = r"reclustering $\hat{H}^K_t$", marker="^",ms=0.01)
+    # ax1.plot(t_range, quantiles[50]['MRO_time'][(j4*end_ind)+0:(j4+1)*end_ind:2], 'r:', linewidth=1, label = r"reclustering $\hat{H}^K_t$", marker="^",ms=1.5)
     
     ax1.fill_between(np.array(t_range),y1=np.array(quantiles[q1]['MRO_time'][(j4*end_ind):(j4+1)*end_ind:2]).astype(float),y2=np.array(quantiles[q2]['MRO_time'][(j4*end_ind):(j4+1)*end_ind:2]).astype(float),alpha=alpha, color = 'r')
-    
+
     # DRO and SAA
-    ax1.plot(t_range, df1['DRO_time'][(j3*end_ind):(j3+1)*end_ind:2], color ='black', linewidth=1, label = "DRO",marker="s",ms=0.01)
-    ax1.plot(t_range, df1['SA_time'][(j3*end_ind):(j3+1)*end_ind:2], color ='g', linewidth=1, label = "SAA",marker="o",ms=0.01)
-    ax1.fill_between(np.array(t_range),y1=np.array(quantiles1[q1]['DRO_time'][(j3*end_ind):(j3+1)*end_ind:2]).astype(float),y2=np.array(quantiles1[q2]['DRO_time'][(j3*end_ind):(j3+1)*end_ind:2]).astype(float),alpha=alpha, color = 'black')
-    ax1.fill_between(np.array(t_range),y1=np.array(quantiles1[q1]['SA_time'][(j3*end_ind):(j3+1)*end_ind:2]).astype(float),y2=np.array(quantiles1[q2]['SA_time'][(j3*end_ind):(j3+1)*end_ind:2]).astype(float),alpha=alpha, color = 'g')
-    if 'SAA_time' in df.columns:
-        ax1.plot(t_range, df['SAA_time'][(j1*end_ind):(j1+1)*end_ind:2], color ='m', linewidth=1, label = "cluster SAA",marker="x",ms=0.01)
-        if 'SAA_time' in quantiles[q1].columns:
-            ax1.fill_between(np.array(t_range),y1=np.array(quantiles[q1]['SAA_time'][(j1*end_ind):(j1+1)*end_ind:2]).astype(float),y2=np.array(quantiles[q2]['SAA_time'][(j1*end_ind):(j1+1)*end_ind:2]).astype(float),alpha=alpha, color = 'm')
+    ax1.plot(t_range_dro, df1['DRO_time'][(j3*end_ind_dro):(j3+1)*end_ind_dro:2], color ='black', linewidth=1, label = "DRO",marker="s",ms=1.5)
+    ax1.plot(t_range_dro, df1['SA_time'][(j3*end_ind_dro):(j3+1)*end_ind_dro:2], color ='g', linewidth=1, label = "SAA",marker="o",ms=1.5)
+    ax1.fill_between(np.array(t_range_dro),y1=np.array(quantiles1[q1]['DRO_time'][(j3*end_ind_dro):(j3+1)*end_ind_dro:2]).astype(float),y2=np.array(quantiles1[q2]['DRO_time'][(j3*end_ind_dro):(j3+1)*end_ind_dro:2]).astype(float),alpha=alpha, color = 'black')
+    ax1.fill_between(np.array(t_range_dro),y1=np.array(quantiles1[q1]['SA_time'][(j3*end_ind_dro):(j3+1)*end_ind_dro:2]).astype(float),y2=np.array(quantiles1[q2]['SA_time'][(j3*end_ind_dro):(j3+1)*end_ind_dro:2]).astype(float),alpha=alpha, color = 'g')
+    if 'cluster_SAA_time' in df.columns:
+        ax1.plot(t_range, df['cluster_SAA_time'][(j1*end_ind):(j1+1)*end_ind:2], color ='m', linewidth=1, label = "cluster_SAA",marker="x",ms=1.5)
+        if 'cluster_SAA_time' in quantiles[q1].columns:
+            ax1.fill_between(np.array(t_range),y1=np.array(quantiles[q1]['cluster_SAA_time'][(j1*end_ind):(j1+1)*end_ind:2]).astype(float),y2=np.array(quantiles[q2]['cluster_SAA_time'][(j1*end_ind):(j1+1)*end_ind:2]).astype(float),alpha=alpha, color = 'm')
 
     ax1.set_xlabel(r'Time step $(t)$')
-    ax1.set_xscale("log")
+    if xscale_log:
+        ax1.set_xscale("log")
     ax1.set_title(r'Computation time per iteration (s)')
     ax1.grid(True, alpha=0.3)
+    # ax1.set_ylim([0,10])
     # ax1.set_ylim([1e-4,1e3])
     ax1.set_yscale("log")
-    
+    ax1.yaxis.set_major_locator(plt.LogLocator(base=10, numticks=15))
+    ax1.yaxis.set_major_formatter(plt.LogFormatterMathtext())
 
 
     # online and reclustering
-    lines1, = ax2.plot(t_range, df['obj_values'][(j1*end_ind):(j1+1)*end_ind:2], 'b-', linewidth=1, label = "online clustering", marker="v",ms=0.01)
+    lines1, = ax2.plot(t_range, df['obj_values'][(j1*end_ind):(j1+1)*end_ind:2], 'b-', linewidth=1, label = "online clustering", marker="v",ms=1.5)
     ax2.fill_between(np.array(t_range),y1=np.array(quantiles[q1]['obj_values'][(j1*end_ind):(j1+1)*end_ind:2]).astype(float),y2=np.array(quantiles[q2]['obj_values'][(j1*end_ind):(j1+1)*end_ind:2]).astype(float),alpha=alpha, color = 'b')
 
-    lines2, = ax2.plot(t_range, np.array(df['MRO_obj_values'][(j4*end_ind):(j4+1)*end_ind:2]), 'r', linewidth=1, label = "reclustering", marker="D",ms=0.01)
+    lines2, = ax2.plot(t_range, np.array(df['MRO_obj_values'][(j4*end_ind):(j4+1)*end_ind:2]), 'r', linewidth=1, label = "reclustering", marker="D",ms=1.5)
     ax2.fill_between(np.array(t_range),y1=np.array(quantiles[q1]['MRO_obj_values'][(j4*end_ind):(j4+1)*end_ind:2]).astype(float),y2=np.array(quantiles[q2]['MRO_obj_values'][(j4*end_ind):(j4+1)*end_ind:2]).astype(float),alpha=alpha, color='r')
 
     # reclustering worst
     # ax2.fill_between(np.array(t_range),y1=np.array(quantiles[q1]['MRO_worst_values'][(j2*end_ind):(j2+1)*end_ind:2]).astype(float),y2=np.array(quantiles[q2]['MRO_worst_values'][(j2*end_ind):(j2+1)*end_ind:2]).astype(float),alpha=alpha, color='r')
-    # lines5, = ax2.plot(t_range, df['MRO_worst_values'][(j2*end_ind):(j2+1)*end_ind:2], 'r-', linewidth=1, label = r"reclustering $\hat{H}^K_t$", marker="^",ms=0.01)
+    # lines5, = ax2.plot(t_range, df['MRO_worst_values'][(j2*end_ind):(j2+1)*end_ind:2], 'r-', linewidth=1, label = r"reclustering $\hat{H}^K_t$", marker="^",ms=1.5)
 
     # DRO and SAA
-    lines3, = ax2.plot(t_range, df1['SA_obj_values'][(j3*end_ind):(j3+1)*end_ind:2], 'g-', linewidth=1, label = "SAA", marker="o",ms=0.01)
-    lines4, = ax2.plot(t_range, df1['DRO_obj_values'][(j3*end_ind):(j3+1)*end_ind:2], color ='black', linewidth=1, label = "DRO", marker="s",ms=0.01)
-    if 'SAA_obj_values' in df.columns:
-        lines_cluster, = ax2.plot(t_range, df['SAA_obj_values'][(j1*end_ind):(j1+1)*end_ind:2], color ='m', linewidth=1, label = "cluster SAA", marker="x",ms=0.01)
-    ax2.fill_between(np.array(t_range),y1=np.array(quantiles1[q1]['DRO_obj_values'][(j3*end_ind):(j3+1)*end_ind:2]).astype(float),y2=np.array(quantiles1[q2]['DRO_obj_values'][(j3*end_ind):(j3+1)*end_ind:2]).astype(float),alpha=alpha, color = 'black')
-    ax2.fill_between(np.array(t_range),y1=np.array(quantiles1[q1]['SA_obj_values'][(j3*end_ind):(j3+1)*end_ind:2]).astype(float),y2=np.array(quantiles1[q2]['SA_obj_values'][(j3*end_ind):(j3+1)*end_ind:2]).astype(float),alpha=alpha, color = 'g')
-    if 'SAA_obj_values' in quantiles[q1].columns:
-        ax2.fill_between(np.array(t_range),y1=np.array(quantiles[q1]['SAA_obj_values'][(j1*end_ind):(j1+1)*end_ind:2]).astype(float),y2=np.array(quantiles[q2]['SAA_obj_values'][(j1*end_ind):(j1+1)*end_ind:2]).astype(float),alpha=alpha, color = 'm')
+    lines3, = ax2.plot(t_range_dro, df1['SA_obj_values'][(j3*end_ind_dro):(j3+1)*end_ind_dro:2], 'g-', linewidth=1, label = "SAA", marker="o",ms=1.5)
+    lines4, = ax2.plot(t_range_dro, df1['DRO_obj_values'][(j3*end_ind_dro):(j3+1)*end_ind_dro:2], color ='black', linewidth=1, label = "DRO", marker="s",ms=1.5)
+    if 'cluster_SAA_obj_values' in df.columns:
+        lines_cluster, = ax2.plot(t_range, df['cluster_SAA_obj_values'][(j1*end_ind):(j1+1)*end_ind:2], color ='m', linewidth=1, label = "cluster_SAA", marker="x",ms=1.5)
+    ax2.fill_between(np.array(t_range_dro),y1=np.array(quantiles1[q1]['DRO_obj_values'][(j3*end_ind_dro):(j3+1)*end_ind_dro:2]).astype(float),y2=np.array(quantiles1[q2]['DRO_obj_values'][(j3*end_ind_dro):(j3+1)*end_ind_dro:2]).astype(float),alpha=alpha, color = 'black')
+    ax2.fill_between(np.array(t_range_dro),y1=np.array(quantiles1[q1]['SA_obj_values'][(j3*end_ind_dro):(j3+1)*end_ind_dro:2]).astype(float),y2=np.array(quantiles1[q2]['SA_obj_values'][(j3*end_ind_dro):(j3+1)*end_ind_dro:2]).astype(float),alpha=alpha, color = 'g')
+    if 'cluster_SAA_obj_values' in quantiles[q1].columns:
+        ax2.fill_between(np.array(t_range),y1=np.array(quantiles[q1]['cluster_SAA_obj_values'][(j1*end_ind):(j1+1)*end_ind:2]).astype(float),y2=np.array(quantiles[q2]['cluster_SAA_obj_values'][(j1*end_ind):(j1+1)*end_ind:2]).astype(float),alpha=alpha, color = 'm')
 
     ax2.set_xlabel(r'Time step $(t)$')
-    ax2.set_xscale("log")
+    if xscale_log:
+        ax2.set_xscale("log")
     ax2.set_title(r'In-sample objective value')
     # ax2.set_ylim(ylim)
     ax2.grid(True, alpha=0.3)
 
     # online and reclustering
-    ax3.plot(t_range, df['O_satisfy0'][(j1*end_ind):(j1+1)*end_ind:2], 'b-', linewidth=1, label = "online clustering", marker="v",ms=0.01)
+    ax3.plot(t_range, df['O_satisfy0'][(j1*end_ind):(j1+1)*end_ind:2], 'b-', linewidth=1, label = "online clustering", marker="v",ms=1.5)
 
-    ax3.plot(t_range, df['MRO_satisfy0'][(j4*end_ind):(j4+1)*end_ind:2], 'r',linestyle='-', linewidth=1, label = "reclustering",marker="D",ms=0.01)
+    ax3.plot(t_range, df['MRO_satisfy0'][(j4*end_ind):(j4+1)*end_ind:2], 'r',linestyle='-', linewidth=1, label = "reclustering",marker="D",ms=1.5)
     # reclustering worst
-    # ax3.plot(t_range, df['MRO_worst_satisfy1'][(j2*end_ind):(j2+1)*end_ind:2], 'r-', linewidth=1, label = r"reclustering $\hat{H}^K_t$",marker="^",ms=0.01)
+    # ax3.plot(t_range, df['MRO_worst_satisfy1'][(j2*end_ind):(j2+1)*end_ind:2], 'r-', linewidth=1, label = r"reclustering $\hat{H}^K_t$",marker="^",ms=1.5)
     # DRO and SAA
-    ax3.plot(t_range, df1['SA_satisfy1'][(j3*end_ind):(j3+1)*end_ind:2], 'g-', linewidth=1, label = "SAA",marker="o",ms=0.01)
-    ax3.plot(t_range, df1['DRO_satisfy1'][(j3*end_ind):(j3+1)*end_ind:2], color ='black', linewidth=1, label = "DRO",marker="s",ms=0.01)
-    if 'SAA_satisfy1' in df.columns:
-        ax3.plot(t_range, df['SAA_satisfy1'][(j1*end_ind):(j1+1)*end_ind:2], color ='m', linewidth=1, label = "cluster SAA",marker="x",ms=0.01)
+    ax3.plot(t_range_dro, df1['SA_satisfy1'][(j3*end_ind_dro):(j3+1)*end_ind_dro:2], 'g-', linewidth=1, label = "SAA",marker="o",ms=1.5)
+    ax3.plot(t_range_dro, df1['DRO_satisfy1'][(j3*end_ind_dro):(j3+1)*end_ind_dro:2], color ='black', linewidth=1, label = "DRO",marker="s",ms=1.5)
+    if 'cluster_SAA_satisfy1' in df.columns:
+        ax3.plot(t_range, df['cluster_SAA_satisfy1'][(j1*end_ind):(j1+1)*end_ind:2], color ='m', linewidth=1, label = "cluster_SAA",marker="x",ms=1.5)
     ax3.set_xlabel(r'Time step $(t)$')
-    # ax3.set_xscale("log")
-
+    if xscale_log:
+        ax3.set_xscale("log")
     ax3.set_title(r'Confidence $1-\hat{\beta}_t$')
     ax3.grid(True, alpha=0.3)
-    
+
     # Create a shared legend beneath the plots
     # lines = [lines1,lines2, lines3, lines4]
     lines = [lines1, lines2, lines3, lines4]
@@ -144,7 +151,8 @@ def plot_eval_all(df, quantiles, df1=None, quantiles1=None,end_ind=61,j=(0,0,0),
         legend = fig.legend(lines, labels, loc='lower center', bbox_to_anchor=(0.5, -0.1), ncol=5)
     plt.tight_layout()
     # fig.subplots_adjust(bottom=0.05)  # Adjust the bottom margin to fit the legend
-    plt.savefig(folderout + 'obj_analysis'+str(K)+'.pdf', bbox_inches='tight', dpi=300)
+    suffix = '_log' if xscale_log else ''
+    plt.savefig(folderout + f'obj_analysis{K}{suffix}.pdf', bbox_inches='tight', dpi=300)
 
 
 def plot_eval_all_compare(
@@ -197,7 +205,7 @@ def plot_eval_all_compare(
     q1, q2 = q
 
     t_range      = np.array(df['t'])[(0*end_ind):(1)*end_ind:stride]
-    t_range_grad = np.array(df3['t'])[(0*end_ind_grad):(1)*end_ind_grad:stride_grad]
+    t_range_grad = np.array(df2['t'])[(0*end_ind_grad):(1)*end_ind_grad:stride_grad]
     fig, (ax2, ax3, ax1) = plt.subplots(1, 3, figsize=(9, val2), dpi=300)
 
     # ---- helpers to keep the per-method block compact ----------------------
@@ -213,39 +221,34 @@ def plot_eval_all_compare(
     # ax1: computation time
     # ============================================================
     # full
-    ax1.plot(t_range, df['online_time'][(j1*end_ind):(j1+1)*end_ind:stride], 'b-',
-             linewidth=1, label="online clustering", marker="v", ms=0.01)
-    _band(ax1, quantiles[q1], quantiles[q2], 'online_time', j1, end_ind, 'b', t_range, stride)
+    # ax1.plot(t_range, df['online_time'][(j1*end_ind):(j1+1)*end_ind:stride], 'b-',
+    #          linewidth=1, label="online clustering full", marker="v", ms=1.5)
+    # _band(ax1, quantiles[q1], quantiles[q2], 'online_time', j1, end_ind, 'b', t_range, stride)
     ax1.plot(t_range, df['MRO_time'][(j4*end_ind):(j4+1)*end_ind:stride], 'r-',
-             linewidth=1, label="Reclustering full", marker="D", ms=0.01)
+             linewidth=1, label="Reclustering full", marker="D", ms=1.5)
     _band(ax1, quantiles[q1], quantiles[q2], 'MRO_time', j4, end_ind, 'r', t_range, stride)
     ax1.plot(t_range, df1['DRO_time'][(j3*end_ind):(j3+1)*end_ind:stride], 'k-',
-             linewidth=1, label="DRO", marker="s", ms=0.01)
+             linewidth=1, label="DRO full", marker="s", ms=1.5)
     _band(ax1, quantiles1[q1], quantiles1[q2], 'DRO_time', j3, end_ind, 'black', t_range, stride)
     ax1.plot(t_range, df1['SA_time'][(j3*end_ind):(j3+1)*end_ind:stride], 'g-',
-             linewidth=1, label="SAA", marker="o", ms=0.01)
+             linewidth=1, label="SAA", marker="o", ms=1.5)
     _band(ax1, quantiles1[q1], quantiles1[q2], 'SA_time', j3, end_ind, 'g', t_range, stride)
     # subgrad overlay (no SAA) -- uses end_ind_grad and t_range_grad,
     # and a lighter shade of each full color (b -> cornflowerblue,
     # r -> salmon, k -> gray) so full vs subgrad is distinguishable by both
     # linestyle and hue.
-    ax1.plot(t_range_grad, df2['online_time'][(j1g*end_ind_grad):(j1g+1)*end_ind_grad:stride_grad],
-             color='cornflowerblue', linestyle='--',
-             linewidth=1, label="online clustering subgrad", marker="v", ms=0.01)
-    _band(ax1, quantiles2[q1], quantiles2[q2], 'online_time', j1g, end_ind_grad, 'cornflowerblue', t_range_grad, stride_grad)
-    ax1.plot(t_range_grad, df2['MRO_time'][(j4g*end_ind_grad):(j4g+1)*end_ind_grad:stride_grad],
-             color='salmon', linestyle='--',
-             linewidth=1, label="reclustering subgrad", marker="D", ms=0.01)
-    _band(ax1, quantiles2[q1], quantiles2[q2], 'MRO_time', j4g, end_ind_grad, 'salmon', t_range_grad, stride_grad)
+    # ax1.plot(t_range_grad, df2['online_time'][(j1g*end_ind_grad):(j1g+1)*end_ind_grad:stride_grad],
+    #          color='cornflowerblue', linestyle='--',
+    #          linewidth=1, label="online clustering subgrad", marker="v", ms=1.5)
+    # _band(ax1, quantiles2[q1], quantiles2[q2], 'online_time', j1g, end_ind_grad, 'cornflowerblue', t_range_grad, stride_grad)
+    # ax1.plot(t_range_grad, df2['MRO_time'][(j4g*end_ind_grad):(j4g+1)*end_ind_grad:stride_grad],
+    #          color='salmon', linestyle='--',
+    #          linewidth=1, label="reclustering subgrad", marker="D", ms=1.5)
+    # _band(ax1, quantiles2[q1], quantiles2[q2], 'MRO_time', j4g, end_ind_grad, 'salmon', t_range_grad, stride_grad)
     ax1.plot(t_range_grad, df3['DRO_time'][(j3g*end_ind_grad):(j3g+1)*end_ind_grad:stride_grad],
              color='gray', linestyle='--',
-             linewidth=1, label="DRO subgrad", marker="s", ms=0.01)
+             linewidth=1, label="DRO subgrad", marker="s", ms=1.5)
     _band(ax1, quantiles3[q1], quantiles3[q2], 'DRO_time', j3g, end_ind_grad, 'gray', t_range_grad, stride_grad)
-
-    if 'SAA_time' in df.columns:
-        ax1.plot(t_range, df['SAA_time'][(j1*end_ind):(j1+1)*end_ind:2], color ='m', linewidth=1, label = "cluster SAA",marker="x",ms=0.01)
-        if 'SAA_time' in quantiles[q1].columns:
-            ax1.fill_between(np.array(t_range),y1=np.array(quantiles[q1]['SAA_time'][(j1*end_ind):(j1+1)*end_ind:2]).astype(float),y2=np.array(quantiles[q2]['SAA_time'][(j1*end_ind):(j1+1)*end_ind:2]).astype(float),alpha=alpha, color = 'm')
 
     ax1.set_xlabel(r'Time step $(t)$')
     ax1.set_title(r'Computation time per iteration (s)')
@@ -257,82 +260,76 @@ def plot_eval_all_compare(
     # ax2: in-sample objective value  (line handles captured for legend)
     # ============================================================
     # full
-    line_online_full,    = ax2.plot(t_range, df['obj_values'][(j1*end_ind):(j1+1)*end_ind:stride], 'b-',
-                                    linewidth=1, label="online clustering", marker="v", ms=0.01)
-    _band(ax2, quantiles[q1], quantiles[q2], 'obj_values', j1, end_ind, 'b', t_range, stride)
+    # line_online_full,    = ax2.plot(t_range, df['obj_values'][(j1*end_ind):(j1+1)*end_ind:stride], 'b-',
+    #                                 linewidth=1, label="online clustering full", marker="v", ms=1.5)
+    # _band(ax2, quantiles[q1], quantiles[q2], 'obj_values', j1, end_ind, 'b', t_range, stride)
     line_recluster_full, = ax2.plot(t_range, np.array(df['MRO_obj_values'][(j4*end_ind):(j4+1)*end_ind:stride]), 'r-',
-                                    linewidth=1, label="reclustering", marker="D", ms=0.01)
+                                    linewidth=1, label="reclustering full", marker="D", ms=1.5)
     _band(ax2, quantiles[q1], quantiles[q2], 'MRO_obj_values', j4, end_ind, 'r', t_range, stride)
     line_DRO_full,       = ax2.plot(t_range, df1['DRO_obj_values'][(j3*end_ind):(j3+1)*end_ind:stride], 'k-',
-                                    linewidth=1, label="DRO", marker="s", ms=0.01)
+                                    linewidth=1, label="DRO full", marker="s", ms=1.5)
     _band(ax2, quantiles1[q1], quantiles1[q2], 'DRO_obj_values', j3, end_ind, 'black', t_range, stride)
     line_SAA,            = ax2.plot(t_range, df1['SA_obj_values'][(j3*end_ind):(j3+1)*end_ind:stride], 'g-',
-                                    linewidth=1, label="SAA", marker="o", ms=0.01)
+                                    linewidth=1, label="SAA", marker="o", ms=1.5)
     _band(ax2, quantiles1[q1], quantiles1[q2], 'SA_obj_values', j3, end_ind, 'g', t_range, stride)
     # subgrad overlay -- lighter shades, dashed; uses end_ind_grad / t_range_grad.
-    line_online_grad,    = ax2.plot(t_range_grad, df2['obj_values'][(j1g*end_ind_grad):(j1g+1)*end_ind_grad:stride_grad],
-                                    color='cornflowerblue', linestyle='--',
-                                    linewidth=1, label="online clustering subgrad", marker="v", ms=0.01)
-    _band(ax2, quantiles2[q1], quantiles2[q2], 'obj_values', j1g, end_ind_grad, 'cornflowerblue', t_range_grad, stride_grad)
-    line_recluster_grad, = ax2.plot(t_range_grad, np.array(df2['MRO_obj_values'][(j4g*end_ind_grad):(j4g+1)*end_ind_grad:stride_grad]),
-                                    color='salmon', linestyle='--',
-                                    linewidth=1, label="reclustering subgrad", marker="D", ms=0.01)
-    _band(ax2, quantiles2[q1], quantiles2[q2], 'MRO_obj_values', j4g, end_ind_grad, 'salmon', t_range_grad, stride_grad)
+    # line_online_grad,    = ax2.plot(t_range_grad, df2['obj_values'][(j1g*end_ind_grad):(j1g+1)*end_ind_grad:stride_grad],
+    #                                 color='cornflowerblue', linestyle='--',
+    #                                 linewidth=1, label="online clustering subgrad", marker="v", ms=1.5)
+    # _band(ax2, quantiles2[q1], quantiles2[q2], 'obj_values', j1g, end_ind_grad, 'cornflowerblue', t_range_grad, stride_grad)
+    # line_recluster_grad, = ax2.plot(t_range_grad, np.array(df2['MRO_obj_values'][(j4g*end_ind_grad):(j4g+1)*end_ind_grad:stride_grad]),
+    #                                 color='salmon', linestyle='--',
+    #                                 linewidth=1, label="reclustering subgrad", marker="D", ms=1.5)
+    # _band(ax2, quantiles2[q1], quantiles2[q2], 'MRO_obj_values', j4g, end_ind_grad, 'salmon', t_range_grad, stride_grad)
     line_DRO_grad,       = ax2.plot(t_range_grad, df3['DRO_obj_values'][(j3g*end_ind_grad):(j3g+1)*end_ind_grad:stride_grad],
                                     color='gray', linestyle='--',
-                                    linewidth=1, label="DRO subgrad", marker="s", ms=0.01)
+                                    linewidth=1, label="DRO subgrad", marker="s", ms=1.5)
     _band(ax2, quantiles3[q1], quantiles3[q2], 'DRO_obj_values', j3g, end_ind_grad, 'gray', t_range_grad, stride_grad)
 
-    if 'SAA_obj_values' in df.columns:
-        lines_cluster, = ax2.plot(t_range, df['SAA_obj_values'][(j1*end_ind):(j1+1)*end_ind:2], color ='m', linewidth=1, label = "cluster SAA", marker="x",ms=0.01)
-    if 'SAA_obj_values' in quantiles[q1].columns:
-        ax2.fill_between(np.array(t_range),y1=np.array(quantiles[q1]['SAA_obj_values'][(j1*end_ind):(j1+1)*end_ind:2]).astype(float),y2=np.array(quantiles[q2]['SAA_obj_values'][(j1*end_ind):(j1+1)*end_ind:2]).astype(float),alpha=alpha, color = 'm')
-
     ax2.set_xlabel(r'Time step $(t)$')
+    ax2.set_xscale("log")
     ax2.set_title(r'In-sample objective value')
     ax2.grid(True, alpha=0.3)
     ax2.set_xscale("log")
-    ax2.set_ylim([-0.01,0.05])
 
 
     # ============================================================
     # ax3: confidence
     # ============================================================
     # full
-    ax3.plot(t_range, df['O_satisfy0'][(j1*end_ind):(j1+1)*end_ind:stride], 'b-',
-             linewidth=1, label="online clustering", marker="v", ms=0.01)
+    # ax3.plot(t_range, df['O_satisfy0'][(j1*end_ind):(j1+1)*end_ind:stride], 'b-',
+    #          linewidth=1, label="online clustering full", marker="v", ms=1.5)
     ax3.plot(t_range, df['MRO_satisfy0'][(j4*end_ind):(j4+1)*end_ind:stride], 'r', linestyle='-',
-             linewidth=1, label="reclustering", marker="D", ms=0.01)
+             linewidth=1, label="reclustering full", marker="D", ms=1.5)
     ax3.plot(t_range, df1['DRO_satisfy1'][(j3*end_ind):(j3+1)*end_ind:stride], 'k-',
-             linewidth=1, label="DRO", marker="s", ms=0.01)
+             linewidth=1, label="DRO full", marker="s", ms=1.5)
     ax3.plot(t_range, df1['SA_satisfy1'][(j3*end_ind):(j3+1)*end_ind:stride], 'g-',
-             linewidth=1, label="SAA", marker="o", ms=0.01)
+             linewidth=1, label="SAA", marker="o", ms=1.5)
     # subgrad -- lighter shades, dashed; uses end_ind_grad / t_range_grad.
-    ax3.plot(t_range_grad, df2['O_satisfy0'][(j1g*end_ind_grad):(j1g+1)*end_ind_grad:stride_grad],
-             color='cornflowerblue', linestyle='--',
-             linewidth=1, label="online clustering subgrad", marker="v", ms=0.01)
-    ax3.plot(t_range_grad, df2['MRO_satisfy0'][(j4g*end_ind_grad):(j4g+1)*end_ind_grad:stride_grad],
-             color='salmon', linestyle='--',
-             linewidth=1, label="reclustering subgrad", marker="D", ms=0.01)
+    # ax3.plot(t_range_grad, df2['O_satisfy0'][(j1g*end_ind_grad):(j1g+1)*end_ind_grad:stride_grad],
+    #          color='cornflowerblue', linestyle='--',
+    #          linewidth=1, label="online clustering subgrad", marker="v", ms=1.5)
+    # ax3.plot(t_range_grad, df2['MRO_satisfy0'][(j4g*end_ind_grad):(j4g+1)*end_ind_grad:stride_grad],
+    #          color='salmon', linestyle='--',
+    #          linewidth=1, label="reclustering subgrad", marker="D", ms=1.5)
     ax3.plot(t_range_grad, df3['DRO_satisfy1'][(j3g*end_ind_grad):(j3g+1)*end_ind_grad:stride_grad],
              color='gray', linestyle='--',
-             linewidth=1, label="DRO subgrad", marker="s", ms=0.01)
-    if 'SAA_satisfy1' in df.columns:
-        ax3.plot(t_range, df['SAA_satisfy1'][(j1*end_ind):(j1+1)*end_ind:2], color ='m', linewidth=1, label = "cluster SAA",marker="x",ms=0.01)
+             linewidth=1, label="DRO subgrad", marker="s", ms=1.5)
 
     ax3.set_xlabel(r'Time step $(t)$')
     ax3.set_title(r'Confidence $1-\hat{\beta}_t$')
     ax3.grid(True, alpha=0.3)
-    # ax3.set_xscale("log")
+    ax3.set_xscale("log")
 
     # ---- shared legend (7 handles, full block + SAA + subgrad block) ----------
     lines = [
-         line_online_full,line_recluster_full, line_DRO_full,
-         line_DRO_grad,line_SAA, lines_cluster
+         line_recluster_full, line_DRO_full,
+        line_SAA,
+         line_DRO_grad,
     ]
     labels = [ln.get_label() for ln in lines]
     if legend:
-        fig.legend(lines, labels, loc='lower center', bbox_to_anchor=(0.5, -0.1), ncol=6)
+        fig.legend(lines, labels, loc='lower center', bbox_to_anchor=(0.5, -0.1), ncol=4)
     plt.tight_layout()
     plt.savefig(folderout + 'obj_analysis_compare' + str(K) + '.pdf',
                 bbox_inches='tight', dpi=300)
@@ -361,15 +358,15 @@ def plot_certificates(df, quantiles, df1=None, quantiles1=None,end_ind=61,j=(0,0
     fig, (ax2,ax3,ax1) = plt.subplots(1, 3, figsize=(9, val2), dpi=300)
     
     # # online and reclustering
-    # ax1.plot(t_range, df['O_eval0'][(j1*end_ind)+0:(j1+1)*end_ind:2], 'b-', linewidth=1, label = "online clustering", marker="v",ms=0.01)
+    # ax1.plot(t_range, df['O_eval0'][(j1*end_ind)+0:(j1+1)*end_ind:2], 'b-', linewidth=1, label = "online clustering", marker="v",ms=1.5)
 
     # ax1.fill_between(np.array(t_range),y1=np.array(quantiles[q1]['O_eval0'][(j1*end_ind)+0:(j1+1)*end_ind:2]).astype(float),y2=np.array(quantiles[q2]['O_eval0'][(j1*end_ind)+0:(j1+1)*end_ind:2]).astype(float),alpha=alpha, color = 'b')
-    # ax1.plot(t_range, df['MRO_eval0'][(j2*end_ind)+0:(j2+1)*end_ind:2], 'r-', linewidth=1, label = "reclustering", marker="D",ms=0.01)
+    # ax1.plot(t_range, df['MRO_eval0'][(j2*end_ind)+0:(j2+1)*end_ind:2], 'r-', linewidth=1, label = "reclustering", marker="D",ms=1.5)
     # ax1.fill_between(np.array(t_range),y1=np.array(quantiles[q1]['MRO_eval0'][(j2*end_ind)+0:(j2+1)*end_ind:2]).astype(float),y2=np.array(quantiles[q2]['MRO_eval0'][(j2*end_ind)+0:(j2+1)*end_ind:2]).astype(float),alpha=alpha, color='r')
 
     # # DRO and SAA
-    # ax1.plot(t_range, df1['SA_eval1'][(j3*end_ind):(j3+1)*end_ind:2], 'g-', linewidth=1, label = "SAA", marker="o",ms=0.01)
-    # ax1.plot(t_range, df1['DRO_eval1'][(j3*end_ind):(j3+1)*end_ind:2], color ='black', linewidth=1, label = "DRO", marker="s",ms=0.01)
+    # ax1.plot(t_range, df1['SA_eval1'][(j3*end_ind):(j3+1)*end_ind:2], 'g-', linewidth=1, label = "SAA", marker="o",ms=1.5)
+    # ax1.plot(t_range, df1['DRO_eval1'][(j3*end_ind):(j3+1)*end_ind:2], color ='black', linewidth=1, label = "DRO", marker="s",ms=1.5)
     # ax1.fill_between(np.array(t_range),y1=np.array(quantiles1[q1]['SA_eval1'][(j3*end_ind)+0:(j3+1)*end_ind:2]).astype(float),y2=np.array(quantiles1[q2]['SA_eval1'][(j3*end_ind)+0:(j3+1)*end_ind:2]).astype(float),alpha=alpha, color='g')
     # ax1.fill_between(np.array(t_range),y1=np.array(quantiles1[q1]['DRO_eval1'][(j3*end_ind)+0:(j3+1)*end_ind:2]).astype(float),y2=np.array(quantiles1[q2]['DRO_eval1'][(j3*end_ind)+0:(j3+1)*end_ind:2]).astype(float),alpha=alpha, color='black')
 
@@ -379,24 +376,24 @@ def plot_certificates(df, quantiles, df1=None, quantiles1=None,end_ind=61,j=(0,0
     # ax1.set_title(r'Out-of-sample expected value')
     # ax1.grid(True, alpha=0.3)
 
-    ax1.plot(t_range, df['online_time'][(j1*end_ind):(j1+1)*end_ind:2], 'b-', linewidth=1, label = "online clustering", marker="v",ms=0.01)
+    ax1.plot(t_range, df['online_time'][(j1*end_ind):(j1+1)*end_ind:2], 'b-', linewidth=1, label = "online clustering", marker="v",ms=1.5)
     
-    # ax1.plot(t_range, np.array(df['MRO_time'][(j2*end_ind):(j2+1)*end_ind:2])+np.array(df['MRO_worst_times'][(j1*end_ind):(j1+1)*end_ind:2]), 'r-', linewidth=1, label = "reclustering",marker="D",ms=0.01)
+    # ax1.plot(t_range, np.array(df['MRO_time'][(j2*end_ind):(j2+1)*end_ind:2])+np.array(df['MRO_worst_times'][(j1*end_ind):(j1+1)*end_ind:2]), 'r-', linewidth=1, label = "reclustering",marker="D",ms=1.5)
 
     ax1.fill_between(np.array(t_range),y1=np.array(quantiles[q1]['online_time'][(j1*end_ind):(j1+1)*end_ind:2]).astype(float),y2=np.array(quantiles[q2]['online_time'][(j1*end_ind):(j1+1)*end_ind:2]).astype(float),alpha=alpha, color = 'b')
     
     # ax1.fill_between(np.array(t_range),y1=np.array(quantiles[q1]['MRO_time'][(j4*end_ind):(j4+1)*end_ind:2]).astype(float),y2=np.array(quantiles[q2]['MRO_time'][(j4*end_ind):(j4+1)*end_ind:2]).astype(float),alpha=alpha, color = 'r')
 
     # reclustering worst
-    ax1.plot(t_range, df['MRO_time'][(j4*end_ind):(j4+1)*end_ind:2], 'r', linewidth=1, label = r"reclustering", marker="D",ms=0.01)
+    ax1.plot(t_range, df['MRO_time'][(j4*end_ind):(j4+1)*end_ind:2], 'r', linewidth=1, label = r"reclustering", marker="D",ms=1.5)
     
-    # ax1.plot(t_range, quantiles[50]['MRO_time'][(j4*end_ind)+0:(j4+1)*end_ind:2], 'r:', linewidth=1, label = r"reclustering $\hat{H}^K_t$", marker="^",ms=0.01)
+    # ax1.plot(t_range, quantiles[50]['MRO_time'][(j4*end_ind)+0:(j4+1)*end_ind:2], 'r:', linewidth=1, label = r"reclustering $\hat{H}^K_t$", marker="^",ms=1.5)
     
     ax1.fill_between(np.array(t_range),y1=np.array(quantiles[q1]['MRO_time'][(j4*end_ind):(j4+1)*end_ind:2]).astype(float),y2=np.array(quantiles[q2]['MRO_time'][(j4*end_ind):(j4+1)*end_ind:2]).astype(float),alpha=alpha, color = 'r')
     
     # DRO and SAA
-    ax1.plot(t_range, df1['DRO_time'][(j3*end_ind):(j3+1)*end_ind:2], color ='black', linewidth=1, label = "DRO",marker="s",ms=0.01)
-    ax1.plot(t_range, df1['SA_time'][(j3*end_ind):(j3+1)*end_ind:2], color ='g', linewidth=1, label = "SAA",marker="o",ms=0.01)
+    ax1.plot(t_range, df1['DRO_time'][(j3*end_ind):(j3+1)*end_ind:2], color ='black', linewidth=1, label = "DRO",marker="s",ms=1.5)
+    ax1.plot(t_range, df1['SA_time'][(j3*end_ind):(j3+1)*end_ind:2], color ='g', linewidth=1, label = "SAA",marker="o",ms=1.5)
     ax1.fill_between(np.array(t_range),y1=np.array(quantiles1[q1]['DRO_time'][(j3*end_ind):(j3+1)*end_ind:2]).astype(float),y2=np.array(quantiles1[q2]['DRO_time'][(j3*end_ind):(j3+1)*end_ind:2]).astype(float),alpha=alpha, color = 'black')
     ax1.fill_between(np.array(t_range),y1=np.array(quantiles1[q1]['SA_time'][(j3*end_ind):(j3+1)*end_ind:2]).astype(float),y2=np.array(quantiles1[q2]['SA_time'][(j3*end_ind):(j3+1)*end_ind:2]).astype(float),alpha=alpha, color = 'g')
 
@@ -409,21 +406,21 @@ def plot_certificates(df, quantiles, df1=None, quantiles1=None,end_ind=61,j=(0,0
 
 
     # online and reclustering
-    lines1, = ax2.plot(t_range, np.array(df['obj_values'][(j1*end_ind):(j1+1)*end_ind:2])+5*np.array(df['sig_val'][(j1*end_ind):(j1+1)*end_ind:2]), 'b-', linewidth=1, label = "online clustering", marker="v",ms=0.01)
+    lines1, = ax2.plot(t_range, np.array(df['obj_values'][(j1*end_ind):(j1+1)*end_ind:2])+5*np.array(df['sig_val'][(j1*end_ind):(j1+1)*end_ind:2]), 'b-', linewidth=1, label = "online clustering", marker="v",ms=1.5)
     
     ax2.fill_between(np.array(t_range),y1=np.array(quantiles[q1]['obj_values'][(j1*end_ind):(j1+1)*end_ind:2]).astype(float)+5*np.array(quantiles[q1]['sig_val'][(j1*end_ind):(j1+1)*end_ind:2]).astype(float),y2=np.array(quantiles[q2]['obj_values'][(j1*end_ind):(j1+1)*end_ind:2]).astype(float)+5*np.array(quantiles[q2]['sig_val'][(j1*end_ind):(j1+1)*end_ind:2]).astype(float),alpha=alpha, color = 'b')
 
-    lines2, = ax2.plot(t_range, np.array(df['MRO_obj_values'][(j4*end_ind):(j4+1)*end_ind:2])+5*np.array(df['MRO_sig_val'][(j4*end_ind):(j4+1)*end_ind:2]), 'r', linewidth=1, label = "reclustering", marker="D",ms=0.01)
+    lines2, = ax2.plot(t_range, np.array(df['MRO_obj_values'][(j4*end_ind):(j4+1)*end_ind:2])+5*np.array(df['MRO_sig_val'][(j4*end_ind):(j4+1)*end_ind:2]), 'r', linewidth=1, label = "reclustering", marker="D",ms=1.5)
     
     ax2.fill_between(np.array(t_range),y1=np.array(quantiles[q1]['MRO_obj_values'][(j4*end_ind):(j4+1)*end_ind:2]).astype(float)+5*np.array(quantiles[q1]['MRO_sig_val'][(j4*end_ind):(j4+1)*end_ind:2]).astype(float),y2=np.array(quantiles[q2]['MRO_obj_values'][(j4*end_ind):(j4+1)*end_ind:2]).astype(float)+5*np.array(quantiles[q2]['MRO_sig_val'][(j4*end_ind):(j4+1)*end_ind:2]).astype(float),alpha=alpha, color='r')
 
     # reclustering worst
     # ax2.fill_between(np.array(t_range),y1=np.array(quantiles[q1]['MRO_worst_values'][(j2*end_ind):(j2+1)*end_ind:2]).astype(float),y2=np.array(quantiles[q2]['MRO_worst_values'][(j2*end_ind):(j2+1)*end_ind:2]).astype(float),alpha=alpha, color='r')
-    # lines5, = ax2.plot(t_range, df['MRO_worst_values'][(j2*end_ind):(j2+1)*end_ind:2], 'r-', linewidth=1, label = r"reclustering $\hat{H}^K_t$", marker="^",ms=0.01)
+    # lines5, = ax2.plot(t_range, df['MRO_worst_values'][(j2*end_ind):(j2+1)*end_ind:2], 'r-', linewidth=1, label = r"reclustering $\hat{H}^K_t$", marker="^",ms=1.5)
 
     # DRO and SAA
-    lines3, = ax2.plot(t_range, df1['SA_obj_values'][(j3*end_ind):(j3+1)*end_ind:2], 'g-', linewidth=1, label = "SAA", marker="o",ms=0.01)
-    lines4, = ax2.plot(t_range, df1['DRO_obj_values'][(j3*end_ind):(j3+1)*end_ind:2], color ='black', linewidth=1, label = "DRO", marker="s",ms=0.01)
+    lines3, = ax2.plot(t_range, df1['SA_obj_values'][(j3*end_ind):(j3+1)*end_ind:2], 'g-', linewidth=1, label = "SAA", marker="o",ms=1.5)
+    lines4, = ax2.plot(t_range, df1['DRO_obj_values'][(j3*end_ind):(j3+1)*end_ind:2], color ='black', linewidth=1, label = "DRO", marker="s",ms=1.5)
     ax2.fill_between(np.array(t_range),y1=np.array(quantiles1[q1]['DRO_obj_values'][(j3*end_ind):(j3+1)*end_ind:2]).astype(float),y2=np.array(quantiles1[q2]['DRO_obj_values'][(j3*end_ind):(j3+1)*end_ind:2]).astype(float),alpha=alpha, color = 'black')
     ax2.fill_between(np.array(t_range),y1=np.array(quantiles1[q1]['SA_obj_values'][(j3*end_ind):(j3+1)*end_ind:2]).astype(float),y2=np.array(quantiles1[q2]['SA_obj_values'][(j3*end_ind):(j3+1)*end_ind:2]).astype(float),alpha=alpha, color = 'g')
 
@@ -434,14 +431,14 @@ def plot_certificates(df, quantiles, df1=None, quantiles1=None,end_ind=61,j=(0,0
     ax2.grid(True, alpha=0.3)
 
     # online and reclustering
-    ax3.plot(t_range, df['O_worst_satisfy1'][(j1*end_ind):(j1+1)*end_ind:2], 'b-', linewidth=1, label = "online clustering", marker="v",ms=0.01)
+    ax3.plot(t_range, df['O_worst_satisfy1'][(j1*end_ind):(j1+1)*end_ind:2], 'b-', linewidth=1, label = "online clustering", marker="v",ms=1.5)
 
-    ax3.plot(t_range, df['MRO_worst_satisfy1'][(j4*end_ind):(j4+1)*end_ind:2], 'r',linestyle='-', linewidth=1, label = "reclustering",marker="D",ms=0.01)
+    ax3.plot(t_range, df['MRO_worst_satisfy1'][(j4*end_ind):(j4+1)*end_ind:2], 'r',linestyle='-', linewidth=1, label = "reclustering",marker="D",ms=1.5)
     # reclustering worst
-    # ax3.plot(t_range, df['MRO_worst_satisfy1'][(j2*end_ind):(j2+1)*end_ind:2], 'r-', linewidth=1, label = r"reclustering $\hat{H}^K_t$",marker="^",ms=0.01)
+    # ax3.plot(t_range, df['MRO_worst_satisfy1'][(j2*end_ind):(j2+1)*end_ind:2], 'r-', linewidth=1, label = r"reclustering $\hat{H}^K_t$",marker="^",ms=1.5)
     # DRO and SAA
-    ax3.plot(t_range, df1['SA_satisfy2'][(j3*end_ind):(j3+1)*end_ind:2], 'g-', linewidth=1, label = "SAA",marker="o",ms=0.01)
-    ax3.plot(t_range, df1['DRO_satisfy2'][(j3*end_ind):(j3+1)*end_ind:2], color ='black', linewidth=1, label = "DRO",marker="s",ms=0.01)
+    ax3.plot(t_range, df1['SA_satisfy2'][(j3*end_ind):(j3+1)*end_ind:2], 'g-', linewidth=1, label = "SAA",marker="o",ms=1.5)
+    ax3.plot(t_range, df1['DRO_satisfy2'][(j3*end_ind):(j3+1)*end_ind:2], color ='black', linewidth=1, label = "DRO",marker="s",ms=1.5)
     ax3.set_xlabel(r'Time step $(t)$')
     # ax3.set_xscale("log")
 
@@ -457,8 +454,10 @@ def plot_certificates(df, quantiles, df1=None, quantiles1=None,end_ind=61,j=(0,0
     # fig.subplots_adjust(bottom=0.05)  # Adjust the bottom margin to fit the legend
     plt.savefig(folderout + 'obj_analysis'+str(K)+'.pdf', bbox_inches='tight', dpi=300)
 
-def plot_eval(df, quantiles, df1=None, quantiles1=None,end_ind=61,j=(0,0,0), q = (40,60),K=5, alpha=0.1,legend = True):
+def plot_eval(df, quantiles, df1=None, quantiles1=None,end_ind=61,end_ind_dro=None,j=(0,0,0), q = (40,60),K=5, alpha=0.1,legend = True, xscale_log=True):
     j1,j2,j3 = j
+    if end_ind_dro is None:
+        end_ind_dro = end_ind
     # Set up LaTeX rendering
     df = df[K]
     df1 = df1[0]
@@ -476,32 +475,37 @@ def plot_eval(df, quantiles, df1=None, quantiles1=None,end_ind=61,j=(0,0,0), q =
         "legend.fontsize": fontsize
     })
     t_range = np.array(df['t'])[(0*end_ind):(1)*end_ind:2] +1
+    t_range_dro = np.array(df1['t'])[(0*end_ind_dro):(1)*end_ind_dro:2] +1
     plt.figure(figsize=(4.3, 2.1), dpi=300)
-    plt.plot(t_range, df['O_eval1'][(j1*end_ind):(j1+1)*end_ind:2], 'b-', linewidth=1, label = "online clustering" , marker="v",ms=0.01)
+    plt.plot(t_range, df['O_eval1'][(j1*end_ind):(j1+1)*end_ind:2], 'b-', linewidth=1, label = "online clustering" , marker="v",ms=1.5)
 
     plt.fill_between(np.array(t_range),y1=np.array(quantiles[q1]['O_eval1'][(j1*end_ind):(j1+1)*end_ind:2]).astype(float),y2=np.array(quantiles[q2]['O_eval1'][(j1*end_ind):(j1+1)*end_ind:2]).astype(float),alpha=alpha, color = 'b')
-    plt.plot(t_range, df['MRO_eval1'][(j2*end_ind):(j2+1)*end_ind:2], 'r-', linewidth=1, label = "reclustering", marker="D",ms=0.01)
+    plt.plot(t_range, df['MRO_eval1'][(j2*end_ind):(j2+1)*end_ind:2], 'r-', linewidth=1, label = "reclustering", marker="D",ms=1.5)
     plt.fill_between(np.array(t_range),y1=np.array(quantiles[q1]['MRO_eval1'][(j2*end_ind):(j2+1)*end_ind:2]).astype(float),y2=np.array(quantiles[q2]['MRO_eval1'][(j2*end_ind):(j2+1)*end_ind:2]).astype(float),alpha=alpha, color='r')
 
-    plt.plot(t_range, df1['DRO_eval2'][(j3*end_ind):(j3+1)*end_ind:2], 'black', linewidth=1, label = "DRO", marker="s",ms=0.01)
-    plt.fill_between(np.array(t_range),y1=np.array(quantiles1[q1]['DRO_eval2'][(j3*end_ind):(j3+1)*end_ind:2]).astype(float),y2=np.array(quantiles1[q2]['DRO_eval2'][(j3*end_ind):(j3+1)*end_ind:2]).astype(float),alpha=alpha, color='black')
+    plt.plot(t_range_dro, df1['DRO_eval2'][(j3*end_ind_dro):(j3+1)*end_ind_dro:2], 'black', linewidth=1, label = "DRO", marker="s",ms=1.5)
+    plt.fill_between(np.array(t_range_dro),y1=np.array(quantiles1[q1]['DRO_eval2'][(j3*end_ind_dro):(j3+1)*end_ind_dro:2]).astype(float),y2=np.array(quantiles1[q2]['DRO_eval2'][(j3*end_ind_dro):(j3+1)*end_ind_dro:2]).astype(float),alpha=alpha, color='black')
 
-    plt.plot(t_range, df1['SA_eval2'][(j3*end_ind):(j3+1)*end_ind:2], 'g-', linewidth=1, label = "SAA", marker="o",ms=0.01)
-    plt.fill_between(np.array(t_range),y1=np.array(quantiles1[q1]['SA_eval2'][(j3*end_ind):(j3+1)*end_ind:2]).astype(float),y2=np.array(quantiles1[q2]['SA_eval2'][(j3*end_ind):(j3+1)*end_ind:2]).astype(float),alpha=alpha, color='g')
+    plt.plot(t_range_dro, df1['SA_eval2'][(j3*end_ind_dro):(j3+1)*end_ind_dro:2], 'g-', linewidth=1, label = "SAA", marker="o",ms=1.5)
+    plt.fill_between(np.array(t_range_dro),y1=np.array(quantiles1[q1]['SA_eval2'][(j3*end_ind_dro):(j3+1)*end_ind_dro:2]).astype(float),y2=np.array(quantiles1[q2]['SA_eval2'][(j3*end_ind_dro):(j3+1)*end_ind_dro:2]).astype(float),alpha=alpha, color='g')
 
-    if 'SAA_eval1' in df.columns:
-        plt.plot(t_range, df['SAA_eval1'][(j1*end_ind):(j1+1)*end_ind:2], color ='m', linewidth=1, label = "cluster SAA",marker="x",ms=0.01)
-        if 'SAA_eval1' in quantiles[q1].columns:
-            plt.fill_between(np.array(t_range),y1=np.array(quantiles[q1]['SAA_eval1'][(j1*end_ind):(j1+1)*end_ind:2]).astype(float),y2=np.array(quantiles[q2]['SAA_eval1'][(j1*end_ind):(j1+1)*end_ind:2]).astype(float),alpha=alpha, color = 'm')
+    if 'cluster_SAA_eval1' in df.columns:
+        plt.plot(t_range, df['cluster_SAA_eval1'][(j1*end_ind):(j1+1)*end_ind:2], color ='m', linewidth=1, label = "cluster_SAA",marker="x",ms=1.5)
+        if 'cluster_SAA_eval1' in quantiles[q1].columns:
+            plt.fill_between(np.array(t_range),y1=np.array(quantiles[q1]['cluster_SAA_eval1'][(j1*end_ind):(j1+1)*end_ind:2]).astype(float),y2=np.array(quantiles[q2]['cluster_SAA_eval1'][(j1*end_ind):(j1+1)*end_ind:2]).astype(float),alpha=alpha, color = 'm')
 
-    plt.xscale("log")
-    plt.ylim([0.008,0.05])
+    if xscale_log:
+        plt.xscale("log")
+    # plt.ylim([0.008,0.04])
     if legend:
-        plt.legend()
+        plt.legend(loc='upper right')
     plt.xlabel(r'Time step $(t)$')
+    plt.yscale("log")
     plt.title(f'Out-of-sample expected value, $K$ = {K}')
     plt.grid(True, alpha=alpha)
-    plt.savefig(folderout+f'eval_analysis{K}.pdf', bbox_inches='tight', dpi=300)
+    suffix = '_log' if xscale_log else ''
+    plt.savefig(folderout+f'eval_analysis{K}{suffix}.pdf', bbox_inches='tight', dpi=300)
+
 
 def plot_eval_compare(
     df,  quantiles,  df1, quantiles1,
@@ -568,39 +572,34 @@ def plot_eval_compare(
         )
 
     # full
-    plt.plot(t_range, df['O_eval1'][(j1*end_ind):(j1+1)*end_ind:stride], 'b-',
-             linewidth=1, label="online clustering", marker="v", ms=0.01)
-    _band(quantiles[q1], quantiles[q2], 'O_eval1', j1, end_ind, 'b', t_range, stride)
+    # plt.plot(t_range, df['O_eval1'][(j1*end_ind):(j1+1)*end_ind:stride], 'b-',
+    #          linewidth=1, label="online clustering full", marker="v", ms=1.5)
+    # _band(quantiles[q1], quantiles[q2], 'O_eval1', j1, end_ind, 'b', t_range, stride)
     plt.plot(t_range, df['MRO_eval1'][(j2*end_ind):(j2+1)*end_ind:stride], 'r-',
-             linewidth=1, label="reclustering", marker="D", ms=0.01)
+             linewidth=1, label="reclustering full", marker="D", ms=1.5)
     _band(quantiles[q1], quantiles[q2], 'MRO_eval1', j2, end_ind, 'r', t_range, stride)
     plt.plot(t_range, df1['DRO_eval2'][(j3*end_ind):(j3+1)*end_ind:stride], color='black', linestyle='-',
-             linewidth=1, label="DRO", marker="s", ms=0.01)
+             linewidth=1, label="DRO full", marker="s", ms=1.5)
     _band(quantiles1[q1], quantiles1[q2], 'DRO_eval2', j3, end_ind, 'black', t_range, stride)
     plt.plot(t_range, df1['SA_eval2'][(j3*end_ind):(j3+1)*end_ind:stride], 'g-',
-             linewidth=1, label="SAA", marker="o", ms=0.01)
+             linewidth=1, label="SAA", marker="o", ms=1.5)
     _band(quantiles1[q1], quantiles1[q2], 'SA_eval2', j3, end_ind, 'g', t_range, stride)
     # subgrad overlay (no SAA) -- lighter shades, dashed.
-    plt.plot(t_range_grad, df2['O_eval1'][(j1g*end_ind_grad):(j1g+1)*end_ind_grad:stride_grad],
-             color='cornflowerblue', linestyle='--',
-             linewidth=1, label="online clustering subgrad", marker="v", ms=0.01)
-    _band(quantiles2[q1], quantiles2[q2], 'O_eval1', j1g, end_ind_grad, 'cornflowerblue', t_range_grad, stride_grad)
-    plt.plot(t_range_grad, df2['MRO_eval1'][(j2g*end_ind_grad):(j2g+1)*end_ind_grad:stride_grad],
-             color='salmon', linestyle='--',
-             linewidth=1, label="reclustering subgrad", marker="D", ms=0.01)
-    _band(quantiles2[q1], quantiles2[q2], 'MRO_eval1', j2g, end_ind_grad, 'salmon', t_range_grad, stride_grad)
+    # plt.plot(t_range_grad, df2['O_eval1'][(j1g*end_ind_grad):(j1g+1)*end_ind_grad:stride_grad],
+    #          color='cornflowerblue', linestyle='--',
+    #          linewidth=1, label="online clustering subgrad", marker="v", ms=1.5)
+    # _band(quantiles2[q1], quantiles2[q2], 'O_eval1', j1g, end_ind_grad, 'cornflowerblue', t_range_grad, stride_grad)
+    # plt.plot(t_range_grad, df2['MRO_eval1'][(j2g*end_ind_grad):(j2g+1)*end_ind_grad:stride_grad],
+    #          color='salmon', linestyle='--',
+    #          linewidth=1, label="reclustering subgrad", marker="D", ms=1.5)
+    # _band(quantiles2[q1], quantiles2[q2], 'MRO_eval1', j2g, end_ind_grad, 'salmon', t_range_grad, stride_grad)
     plt.plot(t_range_grad, df3['DRO_eval2'][(j3g*end_ind_grad):(j3g+1)*end_ind_grad:stride_grad],
              color='gray', linestyle='--',
-             linewidth=1, label="DRO subgrad", marker="s", ms=0.01)
+             linewidth=1, label="DRO subgrad", marker="s", ms=1.5)
     _band(quantiles3[q1], quantiles3[q2], 'DRO_eval2', j3g, end_ind_grad, 'gray', t_range_grad, stride_grad)
-    if 'SAA_eval1' in df.columns:
-        plt.plot(t_range, df['SAA_eval1'][(j1*end_ind):(j1+1)*end_ind:2], color ='m', linewidth=1, label = "cluster SAA",marker="x",ms=0.01)
-        if 'SAA_eval1' in quantiles[q1].columns:
-            plt.fill_between(np.array(t_range),y1=np.array(quantiles[q1]['SAA_eval1'][(j1*end_ind):(j1+1)*end_ind:2]).astype(float),y2=np.array(quantiles[q2]['SAA_eval1'][(j1*end_ind):(j1+1)*end_ind:2]).astype(float),alpha=alpha, color = 'm')
 
     plt.xscale("log")
-    plt.yscale("log")
-    # plt.ylim([0.008, 0.05])
+    plt.ylim([0.008, 0.04])
     if legend:
         plt.legend(ncol=2, fontsize=fontsize - 2)
     plt.xlabel(r'Time step $(t)$')
@@ -630,15 +629,15 @@ def plot_satisfy(df, df1=None,end_ind=61,j=(0,0,0),K=5):
     plt.figure(figsize=(4, 2), dpi=300)
 
     # online and reclustering
-    plt.plot(t_range, df['O_satisfy1'][(j1*end_ind)+1:(j1+1)*end_ind:2], 'b-', linewidth=1, label = "online clustering", marker="v",ms=0.01)
-    plt.plot(t_range, df['MRO_satisfy1'][(j2*end_ind)+1:(j2+1)*end_ind:2], 'r-', linewidth=1, label = "reclustering",marker="D",ms=0.01)
+    plt.plot(t_range, df['O_satisfy1'][(j1*end_ind)+1:(j1+1)*end_ind:2], 'b-', linewidth=1, label = "online clustering", marker="v",ms=1.5)
+    plt.plot(t_range, df['MRO_satisfy1'][(j2*end_ind)+1:(j2+1)*end_ind:2], 'r-', linewidth=1, label = "reclustering",marker="D",ms=1.5)
     
     #reclustering worst
-    plt.plot(t_range, df['MRO_worst_satisfy1'][(j2*end_ind)+1:(j2+1)*end_ind:2], 'r:', linewidth=1, label = r"reclustering $\hat{H}^K_t$",marker="^",ms=0.01)
+    plt.plot(t_range, df['MRO_worst_satisfy1'][(j2*end_ind)+1:(j2+1)*end_ind:2], 'r:', linewidth=1, label = r"reclustering $\hat{H}^K_t$",marker="^",ms=1.5)
 
     # DRO and SAA
-    plt.plot(t_range, df1['SA_satisfy1'][(j3*end_ind):(j3+1)*end_ind:2], 'g-', linewidth=1, label = "SAA",marker="o",ms=0.01)
-    plt.plot(t_range, df1['DRO_satisfy1'][(j3*end_ind):(j3+1)*end_ind:2], color ='black', linewidth=1, label = "DRO",marker="s",ms=0.01)
+    plt.plot(t_range, df1['SA_satisfy1'][(j3*end_ind):(j3+1)*end_ind:2], 'g-', linewidth=1, label = "SAA",marker="o",ms=1.5)
+    plt.plot(t_range, df1['DRO_satisfy1'][(j3*end_ind):(j3+1)*end_ind:2], color ='black', linewidth=1, label = "DRO",marker="s",ms=1.5)
     plt.legend()
     plt.xlabel(r'Time step $(t)$')
     plt.title(r'Confidence $(1-\hat{\beta}_t)$')
@@ -668,19 +667,19 @@ def plot_regret(df, quantiles, df1=None, quantiles1=None,end_ind=61,j=(0,0,0), q
 
     # online and reclustering regret
 
-    plt.plot(t_range, 5*df['regret_bound'][(j1*end_ind+1):(j1+1)*end_ind:2]+ np.array([5*np.sum(df['sig_val'][(j1*end_ind+1):(j1+1)*end_ind:2][:i+1])/(i) for i in range(1,int((end_ind)/2)+1)]), 'b:', linewidth=1, label = "online clustering UB", marker="o",ms=0.01)
+    plt.plot(t_range, 5*df['regret_bound'][(j1*end_ind+1):(j1+1)*end_ind:2]+ np.array([5*np.sum(df['sig_val'][(j1*end_ind+1):(j1+1)*end_ind:2][:i+1])/(i) for i in range(1,int((end_ind)/2)+1)]), 'b:', linewidth=1, label = "online clustering UB", marker="o",ms=1.5)
     
     plt.plot(t_range, 5*np.array(df['sig_val'][(j1*end_ind+1):(j1+1)*end_ind:2]), 'b--', label = r"online clustering $\Phi^K_t$",linewidth = 0.5)
 
-    plt.plot(t_range, np.array([np.sum((np.array(df['worst_values_regret'][(j1*end_ind+1):(j1+1)*end_ind:2])-np.array(df1['DRO_obj_values'][(j3*end_ind+1):(j3+1)*end_ind:2]))[:i+1])/(i) for i in range(1,int((end_ind)/2)+1)]), 'b-', linewidth=1, label = "online clustering", marker="v",ms=0.01)
+    plt.plot(t_range, np.array([np.sum((np.array(df['worst_values_regret'][(j1*end_ind+1):(j1+1)*end_ind:2])-np.array(df1['DRO_obj_values'][(j3*end_ind+1):(j3+1)*end_ind:2]))[:i+1])/(i) for i in range(1,int((end_ind)/2)+1)]), 'b-', linewidth=1, label = "online clustering", marker="v",ms=1.5)
 
 
 
-    plt.plot(t_range, 5*df['MRO_regret_bound'][(j2*end_ind+1):(j2+1)*end_ind:2]+ np.array([5*np.sum(df['MRO_sig_val'][(j2*end_ind+1):(j2+1)*end_ind:2][:i+1])/(i) for i in range(1,int((end_ind)/2)+1)]) , 'r:', linewidth=1, label = "reclustering UB", marker="D",ms=0.01)
+    plt.plot(t_range, 5*df['MRO_regret_bound'][(j2*end_ind+1):(j2+1)*end_ind:2]+ np.array([5*np.sum(df['MRO_sig_val'][(j2*end_ind+1):(j2+1)*end_ind:2][:i+1])/(i) for i in range(1,int((end_ind)/2)+1)]) , 'r:', linewidth=1, label = "reclustering UB", marker="D",ms=1.5)
 
     plt.plot(t_range, 5*np.array(df['MRO_sig_val'][(j2*end_ind+1):(j2+1)*end_ind:2]), 'r--',label = r"reclustering $\Phi^K_t$" , linewidth = 0.5)
 
-    plt.plot(t_range, np.array([np.sum((np.array(df['MRO_worst_values_regret'][(j2*end_ind+1):(j2+1)*end_ind:2])-np.array(df1['DRO_obj_values'][(j3*end_ind+1):(j3+1)*end_ind:2]))[:i+1])/(i) for i in range(1,int((end_ind)/2)+1)]), 'r-', linewidth=1, label = "reclustering", marker="D",ms=0.01)
+    plt.plot(t_range, np.array([np.sum((np.array(df['MRO_worst_values_regret'][(j2*end_ind+1):(j2+1)*end_ind:2])-np.array(df1['DRO_obj_values'][(j3*end_ind+1):(j3+1)*end_ind:2]))[:i+1])/(i) for i in range(1,int((end_ind)/2)+1)]), 'r-', linewidth=1, label = "reclustering", marker="D",ms=1.5)
     
 
     plt.fill_between(np.array(t_range),y1=[np.sum((np.array(quantiles[q1]['worst_values_regret'][(j1*end_ind+1):(j1+1)*end_ind:2])-np.array(quantiles1[q1]['DRO_obj_values'][(j3*end_ind+1):(j3+1)*end_ind:2]))[:i+1])/(i) for i in range(1,int((end_ind)/2)+1)],y2=[np.sum((np.array(quantiles[q2]['worst_values_regret'][(j1*end_ind+1):(j1+1)*end_ind:2])-np.array(quantiles1[q2]['DRO_obj_values'][(j3*end_ind+1):(j3+1)*end_ind:2]))[:i+1])/(i) for i in range(1,int((end_ind)/2)+1)],alpha=alpha, color = 'b')
@@ -731,18 +730,18 @@ def plot_regret_new(df, quantiles, df1=None, quantiles1=None,end_ind=61,j=(0,0,0
 
     # online and reclustering regret
 
-    # plt.plot(t_range, 5*df['regret_bound'][(j1*end_ind+1):(j1+1)*end_ind:2]+ np.array([5*np.sum(df['sig_val'][(j1*end_ind+1):(j1+1)*end_ind:2][:i+1])/(i) for i in range(1,int((end_ind)/2)+1)]), 'b:', linewidth=1, label = "online clustering UB", marker="o",ms=0.01)
+    # plt.plot(t_range, 5*df['regret_bound'][(j1*end_ind+1):(j1+1)*end_ind:2]+ np.array([5*np.sum(df['sig_val'][(j1*end_ind+1):(j1+1)*end_ind:2][:i+1])/(i) for i in range(1,int((end_ind)/2)+1)]), 'b:', linewidth=1, label = "online clustering UB", marker="o",ms=1.5)
     
     # plt.plot(t_range, 5*np.array(df['sig_val'][(j1*end_ind+1):(j1+1)*end_ind:2]), 'b--', label = r"online clustering $\Phi^K_t$",linewidth = 0.5)
 
-    # plt.plot(t_range, np.array([np.sum((np.array(df['worst_values_regret'][(j1*end_ind+1):(j1+1)*end_ind:2])-np.array(df1['DRO_obj_values'][(j3*end_ind+1):(j3+1)*end_ind:2]))[:i+1])/(i) for i in range(1,int((end_ind)/2)+1)]), 'b-', linewidth=1, label = "online clustering", marker="v",ms=0.01)
+    # plt.plot(t_range, np.array([np.sum((np.array(df['worst_values_regret'][(j1*end_ind+1):(j1+1)*end_ind:2])-np.array(df1['DRO_obj_values'][(j3*end_ind+1):(j3+1)*end_ind:2]))[:i+1])/(i) for i in range(1,int((end_ind)/2)+1)]), 'b-', linewidth=1, label = "online clustering", marker="v",ms=1.5)
 
 
-    plt.plot(t_range, 5*df['MRO_regret_bound'][(j2*end_ind+1):(j2+1)*end_ind:2]+ np.array([5*np.sum(df['MRO_sig_val'][(j2*end_ind+1):(j2+1)*end_ind:2][:i+1])/(i) for i in range(1,int((end_ind)/2)+1)]), color='cornflowerblue', linestyle = ":", linewidth=1, label = "reclustering UB", marker="D",ms=0.01)
+    plt.plot(t_range, 5*df['MRO_regret_bound'][(j2*end_ind+1):(j2+1)*end_ind:2]+ np.array([5*np.sum(df['MRO_sig_val'][(j2*end_ind+1):(j2+1)*end_ind:2][:i+1])/(i) for i in range(1,int((end_ind)/2)+1)])  - 5*np.array([2*np.sum(radius[:i+1])/(i) +2*radius[i]/(i)  for i in range(1,int((end_ind)/2)+1)]), color='cornflowerblue', linestyle = ":", linewidth=1, label = "reclustering UB", marker="D",ms=1.5)
 
     # plt.plot(t_range, 5*np.array(df['MRO_sig_val'][(j2*end_ind+1):(j2+1)*end_ind:2]), 'r--',label = r"reclustering $\Phi^K_t$" , linewidth = 0.5)
 
-    plt.plot(t_range, np.array([np.sum((np.array(df['MRO_worst_values_regret'][(j2*end_ind+1):(j2+1)*end_ind:2])-np.array(df1['DRO_obj_values'][(j3*end_ind+1):(j3+1)*end_ind:2]))[:i+1])/(i) for i in range(1,int((end_ind)/2)+1)]), 'r-', linewidth=1, label = "reclustering empirical", marker="D",ms=0.01)
+    plt.plot(t_range, np.array([np.sum((np.array(df['MRO_worst_values_regret'][(j2*end_ind+1):(j2+1)*end_ind:2])-np.array(df1['DRO_obj_values'][(j3*end_ind+1):(j3+1)*end_ind:2]))[:i+1])/(i) for i in range(1,int((end_ind)/2)+1)]), 'r-', linewidth=1, label = "reclustering empirical", marker="D",ms=1.5)
     
 
     # plt.fill_between(np.array(t_range),y1=[np.sum((np.array(quantiles[q1]['worst_values_regret'][(j1*end_ind+1):(j1+1)*end_ind:2])-np.array(quantiles1[q1]['DRO_obj_values'][(j3*end_ind+1):(j3+1)*end_ind:2]))[:i+1])/(i) for i in range(1,int((end_ind)/2)+1)],y2=[np.sum((np.array(quantiles[q2]['worst_values_regret'][(j1*end_ind+1):(j1+1)*end_ind:2])-np.array(quantiles1[q2]['DRO_obj_values'][(j3*end_ind+1):(j3+1)*end_ind:2]))[:i+1])/(i) for i in range(1,int((end_ind)/2)+1)],alpha=alpha, color = 'b')
@@ -757,13 +756,13 @@ def plot_regret_new(df, quantiles, df1=None, quantiles1=None,end_ind=61,j=(0,0,0
     # plt.fill_between(np.array(t_range),y1=np.array(5*quantiles[q1]['regret_bound'][(j1*end_ind+1):(j1+1)*end_ind:2])+ np.array([5*np.sum(quantiles[q1]['sig_val'][(j1*end_ind+1):(j1+1)*end_ind:2][:i+1])/(i) for i in  range(1,int((end_ind)/2)+1)]) ,y2=np.array(5*quantiles[q2]['regret_bound'][(j1*end_ind+1):(j1+1)*end_ind:2])+np.array([5*np.sum(quantiles[q2]['sig_val'][(j1*end_ind+1):(j1+1)*end_ind:2][:i+1])/(i) for i in range(1,int((end_ind)/2)+1)]) ,alpha=alpha, color = 'b')
 
     
-    plt.fill_between(np.array(t_range),y1=np.array(5*quantiles[q1]['MRO_regret_bound'][(j2*end_ind+1):(j2+1)*end_ind:2])+ np.array([5*np.sum(quantiles[q1]['MRO_sig_val'][(j2*end_ind+1):(j2+1)*end_ind:2][:i+1])/(i) for i in  range(1,int((end_ind)/2)+1)]) ,y2=np.array(5*quantiles[q2]['MRO_regret_bound'][(j2*end_ind+1):(j2+1)*end_ind:2])+np.array([5*np.sum(quantiles[q2]['MRO_sig_val'][(j2*end_ind+1):(j2+1)*end_ind:2][:i+1])/(i) for i in range(1,int((end_ind)/2)+1)]),alpha=alpha, color = 'cornflowerblue')
+    plt.fill_between(np.array(t_range),y1=np.array(5*quantiles[q1]['MRO_regret_bound'][(j2*end_ind+1):(j2+1)*end_ind:2])+ np.array([5*np.sum(quantiles[q1]['MRO_sig_val'][(j2*end_ind+1):(j2+1)*end_ind:2][:i+1])/(i) for i in  range(1,int((end_ind)/2)+1)]) - 5*np.array([2*np.sum(radius[:i+1])/(i) +2*radius[i]/(i)  for i in range(1,int((end_ind)/2)+1)]) ,y2=np.array(5*quantiles[q2]['MRO_regret_bound'][(j2*end_ind+1):(j2+1)*end_ind:2])+np.array([5*np.sum(quantiles[q2]['MRO_sig_val'][(j2*end_ind+1):(j2+1)*end_ind:2][:i+1])/(i) for i in range(1,int((end_ind)/2)+1)]) - 5*np.array([2*np.sum(radius[:i+1])/(i) +2*radius[i]/(i)  for i in range(1,int((end_ind)/2)+1)]),alpha=alpha, color = 'cornflowerblue')
 
 
     plt.legend(ncol = 2)
     plt.xlabel(r'Time step $(t)$')
     plt.title(r'Dynamic regret')
-    plt.ylim(ylim)
+    # plt.ylim(ylim)
     plt.yscale('log')
     plt.xscale('log')
     plt.grid(True, alpha=alpha)
@@ -792,27 +791,27 @@ def plot_bounds(df, quantiles, df1=None, quantiles1=None, end_ind=61,j=(0,0,0), 
     plt.figure(figsize=(4.3, 2), dpi=300)
 
     # DRO upper
-    plt.plot(t_range, np.array(df1['DRO_obj_values'][(j3*end_ind):(j3+1)*end_ind:2])+ 5*np.array(df['MRO_sig_val'][(j2*end_ind):(j2+1)*end_ind:2]), color ='purple', linewidth=1, label = r"DRO $H_t + \underline{\psi}^K_t$", marker="s",ms=0.01)
+    plt.plot(t_range, np.array(df1['DRO_obj_values'][(j3*end_ind):(j3+1)*end_ind:2])+ 5*np.array(df['MRO_sig_val'][(j2*end_ind):(j2+1)*end_ind:2]), color ='purple', linewidth=1, label = r"DRO $H_t + \underline{\psi}^K_t$", marker="s",ms=1.5)
 
     plt.fill_between(np.array(t_range),y1=np.array(quantiles1[q1]['DRO_obj_values'][(j3*end_ind):(j3+1)*end_ind:2])+5*np.array(quantiles[q1]['MRO_sig_val'][(j2*end_ind):(j2+1)*end_ind:2]) ,y2=np.array(quantiles1[q2]['DRO_obj_values'][(j3*end_ind):(j3+1)*end_ind:2])+5*np.array(quantiles[q2]['MRO_sig_val'][(j2*end_ind):(j2+1)*end_ind:2]),alpha=alpha, color = 'purple')
 
     # reclustering upper
-    plt.plot(t_range, df['MRO_obj_values'][(j2*end_ind):(j2+1)*end_ind:2] + 5*df['MRO_sig_val'][(j2*end_ind):(j2+1)*end_ind:2], 'r', linewidth=1, label = r"reclustering $H^K_t + \underline{\psi}^K_t$", marker="D",ms=0.01)
+    plt.plot(t_range, df['MRO_obj_values'][(j2*end_ind):(j2+1)*end_ind:2] + 5*df['MRO_sig_val'][(j2*end_ind):(j2+1)*end_ind:2], 'r', linewidth=1, label = r"reclustering $H^K_t + \underline{\psi}^K_t$", marker="D",ms=1.5)
     plt.fill_between(np.array(t_range),y1=np.array(quantiles[q1]['MRO_obj_values'][(j2*end_ind):(j2+1)*end_ind:2]).astype(float)+ 5*np.array(quantiles[q1]['MRO_sig_val'][(j2*end_ind):(j2+1)*end_ind:2]).astype(float),y2=np.array(quantiles[q2]['MRO_obj_values'][(j2*end_ind):(j2+1)*end_ind:2]).astype(float)+5*np.array(quantiles[q2]['MRO_sig_val'][(j2*end_ind):(j2+1)*end_ind:2]).astype(float),alpha=alpha, color='r')
 
 
     # DRO
-    plt.plot(t_range, df1['DRO_obj_values'][(j3*end_ind):(j3+1)*end_ind:2], color ='black', linewidth=1, label = r"DRO $H_t$", marker="s",ms=0.01)
+    plt.plot(t_range, df1['DRO_obj_values'][(j3*end_ind):(j3+1)*end_ind:2], color ='black', linewidth=1, label = r"DRO $H_t$", marker="s",ms=1.5)
     plt.fill_between(np.array(t_range),y1=np.array(quantiles1[q1]['DRO_obj_values'][(j3*end_ind):(j3+1)*end_ind:2]).astype(float),y2=np.array(quantiles1[q2]['DRO_obj_values'][(j3*end_ind):(j3+1)*end_ind:2]).astype(float),alpha=alpha, color = 'black')
     
     # reclustering 
-    plt.plot(t_range, df['MRO_obj_values'][(j2*end_ind):(j2+1)*end_ind:2], 'orange', linewidth=1, label = r"reclustering $H^K_t$", marker="v",ms=0.01)
+    plt.plot(t_range, df['MRO_obj_values'][(j2*end_ind):(j2+1)*end_ind:2], 'orange', linewidth=1, label = r"reclustering $H^K_t$", marker="v",ms=1.5)
     plt.fill_between(np.array(t_range),y1=np.array(quantiles[q1]['MRO_obj_values'][(j2*end_ind):(j2+1)*end_ind:2]).astype(float),y2=np.array(quantiles[q2]['MRO_obj_values'][(j2*end_ind):(j2+1)*end_ind:2]).astype(float),alpha=alpha, color='orange')
 
     # # reclustering worst
     # plt.fill_between(np.array(t_range),y1=np.array(quantiles[q1]['MRO_worst_values'][(j2*end_ind):(j2+1)*end_ind:2]).astype(float),y2=np.array(quantiles[q2]['MRO_worst_values'][(j2*end_ind):(j2+1)*end_ind:2]).astype(float),alpha=alpha, color='r')
 
-    # plt.plot(t_range, df['MRO_worst_values'][(j2*end_ind):(j2+1)*end_ind:2], 'r-', linewidth=1, label = r"reclustering $\hat{H}^K_t$", marker="^",ms=0.01)
+    # plt.plot(t_range, df['MRO_worst_values'][(j2*end_ind):(j2+1)*end_ind:2], 'r-', linewidth=1, label = r"reclustering $\hat{H}^K_t$", marker="^",ms=1.5)
     
 
     
@@ -853,7 +852,7 @@ def setup_dfs(folderout = None, foldername = None, K_list = K_list, init = False
         quantiles = {}
         for K in K_list:
             dfs_list = []
-            for r in range(15):
+            for r in range(R):
                 csv_path = foldername + 'df_' + 'K'+str(K)+'R'+ str(r) +'.csv'
                 if not os.path.exists(csv_path):
                     continue
@@ -932,66 +931,55 @@ def infer_end_ind(df_dict, K=None, t_col='t'):
 # preamble = "/Users/irina.wang/Desktop/Princeton/Project2/mro_mpc/"
 preamble = "/scratch/gpfs/BSTELLATO/iywang/low_rank/online_mro/"
 
-foldername_orig = preamble + 'port_new/results/orig/p1/10/T'+str(T-1)+'R'+str(R)+'/'
+ind = 0
+ind1 = 0
+foldername_orig = preamble + f'regression/results/p2/{ind}/T'+str(T-1)+'R'+str(R)+'/'
 
-folderout_orig = preamble + 'port_new/plots_new/orig/10/T'+str(T-1)+'R'+str(R)+'/'
-
-os.makedirs(folderout_orig, exist_ok=True)
-
-foldername_orig_dro = preamble + 'port_new/results/orig/p1/4/T'+str(T-1)+'R'+str(R)+'/'
-
-folderout_orig_dro = preamble + 'port_new/plots_new/orig/4/T'+str(T-1)+'R'+str(R)+'/'
+folderout_orig = preamble + f'regression/plots/p2/{ind}/T'+str(T-1)+'R'+str(R)+'/'
 
 os.makedirs(folderout_orig, exist_ok=True)
 
-foldername_new = preamble + 'port_new/results/new/p1/0/T'+str(T-1)+'R'+str(R)+'/'
+foldername_orig_dro = preamble + f'regression/results/p2/{ind1}/T'+str(T-1)+'R'+str(R)+'/'
 
-folderout_new = preamble + 'port_new/plots_new/new/0/T'+str(T-1)+'R'+str(R)+'/'
+folderout_orig_dro = preamble + f'regression/plots/p2/{ind1}/T'+str(T-1)+'R'+str(R)+'/'
 
-os.makedirs(folderout_new, exist_ok=True)
+os.makedirs(folderout_orig_dro, exist_ok=True)
 
-foldername_new_dro = preamble + 'port_new/results/new/p1/0/T'+str(T-1)+'R'+str(R)+'/'
 
-folderout_new_dro = preamble + 'port_new/plots_new/new/0/T'+str(T-1)+'R'+str(R)+'/'
-
-os.makedirs(folderout_new_dro, exist_ok=True)
-
-folderout = preamble + 'port_new/plots_new/comp/4_redo_2/T'+str(T-1)+'R'+str(R)+'/'
+folderout = preamble + f'regression/plots/p2/{ind}/T'+str(T-1)+'R'+str(R)+'/'
 
 os.makedirs(folderout, exist_ok=True)
 
 
-df_orig, quantiles_orig = setup_dfs(foldername = foldername_orig, folderout = folderout_orig, K_list = [15,25], init = True)
+df_orig, quantiles_orig = setup_dfs(foldername = foldername_orig, folderout = folderout_orig, K_list = [10,15,25], init = True)
 
-df_new, quantiles_new = setup_dfs(foldername = foldername_new, folderout = folderout_new, K_list = [15,25], init = True)
 
-df_orig_dro, quantiles_orig_dro = setup_dfs(foldername = foldername_orig_dro, folderout = folderout_orig_dro, K_list = [0], init = False)
+df_orig_dro, quantiles_orig_dro = setup_dfs(foldername = foldername_orig_dro, folderout = folderout_orig_dro, K_list = [0], init = True)
 
-df_new_dro, quantiles_new_dro = setup_dfs(foldername = foldername_new_dro, folderout = folderout_new_dro, K_list = [0], init = True)
 
 # df1,quantiles1 = setup_dfs(folderout = folderout,init = False)
 
-end_ind_orig = infer_end_ind(df_orig, K=25)
+end_ind_orig = infer_end_ind(df_orig, K=15)
 end_ind_new = 0
-end_ind_new = infer_end_ind(df_new_dro, K = 25)
+end_ind_dro = infer_end_ind(df_orig_dro, K = 15)
 
-plot_eval_all(df_orig,quantiles_orig,df_orig_dro,quantiles_orig_dro,j=(1,3,5),K=15,q=(25,75),ylim=[0.004,0.02],legend = True,val2=2.3, end_ind=end_ind_orig)
+plot_eval_all(df_orig,quantiles_orig,df_orig_dro,quantiles_orig_dro,j=(4,5,5),K=15,q=(25,75),ylim=None,legend = True,val2=2.3, end_ind=end_ind_orig, end_ind_dro=end_ind_dro,xscale_log=True)
 
-plot_eval(df_orig,quantiles_orig,df_orig_dro,quantiles_orig_dro,j=(1,3,5),K=15,q=(25,75),end_ind=end_ind_orig,legend = True)
+plot_eval(df_orig,quantiles_orig,df_orig_dro,quantiles_orig_dro,j=(4,5,5),K=15,q=(25,75),end_ind=end_ind_orig,legend = True,end_ind_dro=end_ind_dro,xscale_log = False)
 
 
-plot_eval_all_compare(
-    df_orig, quantiles_orig, df_orig_dro, quantiles_orig_dro,
-    df_new, quantiles_new, df_new_dro, quantiles_new_dro,
-    j=(4,4,5), j_grad=(6,6,0), K=25, q=(25,75),
-    end_ind=end_ind_orig, end_ind_grad= end_ind_new,val2=2.3, legend=True,
-)
+# plot_eval_all_compare(
+#     df_orig, quantiles_orig, df_orig_dro, quantiles_orig_dro,
+#     df_new, quantiles_new, df_new_dro, quantiles_new_dro,
+#     j=(0,2,4), j_grad=(0,2,4), K=25, q=(25,75),
+#     end_ind=end_ind_orig, end_ind_grad= end_ind_new,val2=2.3, legend=True,
+# )
 
-plot_eval_compare(
-   df_orig, quantiles_orig, df_orig_dro, quantiles_orig_dro,
-    df_new, quantiles_new, df_new_dro, quantiles_new_dro,
-    j=(4,4,5), j_grad=(6,6,0), K=25, q=(25,75),
-    end_ind=end_ind_orig, end_ind_grad= end_ind_new, legend=True,
-)
+# plot_eval_compare(
+#    df_orig, quantiles_orig, df_orig_dro, quantiles_orig_dro,
+#     df_new, quantiles_new, df_new_dro, quantiles_new_dro,
+#     j=(0,2,5), j_grad=(0,2,0), K=25, q=(25,75),
+#     end_ind=end_ind_orig, end_ind_grad= end_ind_new, legend=True,
+# )
 
-plot_regret_new(df_orig,quantiles_orig,df_orig_dro[0],quantiles_orig_dro[0],j=(1,3,5),K=15,q=(25,75),end_ind = end_ind_orig,ylim=[0.0005,1])
+# plot_regret_new(df_orig,quantiles_orig,df_orig_dro[0],quantiles_orig_dro[0],j=(5,5,5),K=15,q=(25,75),end_ind = end_ind_orig,ylim=[0.0005,1])
