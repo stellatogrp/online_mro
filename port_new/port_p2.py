@@ -429,7 +429,16 @@ def port_experiments(r_input,K,T,N_init,synthetic_returns,eta_0,r_start, newfold
                 print(f"Current epsilon: {radius}")
                 # print(f"Weight sum: {np.sum(k_dict['w'])}")
 
-            if (t % interval == 0 or ((t-1) % interval == 0) or (t in t_list)) and (t <= 2001 or (t in t_list)):
+            # Intermediate checkpoint CSV: only at the t_list checkpoints, every
+            # 200th step, or the final step. The complete CSV is written after the
+            # loop, so this is purely crash-recovery/progress. Writing it on every
+            # active step was O(T^2): the frame has array-valued columns that
+            # pandas stringifies (str(ndarray)) on each full rewrite, which was
+            # ~76% of this variant's runtime (~1.9 h/task at T=2001). See
+            # PROFILING.md.
+            if (((t % interval == 0 or ((t-1) % interval == 0) or (t in t_list))
+                    and (t <= 2001 or (t in t_list)))
+                    and (t in t_list or t % 200 == 0 or t == T - 1)):
 
                 MRO_e, MRO_s, online_e, online_s, online_ws, MRO_ws = compute_cumulative_regret(
                 history, dateval, m)

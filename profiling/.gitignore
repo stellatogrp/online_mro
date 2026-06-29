@@ -1,0 +1,17 @@
+# Local profiling environment and bulky/regenerable artifacts.
+.venv/
+__pycache__/
+*.pyc
+
+# Experiment output written by the drivers during profiling runs.
+results/work/
+results/T301/
+results/T301fix/
+
+# Regenerable per-run dumps. The distilled numbers live in PROFILING.md; the
+# small scaling_*.json are kept as evidence.
+*.pstats
+results/*.summary.json
+results/*.profile.txt
+
+# Keep: profile_run.py, scaling_study.py, results/scaling_*.json.

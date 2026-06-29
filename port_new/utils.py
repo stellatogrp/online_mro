@@ -472,7 +472,9 @@ def w2_dist(k1, k2, m):
     if k1['K']>K:
         dists = cdist(k1['d'][K].reshape((1,m)),k2['d'][:K])
         val += dists@np.abs(k2['w'][:K] - k1['w'][:K])
-    return float(val)
+    # val can become a size-1 array in the branch above; np.sum keeps this a
+    # plain float under numpy >= 2.0 (float() on a 1-element array now raises).
+    return float(np.sum(val))
 
 def wasserstein(samples_p, samples_q):
     """

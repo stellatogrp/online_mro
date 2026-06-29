@@ -2,9 +2,13 @@
 #SBATCH --job-name=portfoliotest
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
+# Right-sized from profiling (see PROFILING.md): port_DRO_orig_p2 is a sparse LP
+# (CLARABEL), peaks < ~0.5 GB/worker and finishes in minutes/task; the old
+# 5G/24h request (175 GB!) is why this job queued for hours. For the port_p2
+# (ours) line, use ~1G and 1:30:00 once the CSV-checkpoint fix is in.
 #SBATCH --cpus-per-task=35
-#SBATCH --mem-per-cpu=5G
-#SBATCH --time=24:00:00
+#SBATCH --mem-per-cpu=1G
+#SBATCH --time=1:00:00
 #SBATCH -o /scratch/gpfs/BSTELLATO/iywang/low_rank/online_mro/portfolio_test_p2_%A_.txt
 #SBATCH --mail-type=BEGIN,END,FAIL,TIME_LIMIT
 #SBATCH --mail-user=iabirina@hotmail.com
@@ -18,6 +22,11 @@ export MOSEKLM_LICENSE_FILE=/scratch/gpfs/BSTELLATO/iywang/low_rank/low-rank-dro
 module purge
 module load anaconda3/2024.2
 conda activate lropt_rev
+
+# Avoid BLAS/OpenMP oversubscription across the joblib workers.
+export OMP_NUM_THREADS=1
+export OPENBLAS_NUM_THREADS=1
+export MKL_NUM_THREADS=1
 
 # python port_new/port_orig_p2.py --foldername port_new/results/orig/p2/5/ --R 5 --T 2001 --fixed_time 2001 --interval 20 --Q 500 --K 15 --N_init 5 --r_start 0 --m 50 --rmse_mult 1.25  --cluster_interval 10
 
