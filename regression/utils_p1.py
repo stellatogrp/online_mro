@@ -206,6 +206,113 @@ def evaluate_misclassification_hinge(d_eval, m, beta):
 
 
 # --------------------------------------------------------------------------- #
+# Finite label-transport-cost variants (kappa < infinity)
+# --------------------------------------------------------------------------- #
+def createproblem_hingeMIO_kappa(N, m, k, M_big=10.0, p=2):
+    """DRO sparse-SVM with finite label transport cost kappa (MI-SOCP/MILP).
+
+    Transport cost: c((x,y),(x',y')) = ||x - x'||_q + kappa * |y - y'|,
+    with 1/p + 1/q = 1.
+
+    With binary labels y in {-1,+1}, |y - y'| is 0 (same label) or 2 (flip).
+    Taking the Wasserstein dual and splitting by y' = y_i vs y' = -y_i gives:
+
+        min_{beta, z, lambda, s}  lambda * rho + w^T s
+        s.t.  s_i >= 1 - y_i beta^T x_i               (same-label case)
+              s_i >= 1 + y_i beta^T x_i - 2*kappa*lambda  (label-flip case)
+              s_i >= 0
+              ||beta||_p <= lambda,  lambda >= 0
+              -M z_j <= beta_j <= M z_j,  sum z_j <= k,  z in {0,1}^m.
+
+    p=2 (default): SOC constraint ||beta||_2 <= lambda  ->  MI-SOCP.
+    p=1: LP constraint ||beta||_1 <= lambda  ->  MILP.
+
+    When kappa -> inf the flip constraints are always slack and we recover the
+    closed form: lambda = ||beta||_p, V = rho*||beta||_p + hinge.
+
+    Parameters
+    ----------
+    N : int   number of (weighted) samples / cluster centroids.
+    m : int   covariate dimension.  Each data row has length m+1 (x then y).
+    k : int   cardinality budget ||beta||_0 <= k.
+    M_big : float   big-M bound on |beta_j|.
+    p : int   dual norm exponent (1 or 2).
+
+    Returns
+    -------
+    problem, beta, z, lmbda, s, dat, eps, kappa_param, w
+        ``dat``         : Parameter (N, m+1)
+        ``eps``         : Parameter (scalar >= 0)  Wasserstein radius rho
+        ``kappa_param`` : Parameter (scalar >= 0)  label transport cost kappa
+        ``w``           : Parameter (N,)            sample/cluster weights
+    """
+    dat = cp.Parameter((N, m + 1))
+    eps = cp.Parameter(nonneg=True)
+    kappa_param = cp.Parameter(nonneg=True)
+    w = cp.Parameter(N, nonneg=True)
+
+    beta = cp.Variable(m)
+    lmbda = cp.Variable(nonneg=True)
+    s = cp.Variable(N)
+    z = cp.Variable(m, boolean=True)
+
+    X = dat[:, :m]
+    y = dat[:, m]
+    margins = cp.multiply(y, X @ beta)
+
+    objective = lmbda * eps + w @ s
+
+    constraints = [
+        s >= 1 - margins,
+        s >= 1 + margins - 2 * kappa_param * lmbda,
+        s >= 0,
+        cp.norm(beta, p) <= lmbda,
+        beta <= M_big * z,
+        beta >= -M_big * z,
+        cp.sum(z) <= k,
+    ]
+    problem = cp.Problem(cp.Minimize(objective), constraints)
+    return problem, beta, z, lmbda, s, dat, eps, kappa_param, w
+
+
+def worst_case_hinge_kappa(dat, m, beta, delta, kappa, weights=None, p=2):
+    """Worst-case expected hinge loss for fixed beta with finite label cost kappa.
+
+    Solves the scalar convex minimization over lambda:
+
+        V = min_{lambda >= ||beta||_p} lambda*delta
+              + sum_i w_i * max((1-m_i)_+, (1+m_i-2*kappa*lambda)_+)
+
+    where m_i = y_i * beta^T * x_i.  The objective is piecewise linear and
+    convex in lambda; scipy minimize_scalar finds the exact minimum.
+    When kappa is very large the flip terms vanish and V reduces to the
+    closed form delta*||beta||_p + empirical_hinge.
+    """
+    from scipy.optimize import minimize_scalar
+
+    X = dat[:, :m]
+    y = dat[:, m]
+    n = dat.shape[0]
+    if weights is None:
+        weights = np.ones(n) / n
+    margins = y * (X @ beta)
+    norm_beta = float(np.linalg.norm(beta, p))
+
+    def f(lam):
+        same = np.maximum(0.0, 1.0 - margins)
+        flip = np.maximum(0.0, 1.0 + margins - 2.0 * kappa * lam)
+        return lam * delta + float(np.dot(weights, np.maximum(same, flip)))
+
+    # Upper bound: all flip terms vanish once lam >= (1 + max margins) / (2 kappa).
+    if kappa > 0:
+        lam_upper = max(norm_beta, (1.0 + float(np.max(margins))) / (2.0 * kappa)) + 1.0
+    else:
+        lam_upper = norm_beta + 1.0
+    result = minimize_scalar(f, bounds=(norm_beta, lam_upper), method='bounded')
+    return float(result.fun)
+
+
+# --------------------------------------------------------------------------- #
 # Gurobi problem builders / solvers (p = 1)  -- raw gurobipy, no cvxpy
 # --------------------------------------------------------------------------- #
 # These solve the same DRO sparse-SVM best-subset MILP as ``createproblem_hingeMIO``
