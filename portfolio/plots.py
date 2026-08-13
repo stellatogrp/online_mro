@@ -110,7 +110,7 @@ def main():
         return os.path.join(args.results_dir + "_epsx", variant, tdir) + os.sep
 
     def _epsx_out(variant):
-        d = os.path.join(args.out_dir, variant + "_epsx", tdir) + os.sep
+        d = os.path.join(args.out_dir, "eps_extensions", variant, tdir) + os.sep
         os.makedirs(d, exist_ok=True)
         return d
 
@@ -128,7 +128,7 @@ def main():
         return os.path.join(args.results_dir + "_epsx2", variant, tdir) + os.sep
 
     def _epsx2_out(variant):
-        d = os.path.join(args.out_dir, variant + "_epsx2", tdir) + os.sep
+        d = os.path.join(args.out_dir, "eps_extensions", variant + "_2", tdir) + os.sep
         os.makedirs(d, exist_ok=True)
         return d
 

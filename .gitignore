@@ -12,3 +12,6 @@ slurm/logs/
 
 # internal working notes (kept local, not published)
 HANDOFF.md
+
+# raw experiment outputs (extension sweeps), like results/
+results_epsx*/

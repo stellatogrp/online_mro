@@ -147,11 +147,16 @@ def merge_eps_extension(df_dict, quant_dict, ext_foldername, ext_folderout,
     the extension runs share T/logging cadence with the main sweep by
     construction).  Missing/empty extension dirs are a silent no-op."""
     import os as _os
-    if not ext_foldername or not _os.path.isdir(ext_foldername):
+    have_raw = ext_foldername and _os.path.isdir(ext_foldername)
+    have_cache = ext_folderout and _os.path.isfile(
+        _os.path.join(ext_folderout, f'df_K{K}.csv'))
+    if not have_raw and not have_cache:
         return df_dict, quant_dict
+    # Re-aggregate from raw per-seed CSVs when present; otherwise fall back
+    # to the committed aggregate cache (fresh-clone reproducibility).
     ext_df, ext_q = setup_dfs(foldername=ext_foldername,
                               folderout=ext_folderout, K_list=[K],
-                              quant_list=list(quant_list), init=True)
+                              quant_list=list(quant_list), init=have_raw)
     if _pick(ext_df, K) is None or _pick(df_dict, K) is None:
         return df_dict, quant_dict
     df_dict = dict(df_dict)
