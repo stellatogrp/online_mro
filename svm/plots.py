@@ -210,6 +210,10 @@ def main():
     # gracefully (jstar=None, pct plot skipped) when the summary is absent.
     true_saa_summary_path = os.path.join(args.results_dir, "true_saa",
                                          "true_saa_summary.csv")
+    if not os.path.exists(true_saa_summary_path):
+        # fresh clone: raw results are not distributed; use the committed copy
+        true_saa_summary_path = os.path.join(args.out_dir, "true_saa",
+                                             "true_saa_summary.csv")
     true_ref = None
     jstar = None
     if os.path.exists(true_saa_summary_path):
