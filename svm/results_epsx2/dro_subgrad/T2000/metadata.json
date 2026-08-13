@@ -1,0 +1,26 @@
+{
+  "filename": "run.py",
+  "dataset": "ijcnn1",
+  "n_total": 141691,
+  "train_size": 118076,
+  "test_size": 23615,
+  "T": 2001,
+  "R": 30,
+  "m": 22,
+  "k": 10,
+  "interval": 1,
+  "N_init": 5,
+  "r_start": 0,
+  "power": 0.25,
+  "p": 1,
+  "eta": 0.1,
+  "solve_interval": 200,
+  "epsilon_values": [
+    0.3,
+    0.2,
+    0.15
+  ],
+  "num_epsilon_values": 3,
+  "num_random_seeds": 30,
+  "total_test_combinations": 90
+}

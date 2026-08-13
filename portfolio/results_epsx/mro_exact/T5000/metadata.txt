@@ -1,0 +1,20 @@
+# Run metadata
+
+- filename: run.py
+- K: 15
+- T: 5001
+- R: 30
+- m: 300
+- Q: 500
+- fixed_time: 5001
+- interval: 100
+- N_init: 5
+- rmse_mult: 1.25
+- cluster_interval: 1
+- r_start: 0
+- power: 0.05
+- epsilon_values: 0.02, 0.014, 0.01, 0.007, 0.005
+- num_epsilon_values: 5
+- num_random_seeds: 30
+- total_test_combinations: 150
+- box_q: 0.3

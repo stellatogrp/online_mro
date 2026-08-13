@@ -1,0 +1,14 @@
+.venv/
+__pycache__/
+*.pyc
+results/
+portfolio/results/
+svm/results/
+profiling/results/
+slurm/logs/
+*.pstats
+*.profile.txt
+*.summary.json
+
+# internal working notes (kept local, not published)
+HANDOFF.md
