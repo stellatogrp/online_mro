@@ -1,4 +1,42 @@
-# Online MRO — paper experiments
+# Fast Online Distributionally Robust Optimization via Data Compression
+
+This repository contains the numerical experiments for the paper:
+
+> **[Fast Online Distributionally Robust Optimization via Data Compression](https://arxiv.org/abs/2504.08097)**
+> [Irina Wang](https://sites.google.com/view/irina-wang/) and [Bartolomeo Stellato](https://stellato.io)
+
+**Abstract.** We propose an online data compression approach for efficiently
+solving Wasserstein distributionally robust optimization (DRO) problems with
+streaming data. Our method constructs adaptive ambiguity sets around a
+compressed distribution obtained by online clustering, so the problem size
+stays fixed as data accumulate. We construct a dynamic regret bound with
+respect to a one-step-ahead non-compressed DRO oracle, and establish online
+clustering conditions such that, with high probability, the regret converges
+sublinearly to a clustering-discrepancy-based performance gap. This gap is
+defined in terms of the discrepancies between the true and compressed
+distributions, so that by varying the number of clusters, our method trades
+off robustness against computational effort. We additionally provide fast
+subgradient-based updates that replace direct solutions of both the full and
+compressed problems, and extend the regret analysis to this setting.
+Numerical experiments on portfolio optimization and sparse support vector
+machine problems, including mixed-integer formulations, show over an order of
+magnitude reduction in cumulative computation time, even compared to
+non-robust methods, with minimal loss in solution quality.
+
+## Citation
+
+```bibtex
+@misc{wang2025fastonlinedro,
+  title  = {Fast Online Distributionally Robust Optimization via Data Compression},
+  author = {Wang, Irina and Stellato, Bartolomeo},
+  year   = {2025},
+  eprint = {2504.08097},
+  archivePrefix = {arXiv},
+  url    = {https://arxiv.org/abs/2504.08097},
+}
+```
+
+## Experiments
 
 Self-contained reproduction pipeline for the two paper experiments:
 
