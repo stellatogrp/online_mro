@@ -81,3 +81,14 @@ Re-profiled single-task walls (Mac, fit @ T=2001): mro subgrad 5.74 h -> ~50 s;
 dro subgrad 3.03 h -> ~45 s; mro exact 0.18 h -> ~40 s; dro exact 0.31 h
 (9.85 GB) -> ~10 min (<2 GB projected). Final production requests: portfolio
 subgrad/exact jobs 2-3 h; dro exact seed-split 8 h at 14 cpu x 12G.
+
+## Update: periodic re-anchoring (final)
+
+The portfolio subgradient variants re-anchor with an exact solve every
+`solve_interval` = 200 steps (plus early steps [5, 25, 50, 100]); the solve
+time is charged into the recorded per-iteration time. Measured cost per
+re-anchor at production sizes (m = 300): clustered problem (K = 15,
+Clarabel via CVXPY) ~0.13 s; full-sample problem (direct Clarabel,
+N = 2000) ~115 s, growing with N. At T = 5001 this adds minutes per task to
+the clustered variants and ~1-2 h per task to the full-sample subgradient
+variant (run as a one-seed-per-element array, 4 cpus x 10G, 12 h).
